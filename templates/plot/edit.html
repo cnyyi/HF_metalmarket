@@ -1,0 +1,270 @@
+{% extends "admin_base.html" %}
+
+{% block title %}编辑地块 - 宏发金属交易市场管理系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4"><i class="fa fa-edit"></i> 编辑地块</h2>
+            
+            <div class="card">
+                <div class="card-body">
+                    <form id="plotForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" id="image_path" name="image_path" value="">
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">地块编号 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="plot_code" id="plot_code" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">地块名称 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="plot_name" id="plot_name" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">地块类型 <span class="text-danger">*</span></label>
+                                <select class="form-select" name="plot_type" id="plot_type" required>
+                                    <option value="">请选择地块类型</option>
+                                    {% for dict_name, label, unit_price in plot_types %}
+                                    <option value="{{ dict_name }}" data-unit-price="{{ unit_price }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">面积(㎡) <span class="text-danger">*</span></label>
+                                <input type="number" step="0.01" class="form-control" name="area" id="area" required>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">单价(元/㎡/月) <span class="text-danger">*</span></label>
+                                <input type="number" step="0.01" class="form-control" name="price" id="price" readonly style="background-color: #e9ecef;" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">月租金(元)</label>
+                                <input type="text" class="form-control" id="monthly_rent" readonly style="background-color: #e9ecef;">
+                                <small class="text-muted">自动计算：面积 × 单价</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">年租金(元)</label>
+                                <input type="text" class="form-control" id="yearly_rent" readonly style="background-color: #e9ecef;">
+                                <small class="text-muted">自动计算：月租金 × 12</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">位置</label>
+                                <input type="text" class="form-control" name="location" id="location">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">状态</label>
+                                <select class="form-select" name="status" id="status">
+                                    <option value="空闲">空闲</option>
+                                    <option value="已出租">已出租</option>
+                                    <option value="维修中">维修中</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <textarea class="form-control" name="description" id="description" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">地块图片</label>
+                            <input type="file" class="form-control" name="image" accept="image/*" id="imageInput">
+                            <small class="text-muted">支持 PNG, JPG, JPEG, GIF, BMP, WEBP 格式</small>
+                        </div>
+                        
+                        <div class="mb-3" id="previewContainer" style="display: none;">
+                            <label class="form-label">图片预览</label>
+                            <div id="imagePreview"></div>
+                        </div>
+                        
+                        <div class="text-end">
+                            <a href="{{ url_for('plot.plot_list') }}" class="btn btn-secondary">取消</a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fa fa-save"></i> 保存
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var plotId = {{ plot_id }};
+
+function calculateRent() {
+    var area = parseFloat($('#area').val()) || 0;
+    var unitPrice = parseFloat($('#price').val()) || 0;
+    
+    var monthlyRent = area * unitPrice;
+    var yearlyRent = monthlyRent * 12;
+    
+    $('#monthly_rent').val(monthlyRent.toFixed(2));
+    $('#yearly_rent').val(yearlyRent.toFixed(2));
+}
+
+$('#plot_type').change(function() {
+    var selectedOption = $(this).find('option:selected');
+    var unitPrice = selectedOption.data('unit-price');
+    
+    if (unitPrice) {
+        $('#price').val(unitPrice);
+        calculateRent();
+    } else {
+        $('#price').val('');
+        $('#monthly_rent').val('');
+        $('#yearly_rent').val('');
+    }
+});
+
+$('#area').on('input', function() {
+    calculateRent();
+});
+
+function loadPlotData() {
+    $.ajax({
+        url: '/plot/detail/' + plotId,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                var plot = response.data;
+                $('#plot_code').val(plot.plot_code);
+                $('#plot_name').val(plot.plot_name);
+                $('#plot_type').val(plot.plot_type);
+                $('#area').val(plot.area);
+                $('#price').val(plot.price);
+                $('#location').val(plot.location || '');
+                $('#status').val(plot.status);
+                $('#description').val(plot.description || '');
+                $('#image_path').val(plot.image_path || '');
+                
+                calculateRent();
+                
+                if (plot.image_path) {
+                    var container = $('#imagePreview');
+                    container.empty();
+                    var div = $('<div style="position: relative; width: 200px; height: 200px; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;">');
+                    var img = $('<img src="' + plot.image_path + '" style="width: 100%; height: 100%; object-fit: cover;">');
+                    div.append(img);
+                    container.append(div);
+                    $('#previewContainer').show();
+                }
+            } else {
+                alert('加载地块数据失败: ' + response.message);
+            }
+        },
+        error: function() {
+            alert('加载地块数据失败');
+        }
+    });
+}
+
+$('#plotForm').submit(function(e) {
+    e.preventDefault();
+    
+    var formData = {
+        plot_code: $('#plot_code').val(),
+        plot_name: $('#plot_name').val(),
+        plot_type: $('#plot_type').val(),
+        area: $('#area').val(),
+        price: $('#price').val(),
+        location: $('#location').val(),
+        status: $('#status').val(),
+        description: $('#description').val(),
+        image_path: $('#image_path').val()
+    };
+    
+    $.ajax({
+        url: '/plot/edit/' + plotId,
+        method: 'POST',
+        contentType: 'application/json',
+        headers: {
+            'X-CSRFToken': $('meta[name="csrf-token"]').attr('content')
+        },
+        data: JSON.stringify(formData),
+        success: function(response) {
+            if (response.success) {
+                alert('更新成功');
+                window.location.href = '/plot/list';
+            } else {
+                alert('更新失败: ' + response.message);
+            }
+        },
+        error: function() {
+            alert('更新失败');
+        }
+    });
+});
+
+document.getElementById('imageInput').addEventListener('change', function(e) {
+    var preview = document.getElementById('imagePreview');
+    var container = document.getElementById('previewContainer');
+    preview.innerHTML = '';
+    
+    if (this.files && this.files.length > 0) {
+        var file = this.files[0];
+        if (!file.type.startsWith('image/')) {
+            return;
+        }
+        
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var div = document.createElement('div');
+            div.style.cssText = 'position: relative; width: 200px; height: 200px; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;';
+            
+            var img = document.createElement('img');
+            img.src = e.target.result;
+            img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
+            
+            div.appendChild(img);
+            preview.appendChild(div);
+            container.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+        
+        var uploadFormData = new FormData();
+        uploadFormData.append('image', file);
+        
+        fetch('/plot/upload_image/' + plotId, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': $('meta[name="csrf-token"]').attr('content')
+            },
+            body: uploadFormData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                $('#image_path').val(data.image_path);
+            } else {
+                alert('图片上传失败: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('图片上传失败');
+        });
+    } else {
+        container.style.display = 'none';
+    }
+});
+
+$(document).ready(function() {
+    loadPlotData();
+});
+</script>
+{% endblock %}

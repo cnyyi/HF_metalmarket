@@ -1,0 +1,70 @@
+{% extends "admin_base.html" %}
+
+{% block title %}编辑用户{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-user-edit"></i> 编辑用户
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('user.edit', user_id=user.user_id) }}">
+            {{ form.hidden_tag() }}
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    {{ form.username.label(class="form-label") }}
+                    {{ form.username(class="form-control", readonly="readonly") }}
+                </div>
+                
+                <div class="col-md-6">
+                    {{ form.real_name.label(class="form-label") }}
+                    {{ form.real_name(class="form-control", placeholder="请输入真实姓名") }}
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    {{ form.phone.label(class="form-label") }}
+                    {{ form.phone(class="form-control", placeholder="请输入电话号码") }}
+                </div>
+                
+                <div class="col-md-6">
+                    {{ form.email.label(class="form-label") }}
+                    {{ form.email(class="form-control", placeholder="请输入邮箱地址") }}
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    {{ form.roles.label(class="form-label") }}
+                    {{ form.roles(class="form-select", multiple="multiple", size="5") }}
+                </div>
+                
+                <div class="col-md-6">
+                    {{ form.merchant_id.label(class="form-label") }}
+                    {{ form.merchant_id(class="form-select") }}
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                {{ form.is_active.label(class="form-label") }}
+                <div class="form-check">
+                    {{ form.is_active(class="form-check-input") }}
+                    <label class="form-check-label" for="is_active">启用</label>
+                </div>
+            </div>
+            
+            <div class="text-center">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa fa-save"></i> 保存
+                </button>
+                <a href="{{ url_for('user.user_list') }}" class="btn btn-secondary ms-2">
+                    <i class="fa fa-arrow-left"></i> 返回
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

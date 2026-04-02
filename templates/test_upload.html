@@ -1,0 +1,306 @@
+{% extends "admin_base.html" %}
+
+{% block title %}测试上传 - 宏发金属交易市场管理系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4"><i class="fa fa-test"></i> 上传测试页面</h2>
+            
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5>诊断信息</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>CSRF Token:</strong> <span id="csrf_check"></span></p>
+                    <p><strong>jQuery版本:</strong> <span id="jquery_check"></span></p>
+                    <p><strong>浏览器:</strong> <span id="browser_check"></span></p>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-body">
+                    <form id="testForm">
+                        <div class="mb-3">
+                            <label class="form-label">测试文件上传</label>
+                            <div class="upload-area" id="uploadArea">
+                                <div class="upload-btn" id="uploadBtn">
+                                    <i class="fa fa-cloud-upload fa-2x"></i>
+                                    <p>点击或拖拽图片到此处上传</p>
+                                    <small class="text-muted">支持 PNG, JPG, JPEG, GIF, BMP, WEBP 格式</small>
+                                </div>
+                                <input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
+                            </div>
+                            <div class="preview-area mt-3" id="previewArea">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">上传日志</label>
+                            <textarea class="form-control" id="logArea" rows="10" readonly></textarea>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.upload-area {
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.upload-area:hover, .upload-area.dragover {
+    border-color: #0d6efd;
+    background-color: #f8f9fa;
+}
+
+.upload-btn {
+    color: #6c757d;
+}
+
+.upload-btn i {
+    color: #0d6efd;
+}
+
+.preview-area {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.preview-item {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.preview-item .remove-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 24px;
+    height: 24px;
+    background: rgba(220, 53, 69, 0.9);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+
+.preview-item .uploading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+.preview-item .upload-success {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(25, 135, 84, 0.9);
+    color: white;
+    font-size: 12px;
+    padding: 2px 5px;
+    text-align: center;
+}
+
+.preview-item .upload-error {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(220, 53, 69, 0.9);
+    color: white;
+    font-size: 12px;
+    padding: 2px 5px;
+    text-align: center;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function log(message) {
+    var timestamp = new Date().toLocaleTimeString();
+    $('#logArea').append('[' + timestamp + '] ' + message + '\n');
+    console.log(message);
+}
+
+$(document).ready(function() {
+    log('页面加载完成');
+    
+    log('检查CSRF Token...');
+    var csrfToken = $('meta[name="csrf-token"]').attr('content');
+    if (csrfToken) {
+        $('#csrf_check').html('<span class="text-success">✓ 存在</span> - ' + csrfToken.substring(0, 20) + '...');
+        log('CSRF Token: ' + csrfToken.substring(0, 20) + '...');
+    } else {
+        $('#csrf_check').html('<span class="text-danger">✗ 不存在</span>');
+        log('错误: CSRF Token不存在!');
+    }
+    
+    log('检查jQuery...');
+    $('#jquery_check').text($.fn.jquery);
+    log('jQuery版本: ' + $.fn.jquery);
+    
+    log('检查浏览器...');
+    $('#browser_check').text(navigator.userAgent);
+    log('浏览器: ' + navigator.userAgent);
+    
+    log('绑定上传区域点击事件...');
+    $('#uploadBtn, #uploadArea').click(function(e) {
+        log('上传区域被点击');
+        e.stopPropagation();
+        $('#fileInput').click();
+    });
+    
+    log('绑定拖拽事件...');
+    $('#uploadArea').on('dragover', function(e) {
+        e.preventDefault();
+        $(this).addClass('dragover');
+        log('拖拽文件进入区域');
+    });
+    
+    $('#uploadArea').on('dragleave', function(e) {
+        e.preventDefault();
+        $(this).removeClass('dragover');
+        log('拖拽文件离开区域');
+    });
+    
+    $('#uploadArea').on('drop', function(e) {
+        e.preventDefault();
+        $(this).removeClass('dragover');
+        log('文件被拖放');
+        var files = e.originalEvent.dataTransfer.files;
+        log('拖放了 ' + files.length + ' 个文件');
+        handleFiles(files);
+    });
+    
+    log('绑定文件输入变化事件...');
+    $('#fileInput').change(function() {
+        log('文件输入变化');
+        var files = this.files;
+        log('选择了 ' + files.length + ' 个文件');
+        handleFiles(files);
+    });
+    
+    log('事件绑定完成，上传控件已就绪');
+    
+    function handleFiles(files) {
+        log('处理 ' + files.length + ' 个文件');
+        for (var i = 0; i < files.length; i++) {
+            var file = files[i];
+            log('文件 ' + (i+1) + ': ' + file.name + ' (' + file.type + ', ' + file.size + ' bytes)');
+            
+            if (!file.type.startsWith('image/')) {
+                log('错误: 不是图片文件 - ' + file.type);
+                alert('只能上传图片文件');
+                continue;
+            }
+            uploadFile(file);
+        }
+    }
+    
+    function uploadFile(file) {
+        log('开始上传: ' + file.name);
+        var previewId = 'preview_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        var previewHtml = '<div class="preview-item" id="' + previewId + '">' +
+            '<img src="' + URL.createObjectURL(file) + '">' +
+            '<div class="uploading"><i class="fa fa-spinner fa-spin"></i> 上传中...</div>' +
+            '</div>';
+        $('#previewArea').append(previewHtml);
+        
+        var formData = new FormData();
+        formData.append('file', file);
+        formData.append('biz_type', 'Plot');
+        
+        log('发送AJAX请求到 /file/upload');
+        $.ajax({
+            url: '/file/upload',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            success: function(response) {
+                log('上传响应: ' + JSON.stringify(response));
+                if (response.success) {
+                    $('#' + previewId).find('.uploading').remove();
+                    $('#' + previewId).append('<div class="upload-success">上传成功</div>');
+                    $('#' + previewId).append('<button type="button" class="remove-btn" data-file-id="' + response.data.file_id + '"><i class="fa fa-times"></i></button>');
+                    log('上传成功: file_id=' + response.data.file_id);
+                } else {
+                    $('#' + previewId).find('.uploading').html('上传失败');
+                    $('#' + previewId).append('<div class="upload-error">' + response.message + '</div>');
+                    log('上传失败: ' + response.message);
+                }
+            },
+            error: function(xhr, status, error) {
+                log('AJAX错误: ' + status + ' - ' + error);
+                log('响应内容: ' + xhr.responseText);
+                $('#' + previewId).find('.uploading').html('上传失败');
+                $('#' + previewId).append('<div class="upload-error">网络错误: ' + error + '</div>');
+            }
+        });
+    }
+    
+    $(document).on('click', '.remove-btn', function() {
+        var fileId = $(this).data('file-id');
+        var previewItem = $(this).closest('.preview-item');
+        log('删除文件: ' + fileId);
+        
+        $.ajax({
+            url: '/file/delete/' + fileId,
+            type: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            success: function(response) {
+                log('删除响应: ' + JSON.stringify(response));
+                if (response.success) {
+                    previewItem.remove();
+                    log('删除成功');
+                } else {
+                    alert(response.message);
+                }
+            },
+            error: function(xhr, status, error) {
+                log('删除错误: ' + error);
+                alert('删除失败');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

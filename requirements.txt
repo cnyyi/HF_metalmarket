@@ -1,0 +1,47 @@
+# 宏发金属交易市场管理系统 - 依赖包列表
+
+# Flask框架
+flask
+flask-login
+flask-wtf
+# flask-migrate  # 暂时注释，避免SQLAlchemy兼容性问题
+flask-session
+
+# 数据库相关
+pyodbc
+SQLAlchemy
+# pymssql  # 暂时注释，避免编译问题
+
+
+# 表单验证
+wtforms
+
+# 模板处理
+jinja2
+docxtpl
+
+# 日期时间处理
+python-dateutil
+
+# 文件处理
+python-docx
+openpyxl
+
+# 微信集成
+requests
+wechatpy
+
+# 安全相关
+passlib
+bcrypt
+cryptography
+
+# 工具库
+# numpy  # 暂时注释，Python 3.14兼容性问题
+# pandas  # 暂时注释，依赖numpy
+
+# 开发工具
+python-dotenv
+ipython
+flake8
+pytest

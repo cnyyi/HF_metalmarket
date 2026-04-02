@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% endblock %} - 商户中心 - 宏发金属交易市场</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- 页面特定CSS -->
+    {% block extra_css %}{% endblock %}
+    
+    <style>
+        body {
+            padding-top: 70px;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 20px 0;
+            margin-top: 40px;
+        }
+        .merchant-nav {
+            background-color: #27ae60;
+        }
+        .sidebar {
+            background-color: #f8f9fa;
+            min-height: calc(100vh - 140px);
+            padding: 20px;
+        }
+        .sidebar .nav-link {
+            color: #333;
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+        }
+        .sidebar .nav-link:hover {
+            background-color: #e9ecef;
+        }
+        .sidebar .nav-link.active {
+            background-color: #27ae60;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- 
+        商户端母版模板 - 预留框架
+        
+        功能说明：
+        - 包含商户特定的权限控制功能
+        - 设计为商户端专用的页面布局
+        - 与商户权限体系相匹配的访问控制机制
+        
+        待开发功能：
+        - 商户信息展示
+        - 商户特定功能菜单
+        - 商户数据统计面板
+        - 商户订单/合同管理
+        - 商户财务信息
+    -->
+    
+    <!-- 导航栏 - 商户端专用 -->
+    <nav class="navbar navbar-expand-lg navbar-dark merchant-nav fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fa fa-store"></i> 商户中心 - 宏发金属交易市场
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#merchantNavbar" aria-controls="merchantNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="merchantNavbar">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">
+                            <i class="fa fa-home"></i> 首页
+                        </a>
+                    </li>
+                    
+                    {% if current_user.is_authenticated %}
+                        <!-- TODO: 商户特定功能菜单 - 待根据商户权限体系开发 -->
+                        
+                        <!-- 我的合同 -->
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">
+                                <i class="fa fa-file-text"></i> 我的合同
+                            </a>
+                        </li>
+                        
+                        <!-- 水电费用 -->
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">
+                                <i class="fa fa-tint"></i> 水电费用
+                            </a>
+                        </li>
+                        
+                        <!-- 财务账单 -->
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">
+                                <i class="fa fa-money"></i> 财务账单
+                            </a>
+                        </li>
+                        
+                        <!-- 过磅记录 -->
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">
+                                <i class="fa fa-balance-scale"></i> 过磅记录
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+                
+                <!-- 商户用户菜单 -->
+                <ul class="navbar-nav">
+                    {% if current_user.is_authenticated %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fa fa-user-circle"></i> 
+                                {# TODO: 显示商户名称 #}
+                                {{ current_user.real_name }}
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="#"><i class="fa fa-building"></i> 商户信息</a></li>
+                                <li><a class="dropdown-item" href="#"><i class="fa fa-user"></i> 个人信息</a></li>
+                                <li><a class="dropdown-item" href="#"><i class="fa fa-key"></i> 修改密码</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="fa fa-sign-out"></i> 退出登录</a></li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('auth.login') }}"><i class="fa fa-sign-in"></i> 登录</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容区域 - 带侧边栏布局 -->
+    <div class="container-fluid">
+        <div class="row">
+            <!-- 侧边栏 - 可选 -->
+            {% block sidebar %}
+            <div class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted">
+                        <span>功能菜单</span>
+                    </h6>
+                    <ul class="nav flex-column">
+                        <!-- TODO: 待根据商户权限体系添加侧边栏菜单 -->
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#">
+                                <i class="fa fa-tachometer"></i> 数据概览
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">
+                                <i class="fa fa-file-text"></i> 合同管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">
+                                <i class="fa fa-tint"></i> 水电管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">
+                                <i class="fa fa-money"></i> 财务管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">
+                                <i class="fa fa-balance-scale"></i> 过磅记录
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            {% endblock %}
+            
+            <!-- 主内容区 -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <!-- 页面标题区域 -->
+                <div class="row mt-4 mb-3">
+                    <div class="col-md-12">
+                        <h2>{% block page_header %}{% endblock %}</h2>
+                        <hr>
+                    </div>
+                </div>
+                
+                <!-- 消息提示 -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                <!-- 页面内容区域 -->
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer mt-auto py-4">
+        <div class="container text-center">
+            <p class="text-muted mb-0">
+                <i class="fa fa-copyright"></i> 2026 宏发金属交易市场 - 商户中心. 保留所有权利.
+            </p>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="{{ url_for('static', filename='js/jquery-4.0.0.min.js') }}"></script>
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 页面特定JS -->
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

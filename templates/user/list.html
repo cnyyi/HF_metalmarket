@@ -1,0 +1,116 @@
+{% extends "admin_base.html" %}
+
+{% block title %}用户列表{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-users"></i> 用户管理
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col-md-6">
+                <h5 class="card-title mb-0">用户列表</h5>
+            </div>
+            <div class="col-md-6 text-end">
+                {% if current_user.has_permission('user_manage') %}
+                <a href="{{ url_for('user.add') }}" class="btn btn-primary">
+                    <i class="fa fa-plus"></i> 添加用户
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- 搜索栏 -->
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <form method="GET" action="{{ url_for('user.user_list') }}">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fa fa-search"></i></span>
+                        <input type="text" class="form-control" placeholder="搜索用户名或姓名" name="search" value="{{ search }}">
+                        <button type="submit" class="btn btn-primary">搜索</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- 数据表格 -->
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>用户名</th>
+                        <th>真实姓名</th>
+                        <th>电话</th>
+                        <th>邮箱</th>
+                        <th>角色</th>
+                        <th>状态</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.user_id }}</td>
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.real_name }}</td>
+                        <td>{{ user.phone }}</td>
+                        <td>{{ user.email }}</td>
+                        <td>
+                            {% for role in user.roles %}
+                            <span class="badge bg-info">{{ role.role_name }}</span>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            {% if user.is_active %}
+                            <span class="badge bg-success">正常</span>
+                            {% else %}
+                            <span class="badge bg-danger">禁用</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ user.create_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td class="table-actions">
+                            {% if current_user.has_permission('user_manage') %}
+                            <a href="{{ url_for('user.edit', user_id=user.user_id) }}" class="btn btn-sm btn-warning" title="编辑">
+                                <i class="fa fa-edit"></i>
+                            </a>
+                            <a href="{{ url_for('user.delete', user_id=user.user_id) }}" class="btn btn-sm btn-danger" title="删除" onclick="return confirm('确定要删除这个用户吗？');">
+                                <i class="fa fa-trash"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted">暂无数据</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 分页控件 -->
+        {% if total_pages > 1 %}
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center">
+                <li class="page-item {% if page == 1 %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('user.user_list', page=page-1, search=search) }}">上一页</a>
+                </li>
+                {% for i in range(1, total_pages + 1) %}
+                <li class="page-item {% if page == i %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('user.user_list', page=i, search=search) }}">{{ i }}</a>
+                </li>
+                {% endfor %}
+                <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('user.user_list', page=page+1, search=search) }}">下一页</a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

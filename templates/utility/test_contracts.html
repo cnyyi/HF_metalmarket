@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>测试合同接口</title>
+    <script src="{{ url_for('static', filename='js/jquery-4.0.0.min.js') }}"></script>
+</head>
+<body>
+    <h1>测试合同接口</h1>
+    <button onclick="testContracts()">测试 /utility/contracts 接口</button>
+    <pre id="result"></pre>
+
+    <script>
+        function testContracts() {
+            $.ajax({
+                url: '/utility/contracts',
+                method: 'GET',
+                success: function(response) {
+                    $('#result').text('成功！\n\n' + JSON.stringify(response, null, 2));
+                    console.log('响应:', response);
+                },
+                error: function(xhr, status, error) {
+                    $('#result').text('失败！\n\n状态：' + status + '\n错误：' + error + '\n\n响应：' + xhr.responseText);
+                    console.error('错误:', error);
+                }
+            });
+        }
+    </script>
+</body>
+</html>

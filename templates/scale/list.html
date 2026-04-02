@@ -1,0 +1,46 @@
+{% extends "admin_base.html" %}
+
+{% block title %}磅秤列表{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-balance-scale"></i> 磅秤管理
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col-md-6">
+                <h5 class="card-title mb-0">磅秤列表</h5>
+            </div>
+            <div class="col-md-6 text-end">
+                <a href="{{ url_for('scale.records') }}" class="btn btn-info">
+                    <i class="fa fa-list"></i> 过磅记录
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- 数据表格 -->
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>磅秤编号</th>
+                        <th>名称</th>
+                        <th>位置</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">暂无数据</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

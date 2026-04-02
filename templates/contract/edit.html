@@ -1,0 +1,447 @@
+{% extends "admin_base.html" %}
+
+{% block title %}编辑合同 - 宏发金属交易市场管理系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4"><i class="fa fa-edit"></i> 编辑合同</h2>
+            
+            <div class="card">
+                <div class="card-body">
+                    <form id="contractForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" id="contract_id" value="{{ contract_id }}">
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">合同期年</label>
+                                <input type="text" class="form-control" id="period" readonly style="background-color: #e9ecef;">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">商户</label>
+                                <input type="text" class="form-control" id="merchant_display" readonly style="background-color: #e9ecef;">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">合同编号</label>
+                                <input type="text" class="form-control" id="contract_number" readonly style="background-color: #e9ecef;">
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">开始日期 <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="start_date" name="start_date" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">结束日期 <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="end_date" name="end_date" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">合同状态 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="status" name="status" required>
+                                    <option value="有效">有效</option>
+                                    <option value="已到期">已到期</option>
+                                    <option value="已终止">已终止</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <label class="form-label">选择地块 <span class="text-danger">*</span></label>
+                                <div class="mb-2">
+                                    <input type="text" class="form-control form-control-sm d-inline-block" id="plotSearch" placeholder="搜索地块编号或名称" style="width: 200px;">
+                                    <small class="text-muted ms-2">支持多选</small>
+                                </div>
+                                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                                    <table class="table table-sm table-hover" id="plotTable">
+                                        <thead class="table-light sticky-top">
+                                            <tr>
+                                                <th style="width: 40px;"><input type="checkbox" id="selectAllPlots"></th>
+                                                <th>地块编号</th>
+                                                <th>图示</th>
+                                                <th>面积(㎡)</th>
+                                                <th>单价(元/㎡/月)</th>
+                                                <th>月租金(元)</th>
+                                                <th>年租金(元)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="plotTableBody">
+                                            <tr>
+                                                <td colspan="7" class="text-center text-muted">加载中...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <label class="form-label">已选地块</label>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered" id="selectedPlotTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>地块编号</th>
+                                                <th>图示</th>
+                                                <th>面积(㎡)</th>
+                                                <th>单价(元/㎡/月)</th>
+                                                <th>月租金(元)</th>
+                                                <th>年租金(元)</th>
+                                                <th style="width: 60px;">操作</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="selectedPlotBody">
+                                            <tr>
+                                                <td colspan="7" class="text-center text-muted">暂无已选地块</td>
+                                            </tr>
+                                        </tbody>
+                                        <tfoot id="selectedPlotFoot" style="display: none;">
+                                            <tr class="table-info fw-bold">
+                                                <td colspan="5" class="text-end">合计：</td>
+                                                <td id="totalYearlyRent">0.00</td>
+                                                <td></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">地块年租金合计(元)</label>
+                                <input type="text" class="form-control" id="total_rent" readonly style="background-color: #e9ecef;" value="0.00">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">租金增减(元)</label>
+                                <input type="number" step="0.01" class="form-control" id="rent_adjust" name="rent_adjust" value="0" placeholder="正数为增，负数为减">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">合同租金(元)</label>
+                                <input type="text" class="form-control" id="contract_rent" readonly style="background-color: #e9ecef;" value="0.00">
+                                <small class="text-muted">合同租金 = 地块年租金合计 + 租金增减</small>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="text-end">
+                            <a href="{{ url_for('contract.contract_list') }}" class="btn btn-secondary">取消</a>
+                            <button type="submit" class="btn btn-primary" id="submitBtn">
+                                <i class="fa fa-save"></i> 保存
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var selectedPlots = [];
+var allPlots = [];
+var contractId = {{ contract_id }};
+var currentPeriod = '';
+
+function loadContractData() {
+    $.ajax({
+        url: '/contract/detail/' + contractId,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                var contract = response.data;
+                
+                $('#contract_number').val(contract.contract_number);
+                $('#period').val(contract.contract_period);
+                $('#merchant_display').val(contract.merchant_name);
+                $('#start_date').val(contract.start_date);
+                $('#end_date').val(contract.end_date);
+                $('#status').val(contract.status);
+                $('#rent_adjust').val(contract.amount_reduction);
+                $('#description').val(contract.description);
+                
+                currentPeriod = contract.contract_period;
+                
+                if (contract.plots && contract.plots.length > 0) {
+                    contract.plots.forEach(function(plot) {
+                        selectedPlots.push(plot);
+                    });
+                }
+                
+                loadAvailablePlots();
+            } else {
+                alert('加载合同数据失败: ' + response.message);
+            }
+        },
+        error: function() {
+            alert('请求失败，请稍后重试');
+        }
+    });
+}
+
+function loadAvailablePlots() {
+    if (!currentPeriod) {
+        $('#plotTableBody').html('<tr><td colspan="7" class="text-center text-muted">无合同期年信息</td></tr>');
+        renderSelectedPlots();
+        calculateTotal();
+        return;
+    }
+    
+    $.ajax({
+        url: '/contract/plots/' + encodeURIComponent(currentPeriod),
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                allPlots = response.data;
+                
+                selectedPlots.forEach(function(selectedPlot) {
+                    var exists = allPlots.some(function(p) { return p.plot_id === selectedPlot.plot_id; });
+                    if (!exists) {
+                        allPlots.push(selectedPlot);
+                    }
+                });
+                
+                renderPlotTable(allPlots);
+                renderSelectedPlots();
+                calculateTotal();
+            }
+        },
+        error: function() {
+            $('#plotTableBody').html('<tr><td colspan="7" class="text-center text-danger">加载失败</td></tr>');
+        }
+    });
+}
+
+function renderPlotTable(plots) {
+    var tbody = $('#plotTableBody');
+    tbody.empty();
+    
+    if (plots.length === 0) {
+        tbody.append('<tr><td colspan="7" class="text-center text-muted">暂无可用地块</td></tr>');
+        return;
+    }
+    
+    plots.forEach(function(plot) {
+        var isSelected = selectedPlots.some(function(p) { return p.plot_id === plot.plot_id; });
+        var checkedAttr = isSelected ? ' checked' : '';
+        
+        var row = '<tr>' +
+            '<td><input type="checkbox" class="plot-checkbox" data-id="' + plot.plot_id + '"' + checkedAttr + '></td>' +
+            '<td>' + plot.plot_number + '</td>' +
+            '<td>';
+        
+        if (plot.image_path) {
+            row += '<img src="' + plot.image_path + '" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;" alt="地块图片">';
+        } else {
+            row += '<span class="text-muted">无图</span>';
+        }
+        
+        row += '</td>' +
+            '<td>' + plot.area.toFixed(2) + '</td>' +
+            '<td>' + plot.unit_price.toFixed(2) + '</td>' +
+            '<td>' + plot.monthly_rent.toFixed(2) + '</td>' +
+            '<td>' + plot.yearly_rent.toFixed(2) + '</td>' +
+        '</tr>';
+        
+        tbody.append(row);
+    });
+}
+
+$(document).on('change', '.plot-checkbox', function() {
+    var plotId = parseInt($(this).data('id'));
+    
+    if ($(this).is(':checked')) {
+        var plot = allPlots.find(function(p) { return p.plot_id === plotId; });
+        if (plot && !selectedPlots.some(function(p) { return p.plot_id === plotId; })) {
+            selectedPlots.push(plot);
+        }
+    } else {
+        selectedPlots = selectedPlots.filter(function(p) { return p.plot_id !== plotId; });
+    }
+    
+    renderSelectedPlots();
+    calculateTotal();
+});
+
+$('#selectAllPlots').change(function() {
+    var checked = $(this).is(':checked');
+    $('.plot-checkbox').prop('checked', checked).each(function() {
+        var plotId = parseInt($(this).data('id'));
+        if (checked) {
+            var plot = allPlots.find(function(p) { return p.plot_id === plotId; });
+            if (plot && !selectedPlots.some(function(p) { return p.plot_id === plotId; })) {
+                selectedPlots.push(plot);
+            }
+        } else {
+            selectedPlots = selectedPlots.filter(function(p) { return p.plot_id !== plotId; });
+        }
+    });
+    renderSelectedPlots();
+    calculateTotal();
+});
+
+function renderSelectedPlots() {
+    var tbody = $('#selectedPlotBody');
+    var tfoot = $('#selectedPlotFoot');
+    tbody.empty();
+    
+    if (selectedPlots.length === 0) {
+        tbody.append('<tr><td colspan="7" class="text-center text-muted">暂无已选地块</td></tr>');
+        tfoot.hide();
+        return;
+    }
+    
+    selectedPlots.forEach(function(plot) {
+        var row = '<tr>' +
+            '<td>' + plot.plot_number + '</td>' +
+            '<td>';
+        
+        if (plot.image_path) {
+            row += '<img src="' + plot.image_path + '" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;" alt="地块图片">';
+        } else {
+            row += '<span class="text-muted">无图</span>';
+        }
+        
+        row += '</td>' +
+            '<td>' + plot.area.toFixed(2) + '</td>' +
+            '<td>' + plot.unit_price.toFixed(2) + '</td>' +
+            '<td>' + plot.monthly_rent.toFixed(2) + '</td>' +
+            '<td>' + plot.yearly_rent.toFixed(2) + '</td>' +
+            '<td><button type="button" class="btn btn-sm btn-outline-danger remove-plot" data-id="' + plot.plot_id + '"><i class="fa fa-times"></i></button></td>' +
+        '</tr>';
+        
+        tbody.append(row);
+    });
+    
+    tfoot.show();
+}
+
+$(document).on('click', '.remove-plot', function() {
+    var plotId = parseInt($(this).data('id'));
+    selectedPlots = selectedPlots.filter(function(p) { return p.plot_id !== plotId; });
+    $('.plot-checkbox[data-id="' + plotId + '"]').prop('checked', false);
+    renderSelectedPlots();
+    calculateTotal();
+});
+
+function calculateTotal() {
+    var totalYearlyRent = 0;
+    selectedPlots.forEach(function(plot) {
+        totalYearlyRent += plot.yearly_rent;
+    });
+    
+    $('#totalYearlyRent').text(totalYearlyRent.toFixed(2));
+    $('#total_rent').val(totalYearlyRent.toFixed(2));
+    
+    var rentAdjust = parseFloat($('#rent_adjust').val()) || 0;
+    var contractRent = totalYearlyRent + rentAdjust;
+    $('#contract_rent').val(contractRent.toFixed(2));
+}
+
+$('#rent_adjust').on('input', function() {
+    calculateTotal();
+});
+
+$('#plotSearch').on('input', function() {
+    var keyword = $(this).val().toLowerCase();
+    var filtered = allPlots.filter(function(plot) {
+        return plot.plot_number.toLowerCase().indexOf(keyword) > -1 ||
+               (plot.plot_name && plot.plot_name.toLowerCase().indexOf(keyword) > -1);
+    });
+    renderPlotTable(filtered);
+});
+
+$('#start_date, #end_date').change(function() {
+    var startDate = $('#start_date').val();
+    var endDate = $('#end_date').val();
+    
+    if (startDate && endDate && endDate <= startDate) {
+        alert('结束日期必须晚于开始日期');
+        if ($(this).attr('id') === 'end_date') {
+            $(this).val('');
+        }
+    }
+});
+
+$('#contractForm').submit(function(e) {
+    e.preventDefault();
+    
+    var startDate = $('#start_date').val();
+    var endDate = $('#end_date').val();
+    var status = $('#status').val();
+    var rentAdjust = $('#rent_adjust').val() || 0;
+    var description = $('#description').val();
+    
+    if (!startDate) {
+        alert('请选择开始日期');
+        return;
+    }
+    if (!endDate) {
+        alert('请选择结束日期');
+        return;
+    }
+    if (endDate <= startDate) {
+        alert('结束日期必须晚于开始日期');
+        return;
+    }
+    if (selectedPlots.length === 0) {
+        alert('请选择至少一个地块');
+        return;
+    }
+    
+    var plotIds = selectedPlots.map(function(p) { return p.plot_id; });
+    
+    var formData = {
+        start_date: startDate,
+        end_date: endDate,
+        status: status,
+        plot_ids: plotIds,
+        rent_adjust: parseFloat(rentAdjust),
+        description: description
+    };
+    
+    $('#submitBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> 提交中...');
+    
+    $.ajax({
+        url: '/contract/edit/' + contractId,
+        method: 'POST',
+        contentType: 'application/json',
+        headers: {
+            'X-CSRFToken': $('meta[name="csrf-token"]').attr('content')
+        },
+        data: JSON.stringify(formData),
+        success: function(response) {
+            if (response.success) {
+                alert('合同更新成功！');
+                window.location.href = '/contract/list';
+            } else {
+                alert('更新失败：' + response.message);
+                $('#submitBtn').prop('disabled', false).html('<i class="fa fa-save"></i> 保存');
+            }
+        },
+        error: function() {
+            alert('提交失败，请稍后重试');
+            $('#submitBtn').prop('disabled', false).html('<i class="fa fa-save"></i> 保存');
+        }
+    });
+});
+
+$(document).ready(function() {
+    loadContractData();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,190 @@
+{% extends "admin_base.html" %}
+
+{% block title %}合同详情 - 宏发金属交易市场管理系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fa fa-file-text"></i> 合同详情</h2>
+                <div>
+                    <a href="/contract/list" class="btn btn-secondary">
+                        <i class="fa fa-arrow-left"></i> 返回列表
+                    </a>
+                    <a href="/contract/edit/{{ contract_id }}" class="btn btn-primary">
+                        <i class="fa fa-edit"></i> 编辑
+                    </a>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">基本信息</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="contractInfo">
+                        <div class="col-12 text-center text-muted">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">地块信息</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped" id="plotTable">
+                            <thead>
+                                <tr>
+                                    <th>序号</th>
+                                    <th>地块编号</th>
+                                    <th>图示</th>
+                                    <th>面积 (㎡)</th>
+                                    <th>单价 (元/㎡/月)</th>
+                                    <th>月租金 (元)</th>
+                                    <th>年租金 (元)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="plotTableBody">
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">加载中...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function formatCurrency(amount) {
+    return parseFloat(amount).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
+}
+
+function loadContractDetail() {
+    $.ajax({
+        url: '/contract/detail/{{ contract_id }}',
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                var contract = response.data;
+                var infoHtml = `
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="text-muted small">合同编号</label>
+                            <div class="fw-bold">${contract.contract_number}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small">合同名称</label>
+                            <div class="fw-bold">${contract.contract_name}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small">合同状态</label>
+                            <div><span class="badge ${contract.status === '有效' ? 'bg-success' : 'bg-secondary'}">${contract.status}</span></div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="text-muted small">商户名称</label>
+                            <div>${contract.merchant_name}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small">联系人</label>
+                            <div>${contract.contact_person || '-'}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small">合同期年</label>
+                            <div>${contract.contract_period || '-'}</div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="text-muted small">开始日期</label>
+                            <div>${contract.start_date || '-'}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small">结束日期</label>
+                            <div>${contract.end_date || '-'}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small">创建时间</label>
+                            <div>${contract.create_time || '-'}</div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="text-muted small">地块年租金合计</label>
+                            <div class="text-end">¥${formatCurrency(contract.contract_amount)}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small">租金增减</label>
+                            <div class="text-end">¥${formatCurrency(contract.amount_reduction)}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small">合同租金</label>
+                            <div class="text-end fw-bold text-primary">¥${formatCurrency(contract.actual_amount)}</div>
+                        </div>
+                    </div>
+                    ${contract.description ? `
+                    <div class="row">
+                        <div class="col-12">
+                            <label class="text-muted small">备注</label>
+                            <div class="border rounded p-3 bg-light">${contract.description}</div>
+                        </div>
+                    </div>
+                    ` : ''}
+                `;
+                $('#contractInfo').html(infoHtml);
+                
+                if (contract.plots && contract.plots.length > 0) {
+                    var plotBody = $('#plotTableBody');
+                    plotBody.empty();
+                    
+                    contract.plots.forEach(function(plot, index) {
+                        var row = '<tr>' +
+                            '<td>' + (index + 1) + '</td>' +
+                            '<td>' + plot.plot_number + '</td>' +
+                            '<td>';
+                        
+                        if (plot.image_path) {
+                            row += '<img src="' + plot.image_path + '" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;" alt="地块图片">';
+                        } else {
+                            row += '<span class="text-muted">无图</span>';
+                        }
+                        
+                        row += '</td>' +
+                            '<td>' + plot.area.toFixed(2) + '</td>' +
+                            '<td>' + plot.unit_price.toFixed(2) + '</td>' +
+                            '<td>' + plot.monthly_rent.toFixed(2) + '</td>' +
+                            '<td>' + plot.yearly_rent.toFixed(2) + '</td>' +
+                        '</tr>';
+                        plotBody.append(row);
+                    });
+                } else {
+                    $('#plotTableBody').html('<tr><td colspan="7" class="text-center text-muted">暂无地块信息</td></tr>');
+                }
+            } else {
+                $('#contractInfo').html('<div class="text-center text-danger">加载失败：' + response.message + '</div>');
+            }
+        },
+        error: function() {
+            $('#contractInfo').html('<div class="text-center text-danger">请求失败，请刷新页面重试</div>');
+        }
+    });
+}
+
+$(document).ready(function() {
+    loadContractDetail();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,114 @@
+{% extends "admin_base.html" %}
+
+{% block title %}添加商户{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-building"></i> 添加商户
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('merchant.add') }}" enctype="multipart/form-data">
+            {{ form.hidden_tag() }}
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    {{ form.merchant_name.label(class="form-label") }}
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fa fa-building-o"></i></span>
+                        {{ form.merchant_name(class="form-control", placeholder="请输入商户名称", **{"required": "required"}) }}
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    {{ form.legal_person.label(class="form-label") }}
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fa fa-user"></i></span>
+                        {{ form.legal_person(class="form-control", placeholder="请输入法人代表", **{"required": "required"}) }}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    {{ form.contact_person.label(class="form-label") }}
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fa fa-user-circle"></i></span>
+                        {{ form.contact_person(class="form-control", placeholder="请输入联系人", **{"required": "required"}) }}
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    {{ form.phone.label(class="form-label") }}
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fa fa-phone"></i></span>
+                        {{ form.phone(class="form-control", placeholder="请输入联系电话", **{"required": "required"}) }}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    {{ form.merchant_type.label(class="form-label") }}
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fa fa-tags"></i></span>
+                        {{ form.merchant_type(class="form-control", **{"required": "required"}) }}
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    {{ form.business_type.label(class="form-label") }}
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fa fa-industry"></i></span>
+                        {{ form.business_type(class="form-control") }}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    {{ form.business_license.label(class="form-label") }}
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fa fa-file-text-o"></i></span>
+                        {{ form.business_license(class="form-control", placeholder="请输入营业执照号（可选）") }}
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    {{ form.tax_registration.label(class="form-label") }}
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fa fa-file-text"></i></span>
+                        {{ form.tax_registration(class="form-control", placeholder="请输入税务登记证号（可选）") }}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                {{ form.address.label(class="form-label") }}
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa fa-map-marker"></i></span>
+                    {{ form.address(class="form-control", placeholder="请输入地址（可选）") }}
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                {{ form.description.label(class="form-label") }}
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa fa-info-circle"></i></span>
+                    {{ form.description(class="form-control", placeholder="请输入商户描述", rows="3") }}
+                </div>
+            </div>
+            
+            <div class="text-center">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa fa-save"></i> 保存
+                </button>
+                <a href="{{ url_for('merchant.merchant_list') }}" class="btn btn-secondary ms-2">
+                    <i class="fa fa-arrow-left"></i> 返回
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - 宏发金属交易市场管理系统</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .register-container {
+            margin-top: 80px;
+        }
+        .register-card {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+        }
+        .register-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .register-header h2 {
+            color: #0d6efd;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .btn-register {
+            width: 100%;
+            padding: 10px;
+            font-size: 18px;
+        }
+        .login-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 注册容器 -->
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8 register-container">
+                <div class="card register-card">
+                    <div class="register-header">
+                        <h2><i class="fa fa-user-plus"></i> 用户注册</h2>
+                        <p>请填写以下信息完成注册</p>
+                    </div>
+                    
+                    <!-- 注册表单 -->
+                    <form method="POST" action="{{ url_for('auth.register') }}">
+                        {{ form.hidden_tag() }}
+                        
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ category }}" role="alert">
+                                        {{ message }}
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+                        
+                        <div class="form-group">
+                            {{ form.username.label(class="form-label") }}
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fa fa-user"></i></span>
+                                {{ form.username(class="form-control", placeholder="请输入用户名", required="required") }}
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            {{ form.password.label(class="form-label") }}
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fa fa-lock"></i></span>
+                                {{ form.password(class="form-control", placeholder="请输入密码（至少8位）", required="required") }}
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            {{ form.confirm_password.label(class="form-label") }}
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fa fa-lock"></i></span>
+                                {{ form.confirm_password(class="form-control", placeholder="请再次输入密码", required="required") }}
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    {{ form.real_name.label(class="form-label") }}
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="fa fa-user-circle"></i></span>
+                                        {{ form.real_name(class="form-control", placeholder="请输入真实姓名", required="required") }}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    {{ form.phone.label(class="form-label") }}
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="fa fa-phone"></i></span>
+                                        {{ form.phone(class="form-control", placeholder="请输入手机号码", required="required") }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            {{ form.email.label(class="form-label") }}
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fa fa-envelope"></i></span>
+                                {{ form.email(class="form-control", placeholder="请输入邮箱地址") }}
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-register">
+                            <i class="fa fa-user-plus"></i> 注册
+                        </button>
+                        
+                        <div class="login-link">
+                            <p>已有账号？ <a href="{{ url_for('auth.login') }}">立即登录</a></p>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+{% extends "admin_base.html" %}
+
+{% block title %}编辑商户{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-building"></i> 编辑商户
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('merchant.edit', merchant_id=merchant.merchant_id) }}">
+            {{ form.hidden_tag() }}
+            
+            {% if form.errors %}
+            <div class="alert alert-danger">
+                <strong>表单验证失败：</strong>
+                <ul class="mb-0">
+                    {% for field_name, errors in form.errors.items() %}
+                        {% for error in errors %}
+                            <li>{{ form[field_name].label.text }}: {{ error }}</li>
+                        {% endfor %}
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    {{ form.merchant_name.label(class="form-label") }}
+                    {{ form.merchant_name(class="form-control" + (" is-invalid" if form.merchant_name.errors else ""), placeholder="请输入商户名称", required=True) }}
+                    {% if form.merchant_name.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.merchant_name.errors %}{{ error }}{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-6">
+                    {{ form.legal_person.label(class="form-label") }}
+                    {{ form.legal_person(class="form-control" + (" is-invalid" if form.legal_person.errors else ""), placeholder="请输入法人代表", required=True) }}
+                    {% if form.legal_person.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.legal_person.errors %}{{ error }}{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    {{ form.contact_person.label(class="form-label") }}
+                    {{ form.contact_person(class="form-control" + (" is-invalid" if form.contact_person.errors else ""), placeholder="请输入联系人", required=True) }}
+                    {% if form.contact_person.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.contact_person.errors %}{{ error }}{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-6">
+                    {{ form.phone.label(class="form-label") }}
+                    {{ form.phone(class="form-control" + (" is-invalid" if form.phone.errors else ""), placeholder="请输入联系电话", required=True) }}
+                    {% if form.phone.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.phone.errors %}{{ error }}{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    {{ form.merchant_type.label(class="form-label") }}
+                    {{ form.merchant_type(class="form-control" + (" is-invalid" if form.merchant_type.errors else ""), required=True) }}
+                    {% if form.merchant_type.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.merchant_type.errors %}{{ error }}{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-6">
+                    {{ form.business_type.label(class="form-label") }}
+                    {{ form.business_type(class="form-control" + (" is-invalid" if form.business_type.errors else "")) }}
+                    {% if form.business_type.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.business_type.errors %}{{ error }}{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    {{ form.business_license.label(class="form-label") }}
+                    {{ form.business_license(class="form-control" + (" is-invalid" if form.business_license.errors else ""), placeholder="请输入营业执照号（可选）") }}
+                    {% if form.business_license.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.business_license.errors %}{{ error }}{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-6">
+                    {{ form.tax_registration.label(class="form-label") }}
+                    {{ form.tax_registration(class="form-control" + (" is-invalid" if form.tax_registration.errors else ""), placeholder="请输入税务登记证号（可选）") }}
+                    {% if form.tax_registration.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.tax_registration.errors %}{{ error }}{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    {{ form.address.label(class="form-label") }}
+                    {{ form.address(class="form-control" + (" is-invalid" if form.address.errors else ""), placeholder="请输入地址（可选）") }}
+                    {% if form.address.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.address.errors %}{{ error }}{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-6">
+                    {{ form.status.label(class="form-label") }}
+                    <div class="form-check mt-2">
+                        {{ form.status(class="form-check-input") }}
+                        <label class="form-check-label" for="status">是否正常</label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                {{ form.description.label(class="form-label") }}
+                {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), placeholder="请输入商户描述", rows="3") }}
+                {% if form.description.errors %}
+                    <div class="invalid-feedback">
+                        {% for error in form.description.errors %}{{ error }}{% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="text-center">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa fa-save"></i> 保存
+                </button>
+                <a href="{{ url_for('merchant.merchant_list') }}" class="btn btn-secondary ms-2">
+                    <i class="fa fa-arrow-left"></i> 返回
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,182 @@
+{% extends "admin_base.html" %}
+
+{% block title %}水表抄表 - 宏发金属交易市场管理系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4"><i class="fa fa-tint"></i> 水表抄表</h2>
+            
+            <div class="card">
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fa fa-info-circle"></i> 请在下方录入各水表的当前读数，系统将自动计算用量和金额。
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th style="width: 100px;">表编号</th>
+                                    <th>归属商户</th>
+                                    <th style="width: 100px;">上次读数</th>
+                                    <th style="width: 120px;">本次读数</th>
+                                    <th style="width: 80px;">倍率</th>
+                                    <th style="width: 80px;">单价</th>
+                                    <th style="width: 100px;">用量</th>
+                                    <th style="width: 120px;">金额</th>
+                                    <th style="width: 60px;">确认</th>
+                                </tr>
+                            </thead>
+                            <tbody id="meterTableBody">
+                                <tr>
+                                    <td colspan="9" class="text-center text-muted">加载中...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12 text-end">
+                            <button class="btn btn-success" id="btnBatchSave">
+                                <i class="fa fa-save"></i> 批量保存
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <script>
+        let meterData = [];
+
+        function getCSRFToken() {
+            return $('meta[name="csrf-token"]').attr('content');
+        }
+
+        // 加载待抄水表
+        function loadMeters() {
+            $.ajax({
+                url: '/utility/water_meter_data',
+                method: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        meterData = response.data;
+                        renderTable();
+                    } else {
+                        $('#meterTableBody').html('<tr><td colspan="9" class="text-center text-danger">加载失败</td></tr>');
+                    }
+                },
+                error: function() {
+                    $('#meterTableBody').html('<tr><td colspan="9" class="text-center text-danger">加载失败</td></tr>');
+                }
+            });
+        }
+
+        // 渲染表格
+        function renderTable() {
+            const tbody = $('#meterTableBody');
+            tbody.empty();
+            
+            if (meterData.length === 0) {
+                tbody.html('<tr><td colspan="9" class="text-center text-muted">暂无待抄水表</td></tr>');
+                return;
+            }
+            
+            meterData.forEach(function(item, index) {
+                const row = `
+                    <tr>
+                        <td>${item.meter_number}</td>
+                        <td>${item.merchant_name}</td>
+                        <td>${item.last_reading}</td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm current-reading" 
+                                   data-index="${index}" step="0.01" min="${item.last_reading}" 
+                                   onchange="calculateUsage(${index})">
+                        </td>
+                        <td>${item.meter_multiplier}</td>
+                        <td>¥${parseFloat(item.unit_price).toFixed(2)}</td>
+                        <td class="usage-${index}">0</td>
+                        <td class="amount-${index}">¥0.00</td>
+                        <td>
+                            <input type="checkbox" class="form-check-input confirm-check" data-index="${index}">
+                        </td>
+                    </tr>
+                `;
+                tbody.append(row);
+            });
+        }
+
+        // 计算用量和金额
+        function calculateUsage(index) {
+            const item = meterData[index];
+            const currentReading = parseFloat($(`.current-reading[data-index="${index}"]`).val()) || 0;
+            
+            if (currentReading < item.last_reading) {
+                alert('当前读数不能小于上次读数！');
+                $(`.current-reading[data-index="${index}"]`).val('');
+                return;
+            }
+            
+            const usage = (currentReading - item.last_reading) * item.meter_multiplier;
+            const amount = usage * item.unit_price;
+            
+            $(`.usage-${index}`).text(usage.toFixed(2));
+            $(`.amount-${index}`).text('¥' + amount.toFixed(2));
+        }
+
+        // 批量保存
+        $('#btnBatchSave').click(function() {
+            const readings = [];
+            
+            $('.current-reading').each(function() {
+                const index = $(this).data('index');
+                const currentReading = $(this).val();
+                const confirmed = $(`.confirm-check[data-index="${index}"]`).is(':checked');
+                
+                if (currentReading && confirmed) {
+                    readings.push({
+                        meter_id: meterData[index].meter_id,
+                        current_reading: parseFloat(currentReading)
+                    });
+                }
+            });
+            
+            if (readings.length === 0) {
+                alert('请至少录入一条抄表数据并确认！');
+                return;
+            }
+            
+            if (!confirm(`确定要提交 ${readings.length} 条抄表记录吗？`)) {
+                return;
+            }
+            
+            $.ajax({
+                url: '/utility/water_meter_submit',
+                method: 'POST',
+                contentType: 'application/json',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                },
+                data: JSON.stringify({ readings: readings }),
+                success: function(response) {
+                    if (response.success) {
+                        alert(response.message);
+                        loadMeters();
+                    } else {
+                        alert('提交失败：' + response.message);
+                    }
+                },
+                error: function() {
+                    alert('提交失败');
+                }
+            });
+        });
+
+        // 页面加载
+        $(document).ready(function() {
+            loadMeters();
+        });
+    </script>
+{% endblock %}

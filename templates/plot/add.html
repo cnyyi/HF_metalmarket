@@ -1,0 +1,198 @@
+{% extends "admin_base.html" %}
+
+{% block title %}添加地块 - 宏发金属交易市场管理系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4"><i class="fa fa-plus"></i> 添加地块</h2>
+            
+            <div class="card">
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('plot.add') }}" enctype="multipart/form-data" id="plotForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">地块编号 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="plot_code" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">地块名称 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="plot_name" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">地块类型 <span class="text-danger">*</span></label>
+                                <select class="form-select" name="plot_type" id="plot_type" required>
+                                    <option value="">请选择地块类型</option>
+                                    {% for dict_name, label, unit_price in plot_types %}
+                                    <option value="{{ dict_name }}" data-unit-price="{{ unit_price }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">面积(㎡) <span class="text-danger">*</span></label>
+                                <input type="number" step="0.01" class="form-control" name="area" id="area" required>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">单价(元/㎡/月) <span class="text-danger">*</span></label>
+                                <input type="number" step="0.01" min="0.01" class="form-control" name="price" id="price" placeholder="请输入单价" required>
+                                <small class="text-muted">选择地块类型自动填充，可手动修改</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">月租金(元)</label>
+                                <input type="text" class="form-control" id="monthly_rent" readonly style="background-color: #e9ecef;">
+                                <small class="text-muted">自动计算：面积 × 单价</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">年租金(元)</label>
+                                <input type="text" class="form-control" id="yearly_rent" readonly style="background-color: #e9ecef;">
+                                <small class="text-muted">自动计算：月租金 × 12</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">位置</label>
+                                <input type="text" class="form-control" name="location">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">状态</label>
+                                <select class="form-select" name="status">
+                                    <option value="空闲">空闲</option>
+                                    <option value="已出租">已出租</option>
+                                    <option value="维修中">维修中</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <textarea class="form-control" name="description" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">地块图片</label>
+                            <input type="file" class="form-control" name="image" accept="image/*" id="imageInput">
+                            <small class="text-muted">支持 PNG, JPG, JPEG, GIF, BMP, WEBP 格式</small>
+                        </div>
+                        
+                        <div class="mb-3" id="previewContainer" style="display: none;">
+                            <label class="form-label">图片预览</label>
+                            <div id="imagePreview"></div>
+                        </div>
+                        
+                        <div class="text-end">
+                            <a href="{{ url_for('plot.plot_list') }}" class="btn btn-secondary">取消</a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fa fa-save"></i> 保存
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function calculateRent() {
+    var area = parseFloat($('#area').val()) || 0;
+    var unitPrice = parseFloat($('#price').val()) || 0;
+    
+    var monthlyRent = area * unitPrice;
+    var yearlyRent = monthlyRent * 12;
+    
+    $('#monthly_rent').val(monthlyRent.toFixed(2));
+    $('#yearly_rent').val(yearlyRent.toFixed(2));
+}
+
+function validatePrice() {
+    var price = parseFloat($('#price').val());
+    if (isNaN(price) || price <= 0) {
+        $('#price').addClass('is-invalid');
+        return false;
+    } else {
+        $('#price').removeClass('is-invalid');
+        return true;
+    }
+}
+
+$('#plot_type').change(function() {
+    var selectedOption = $(this).find('option:selected');
+    var unitPrice = selectedOption.data('unit-price');
+    
+    if (unitPrice) {
+        $('#price').val(unitPrice);
+        validatePrice();
+        calculateRent();
+    } else {
+        $('#price').val('');
+        $('#monthly_rent').val('');
+        $('#yearly_rent').val('');
+    }
+});
+
+$('#area').on('input', function() {
+    calculateRent();
+});
+
+$('#price').on('input', function() {
+    validatePrice();
+    calculateRent();
+});
+
+$('#plotForm').submit(function(e) {
+    if (!validatePrice()) {
+        e.preventDefault();
+        alert('请输入有效的单价（必须大于0）');
+        return false;
+    }
+});
+
+document.getElementById('imageInput').addEventListener('change', function(e) {
+    var preview = document.getElementById('imagePreview');
+    var container = document.getElementById('previewContainer');
+    preview.innerHTML = '';
+    
+    if (this.files && this.files.length > 0) {
+        container.style.display = 'block';
+        
+        var file = this.files[0];
+        if (!file.type.startsWith('image/')) {
+            return;
+        }
+        
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var div = document.createElement('div');
+            div.style.cssText = 'position: relative; width: 200px; height: 200px; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;';
+            
+            var img = document.createElement('img');
+            img.src = e.target.result;
+            img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
+            
+            var info = document.createElement('div');
+            info.style.cssText = 'position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.7); color: white; font-size: 12px; padding: 5px;';
+            info.textContent = file.name;
+            
+            div.appendChild(img);
+            div.appendChild(info);
+            preview.appendChild(div);
+        };
+        reader.readAsDataURL(file);
+    } else {
+        container.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}

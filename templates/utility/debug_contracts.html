@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>调试合同接口</title>
+    <script src="{{ url_for('static', filename='js/jquery-4.0.0.min.js') }}"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>调试合同接口</h1>
+        <button class="btn btn-primary" id="testBtn">测试获取合同数据</button>
+        <div class="mt-3" id="result"></div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            $('#testBtn').click(function() {
+                console.log('开始请求合同数据...');
+                $.ajax({
+                    url: '/utility/contracts',
+                    method: 'GET',
+                    success: function(response) {
+                        console.log('成功收到响应:', response);
+                        $('#result').html(`
+                            <div class="alert alert-success">
+                                <h5>请求成功!</h5>
+                                <p>Success: ${response.success}</p>
+                                <p>数据条数: ${response.data ? response.data.length : 0}</p>
+                                <pre>${JSON.stringify(response, null, 2)}</pre>
+                            </div>
+                        `);
+                    },
+                    error: function(xhr, status, error) {
+                        console.log('请求失败:', error);
+                        console.log('状态码:', xhr.status);
+                        console.log('响应文本:', xhr.responseText);
+                        $('#result').html(`
+                            <div class="alert alert-danger">
+                                <h5>请求失败!</h5>
+                                <p>状态码: ${xhr.status}</p>
+                                <p>错误: ${error}</p>
+                                <p>响应: ${xhr.responseText}</p>
+                            </div>
+                        `);
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
