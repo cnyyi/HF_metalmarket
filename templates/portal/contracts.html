@@ -1,0 +1,115 @@
+{% extends "merchant_base.html" %}
+
+{% block title %}我的合同{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-file-text"></i> 我的合同
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>合同编号</th>
+                        <th>合同名称</th>
+                        <th>地块</th>
+                        <th>起始日期</th>
+                        <th>到期日期</th>
+                        <th>合同金额</th>
+                        <th>状态</th>
+                    </tr>
+                </thead>
+                <tbody id="contractsTableBody">
+                    <tr><td colspan="7" class="text-center text-muted">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <nav aria-label="Page navigation" id="paginationNav" style="display:none;">
+            <ul class="pagination justify-content-center" id="paginationList"></ul>
+        </nav>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var currentPage = 1;
+var perPage = 10;
+
+function loadContracts(page) {
+    if (!page) page = 1;
+    currentPage = page;
+    $.ajax({
+        url: '{{ url_for("portal.api_contracts") }}',
+        type: 'GET',
+        data: { page: page, per_page: perPage },
+        success: function(resp) {
+            if (resp.success) {
+                renderTable(resp.data);
+            } else {
+                $('#contractsTableBody').html('<tr><td colspan="7" class="text-center text-danger">' + (resp.message || '获取数据失败') + '</td></tr>');
+            }
+        }
+    });
+}
+
+function getStatusBadge(status) {
+    var map = { '有效': 'bg-success', '到期': 'bg-warning', '终止': 'bg-danger', '续签': 'bg-info' };
+    return '<span class="badge ' + (map[status] || 'bg-secondary') + '">' + escapeHtml(status) + '</span>';
+}
+
+function renderTable(data) {
+    var items = data.items;
+    var tbody = $('#contractsTableBody');
+    if (!items || items.length === 0) {
+        tbody.html('<tr><td colspan="7" class="text-center text-muted">暂无合同数据</td></tr>');
+        $('#paginationNav').hide();
+        return;
+    }
+    var html = '';
+    var startIndex = (data.current_page - 1) * perPage;
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        html += '<tr>';
+        html += '<td>' + escapeHtml(item.contract_number || item.contract_id) + '</td>';
+        html += '<td>' + escapeHtml(item.contract_name) + '</td>';
+        html += '<td>' + escapeHtml(item.plot_number || item.plot_name || '-') + '</td>';
+        html += '<td>' + item.start_date + '</td>';
+        html += '<td>' + item.end_date + '</td>';
+        html += '<td class="text-end">¥' + formatNumber(item.actual_amount) + '</td>';
+        html += '<td>' + getStatusBadge(item.status) + '</td>';
+        html += '</tr>';
+    }
+    tbody.html(html);
+    renderPagination(data);
+}
+
+function renderPagination(data) {
+    var totalPages = data.total_pages;
+    var currentPage = data.current_page;
+    if (totalPages <= 1) { $('#paginationNav').hide(); return; }
+    var html = '<li class="page-item ' + (currentPage === 1 ? 'disabled' : '') + '">';
+    html += '<a class="page-link" href="#" data-page="' + (currentPage - 1) + '">上一页</a></li>';
+    for (var i = 1; i <= totalPages; i++) {
+        html += '<li class="page-item ' + (i === currentPage ? 'active' : '') + '">';
+        html += '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
+    }
+    html += '<li class="page-item ' + (currentPage === totalPages ? 'disabled' : '') + '">';
+    html += '<a class="page-link" href="#" data-page="' + (currentPage + 1) + '">下一页</a></li>';
+    $('#paginationList').html(html);
+    $('#paginationNav').show();
+}
+
+$(document).ready(function() {
+    loadContracts(1);
+    $(document).on('click', '#paginationList .page-link', function(e) {
+        e.preventDefault();
+        var page = $(this).data('page');
+        if (page && page >= 1) loadContracts(page);
+    });
+});
+</script>
+{% endblock %}

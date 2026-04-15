@@ -1,65 +1,65 @@
 {% extends "admin_base.html" %}
 
-{% block title %}合同详情 - 宏发金属交易市场管理系统{% endblock %}
+{% block title %}合同详情{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-file-text"></i> 合同详情
+    <div class="float-end">
+        <a href="/contract/list" class="btn btn-secondary btn-sm">
+            <i class="fa fa-arrow-left"></i> 返回列表
+        </a>
+        <a href="/contract/edit/{{ contract_id }}" class="btn btn-primary btn-sm">
+            <i class="fa fa-edit"></i> 编辑
+        </a>
+    </div>
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('contract.contract_list') }}">合同管理</a></li>
+<li class="breadcrumb-item active">合同详情</li>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2><i class="fa fa-file-text"></i> 合同详情</h2>
-                <div>
-                    <a href="/contract/list" class="btn btn-secondary">
-                        <i class="fa fa-arrow-left"></i> 返回列表
-                    </a>
-                    <a href="/contract/edit/{{ contract_id }}" class="btn btn-primary">
-                        <i class="fa fa-edit"></i> 编辑
-                    </a>
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">基本信息</h5>
+    </div>
+    <div class="card-body">
+        <div class="row" id="contractInfo">
+            <div class="col-12 text-center text-muted">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">加载中...</span>
                 </div>
             </div>
-            
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">基本信息</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row" id="contractInfo">
-                        <div class="col-12 text-center text-muted">
-                            <div class="spinner-border" role="status">
-                                <span class="visually-hidden">加载中...</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h5 class="mb-0">地块信息</h5>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-striped" id="plotTable">
-                            <thead>
-                                <tr>
-                                    <th>序号</th>
-                                    <th>地块编号</th>
-                                    <th>图示</th>
-                                    <th>面积 (㎡)</th>
-                                    <th>单价 (元/㎡/月)</th>
-                                    <th>月租金 (元)</th>
-                                    <th>年租金 (元)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="plotTableBody">
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted">加载中...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">地块信息</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped" id="plotTable">
+                <thead>
+                    <tr>
+                        <th>序号</th>
+                        <th>地块编号</th>
+                        <th>图示</th>
+                        <th>面积 (㎡)</th>
+                        <th>单价 (元/㎡/月)</th>
+                        <th>月租金 (元)</th>
+                        <th>年租金 (元)</th>
+                    </tr>
+                </thead>
+                <tbody id="plotTableBody">
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">加载中...</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
@@ -67,10 +67,6 @@
 
 {% block extra_js %}
 <script>
-function formatCurrency(amount) {
-    return parseFloat(amount).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
-}
-
 function loadContractDetail() {
     $.ajax({
         url: '/contract/detail/{{ contract_id }}',
@@ -124,15 +120,15 @@ function loadContractDetail() {
                     <div class="row mb-3">
                         <div class="col-md-4">
                             <label class="text-muted small">地块年租金合计</label>
-                            <div class="text-end">¥${formatCurrency(contract.contract_amount)}</div>
+                            <div class="text-end">¥${formatNumber(contract.contract_amount)}</div>
                         </div>
                         <div class="col-md-4">
                             <label class="text-muted small">租金增减</label>
-                            <div class="text-end">¥${formatCurrency(contract.amount_reduction)}</div>
+                            <div class="text-end">¥${formatNumber(contract.amount_reduction)}</div>
                         </div>
                         <div class="col-md-4">
                             <label class="text-muted small">合同租金</label>
-                            <div class="text-end fw-bold text-primary">¥${formatCurrency(contract.actual_amount)}</div>
+                            <div class="text-end fw-bold text-primary">¥${formatNumber(contract.actual_amount)}</div>
                         </div>
                     </div>
                     ${contract.description ? `

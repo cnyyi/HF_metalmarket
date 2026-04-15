@@ -6,6 +6,11 @@
     <i class="fa fa-file-text-o"></i> 应收账款管理
 {% endblock %}
 
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">财务管理</a></li>
+<li class="breadcrumb-item active">应收账款</li>
+{% endblock %}
+
 {% block content %}
 <div class="card">
     <div class="card-header">
@@ -14,44 +19,46 @@
                 <h5 class="card-title mb-0">应收账款列表</h5>
             </div>
             <div class="col-md-6 text-end">
-                <button type="button" class="btn btn-primary">
+                <button type="button" class="btn btn-primary" id="btnAddReceivable">
                     <i class="fa fa-plus"></i> 添加应收账款
                 </button>
-                <button type="button" class="btn btn-success ms-2">
+                <button type="button" class="btn btn-success ms-2" id="btnExportExcel">
                     <i class="fa fa-file-excel-o"></i> 导出Excel
                 </button>
             </div>
         </div>
     </div>
     <div class="card-body">
-        <!-- 搜索栏 -->
         <div class="row mb-3">
             <div class="col-md-4">
                 <div class="input-group">
                     <span class="input-group-text"><i class="fa fa-search"></i></span>
-                    <input type="text" class="form-control" placeholder="搜索商户名称">
+                    <input type="text" class="form-control" id="searchInput" placeholder="搜索商户/客户名称">
                 </div>
             </div>
             <div class="col-md-3">
-                <select class="form-select">
+                <select class="form-select" id="statusFilter">
                     <option value="">全部状态</option>
-                    <option value="unpaid">未支付</option>
-                    <option value="partial">部分支付</option>
-                    <option value="paid">已支付</option>
+                    <option value="未付款">未付款</option>
+                    <option value="部分付款">部分付款</option>
+                    <option value="已付款">已付款</option>
                 </select>
             </div>
             <div class="col-md-2">
-                <button type="button" class="btn btn-primary">搜索</button>
+                <button type="button" class="btn btn-primary" id="btnSearch">
+                    <i class="fa fa-search"></i> 搜索
+                </button>
             </div>
         </div>
-        
-        <!-- 数据表格 -->
+
         <div class="table-responsive">
             <table class="table table-striped table-hover">
                 <thead>
                     <tr>
                         <th>序号</th>
-                        <th>商户名称</th>
+                        <th>客户类型</th>
+                        <th>名称</th>
+                        <th>费用类型</th>
                         <th>应收金额</th>
                         <th>已收金额</th>
                         <th>未收金额</th>
@@ -60,28 +67,718 @@
                         <th>操作</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="receivableTableBody">
                     <tr>
-                        <td colspan="8" class="text-center text-muted">暂无数据</td>
+                        <td colspan="10" class="text-center text-muted">加载中...</td>
                     </tr>
                 </tbody>
             </table>
         </div>
-        
-        <!-- 分页控件 -->
-        <nav aria-label="Page navigation">
-            <ul class="pagination justify-content-center">
-                <li class="page-item disabled">
-                    <a class="page-link" href="#">上一页</a>
-                </li>
-                <li class="page-item active"><a class="page-link" href="#">1</a></li>
-                <li class="page-item"><a class="page-link" href="#">2</a></li>
-                <li class="page-item"><a class="page-link" href="#">3</a></li>
-                <li class="page-item">
-                    <a class="page-link" href="#">下一页</a>
-                </li>
+
+        <nav aria-label="Page navigation" id="paginationNav" style="display:none;">
+            <ul class="pagination justify-content-center" id="paginationList">
             </ul>
         </nav>
     </div>
 </div>
+
+<!-- 添加应收账款弹窗 -->
+<div class="modal fade" id="addReceivableModal" tabindex="-1" aria-labelledby="addReceivableModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addReceivableModalLabel">
+                    <i class="fa fa-plus-circle"></i> 添加应收账款
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addReceivableForm">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">客户类型 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="customerTypeSelect">
+                                <option value="Merchant">内部商户</option>
+                                <option value="Customer">往来客户</option>
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold" id="customerLabel">商户 <span class="text-danger">*</span></label>
+                            <div class="dropdown">
+                                <input type="text" class="form-control" id="customerSearchInput"
+                                       placeholder="输入商户名称搜索" autocomplete="off"
+                                       data-bs-toggle="dropdown">
+                                <ul class="dropdown-menu w-100" id="customerDropdown">
+                                </ul>
+                                <input type="hidden" id="selectedCustomerId">
+                            </div>
+                            <div class="form-text" id="selectedCustomerInfo"></div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">费用类型 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="expenseTypeSelect">
+                                <option value="">请选择费用类型</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">应收金额 <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" class="form-control" id="amountInput"
+                                       placeholder="请输入应收金额" step="0.01" min="0.01">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">到期日期 <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="dueDateInput">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label">备注</label>
+                            <textarea class="form-control" id="descriptionInput" rows="3"
+                                      placeholder="请输入备注信息（可选）"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="btnSubmitReceivable">
+                    <i class="fa fa-check"></i> 确认添加
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 收款弹窗 -->
+<div class="modal fade" id="collectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success">
+                <h5 class="modal-title"><i class="fa fa-money"></i> 收款核销</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info mb-3">
+                    <div><strong>客户：</strong><span id="collectMerchantName"></span></div>
+                    <div><strong>应收金额：</strong>¥<span id="collectTotalAmount"></span></div>
+                    <div><strong>剩余金额：</strong><span class="text-danger fw-bold">¥<span id="collectRemainingAmount"></span></span></div>
+                </div>
+                <form id="collectForm">
+                    <input type="hidden" id="collectReceivableId">
+                    <input type="hidden" id="collectCustomerType">
+                    <input type="hidden" id="collectCustomerId">
+
+                    <!-- 收款方式切换 -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">收款方式</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="collectMode" id="collectModeCash" value="cash" checked>
+                            <label class="btn btn-outline-success" for="collectModeCash"><i class="fa fa-money"></i> 现金收款</label>
+                            <input type="radio" class="btn-check" name="collectMode" id="collectModePrepay" value="prepayment">
+                            <label class="btn btn-outline-primary" for="collectModePrepay"><i class="fa fa-exchange"></i> 预收冲抵</label>
+                        </div>
+                    </div>
+
+                    <!-- 现金收款区域 -->
+                    <div id="cashCollectArea">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">收款金额 <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" class="form-control" id="collectAmount" step="0.01" min="0.01" required>
+                            </div>
+                            <div class="form-text">最大可收 ¥<span id="collectMaxAmount"></span></div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">付款方式 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="collectPaymentMethod" required>
+                                <option value="">请选择</option>
+                                <option value="现金">现金</option>
+                                <option value="银行转账">银行转账</option>
+                                <option value="微信">微信</option>
+                                <option value="支付宝">支付宝</option>
+                                <option value="支票">支票</option>
+                                <option value="其他">其他</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">收款账户</label>
+                            <select class="form-select" id="collectAccountId">
+                                <option value="">默认账户</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">收款日期 <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="collectTransactionDate" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <textarea class="form-control" id="collectDescription" rows="2" placeholder="可选"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- 预收冲抵区域 -->
+                    <div id="prepayCollectArea" style="display:none">
+                        <div id="prepayList" class="mb-3">
+                            <p class="text-muted">加载中...</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">冲抵金额 <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" class="form-control" id="prepayApplyAmount" step="0.01" min="0.01">
+                            </div>
+                            <div class="form-text">最大可冲抵 ¥<span id="prepayMaxAmount"></span></div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <textarea class="form-control" id="prepayApplyDescription" rows="2" placeholder="可选"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" id="btnSubmitCollect">
+                    <i class="fa fa-check"></i> 确认收款
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 详情弹窗 -->
+<div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa fa-eye"></i> 应收详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="detailContent">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var currentPage = 1;
+var perPage = 10;
+
+function getCustomerTypeLabel(type) {
+    return type === 'Customer' ? '往来客户' : '内部商户';
+}
+
+function getCustomerTypeBadge(type) {
+    if (type === 'Customer') return '<span class="badge bg-info">往来客户</span>';
+    return '<span class="badge bg-primary">内部商户</span>';
+}
+
+function getStatusClass(status) {
+    var map = {
+        '未付款': 'status-unpaid',
+        '部分付款': 'status-partial',
+        '已付款': 'status-paid',
+        '逾期': 'status-overdue'
+    };
+    return map[status] || 'status-unpaid';
+}
+
+function loadReceivables(page) {
+    if (!page) page = 1;
+    currentPage = page;
+    var search = $('#searchInput').val().trim();
+    var status = $('#statusFilter').val();
+
+    $.ajax({
+        url: '/finance/receivable/list',
+        type: 'GET',
+        data: { page: page, per_page: perPage, search: search, status: status },
+        success: function(resp) {
+            if (resp.success) {
+                renderTable(resp.data);
+            } else {
+                $('#receivableTableBody').html('<tr><td colspan="10" class="text-center text-danger">' + (resp.message || '获取数据失败') + '</td></tr>');
+            }
+        },
+        error: function() {
+            $('#receivableTableBody').html('<tr><td colspan="10" class="text-center text-danger">网络错误，请稍后重试</td></tr>');
+        }
+    });
+}
+
+function renderTable(data) {
+    var items = data.items;
+    var tbody = $('#receivableTableBody');
+    if (!items || items.length === 0) {
+        tbody.html('<tr><td colspan="10" class="text-center text-muted">暂无数据</td></tr>');
+        $('#paginationNav').hide();
+        return;
+    }
+    var html = '';
+    var startIndex = (data.current_page - 1) * perPage;
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        var rowNo = startIndex + i + 1;
+        var statusClass = getStatusClass(item.status);
+        html += '<tr>';
+        html += '<td>' + rowNo + '</td>';
+        html += '<td>' + getCustomerTypeBadge(item.customer_type) + '</td>';
+        html += '<td>' + escapeHtml(item.merchant_name) + '</td>';
+        html += '<td>' + escapeHtml(item.expense_type_name) + '</td>';
+        html += '<td class="text-end">¥' + formatNumber(item.amount) + '</td>';
+        html += '<td class="text-end">¥' + formatNumber(item.paid_amount) + '</td>';
+        html += '<td class="text-end">¥' + formatNumber(item.remaining_amount) + '</td>';
+        html += '<td>' + item.due_date + '</td>';
+        html += '<td><span class="status-badge ' + statusClass + '">' + escapeHtml(item.status) + '</span></td>';
+        html += '<td class="table-actions">';
+        if (item.status !== '已付款') {
+            html += '<button class="btn btn-sm btn-outline-success me-1 btn-collect" data-id="' + item.receivable_id + '" data-merchant="' + escapeHtml(item.merchant_name) + '" data-amount="' + item.amount + '" data-remaining="' + item.remaining_amount + '" data-customer-type="' + (item.customer_type || 'Merchant') + '" data-customer-id="' + (item.customer_id || item.merchant_id) + '"><i class="fa fa-money"></i> 收款</button>';
+        }
+        html += '<button class="btn btn-sm btn-outline-info btn-detail" data-id="' + item.receivable_id + '"><i class="fa fa-eye"></i> 详情</button>';
+        html += '</td></tr>';
+    }
+    tbody.html(html);
+    renderPagination(data);
+}
+
+function renderPagination(data) {
+    var totalPages = data.total_pages;
+    var curPage = data.current_page;
+    if (totalPages <= 1) { $('#paginationNav').hide(); return; }
+    var html = '<li class="page-item ' + (curPage === 1 ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (curPage - 1) + '">上一页</a></li>';
+    var startPage = Math.max(1, curPage - 2);
+    var endPage = Math.min(totalPages, curPage + 2);
+    if (startPage > 1) {
+        html += '<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>';
+        if (startPage > 2) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+    }
+    for (var i = startPage; i <= endPage; i++) {
+        html += '<li class="page-item ' + (i === curPage ? 'active' : '') + '"><a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
+    }
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        html += '<li class="page-item"><a class="page-link" href="#" data-page="' + totalPages + '">' + totalPages + '</a></li>';
+    }
+    html += '<li class="page-item ' + (curPage === totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (curPage + 1) + '">下一页</a></li>';
+    $('#paginationList').html(html);
+    $('#paginationNav').show();
+}
+
+function loadExpenseTypes() {
+    $.ajax({
+        url: '/finance/receivable/expense_types',
+        type: 'GET',
+        data: { direction: '收入' },
+        success: function(resp) {
+            if (resp.success) {
+                var select = $('#expenseTypeSelect');
+                select.html('<option value="">请选择费用类型</option>');
+                for (var i = 0; i < resp.data.length; i++) {
+                    var et = resp.data[i];
+                    select.append('<option value="' + et.expense_type_id + '">' + escapeHtml(et.expense_type_name) + '</option>');
+                }
+            }
+        }
+    });
+}
+
+var searchTimer = null;
+
+function searchCustomers(keyword) {
+    var type = $('#customerTypeSelect').val();
+    var searchUrl = type === 'Customer' ? '/finance/receivable/search_customers' : '/finance/receivable/search_merchants';
+
+    if (!keyword || keyword.length < 1) {
+        $('#customerDropdown').html('').removeClass('show');
+        return;
+    }
+    $.ajax({
+        url: searchUrl,
+        type: 'GET',
+        data: { keyword: keyword },
+        success: function(resp) {
+            if (resp.success && resp.data.length > 0) {
+                var html = '';
+                for (var i = 0; i < resp.data.length; i++) {
+                    var item = resp.data[i];
+                    var id = type === 'Customer' ? item.customer_id : item.merchant_id;
+                    var name = type === 'Customer' ? item.customer_name : item.merchant_name;
+                    var contact = item.contact_person || '';
+                    var phone = item.phone || '';
+                    html += '<li><a class="dropdown-item" data-id="' + id + '" data-name="' + escapeHtml(name) + '">';
+                    html += '<div>' + escapeHtml(name) + '</div>';
+                    html += '<div class="customer-info">' + escapeHtml(contact) + (phone ? ' | ' + escapeHtml(phone) : '') + '</div>';
+                    html += '</a></li>';
+                }
+                $('#customerDropdown').html(html).addClass('show');
+            } else {
+                var emptyText = type === 'Customer' ? '未找到匹配的客户' : '未找到匹配的商户';
+                $('#customerDropdown').html('<li><span class="dropdown-item text-muted">' + emptyText + '</span></li>').addClass('show');
+            }
+        }
+    });
+}
+
+function updateCustomerLabel() {
+    var type = $('#customerTypeSelect').val();
+    if (type === 'Customer') {
+        $('#customerLabel').html('往来客户 <span class="text-danger">*</span>');
+        $('#customerSearchInput').attr('placeholder', '输入客户名称搜索');
+    } else {
+        $('#customerLabel').html('商户 <span class="text-danger">*</span>');
+        $('#customerSearchInput').attr('placeholder', '输入商户名称搜索');
+    }
+    // 清空选择
+    $('#selectedCustomerId').val('');
+    $('#customerSearchInput').val('');
+    $('#selectedCustomerInfo').text('');
+    $('#customerDropdown').html('').removeClass('show');
+}
+
+function submitReceivable() {
+    var customerType = $('#customerTypeSelect').val();
+    var customerId = $('#selectedCustomerId').val();
+    var expenseTypeId = $('#expenseTypeSelect').val();
+    var amount = $('#amountInput').val();
+    var dueDate = $('#dueDateInput').val();
+    var description = $('#descriptionInput').val();
+
+    if (!customerId) {
+        showToast('warning', customerType === 'Customer' ? '请选择客户' : '请选择商户');
+        return;
+    }
+    if (!expenseTypeId) { showToast('warning', '请选择费用类型'); return; }
+    if (!amount || parseFloat(amount) <= 0) { showToast('warning', '请输入有效的应收金额'); return; }
+    if (!dueDate) { showToast('warning', '请选择到期日期'); return; }
+
+    var postData = {
+        customer_type: customerType,
+        customer_id: parseInt(customerId),
+        merchant_id: customerType === 'Merchant' ? parseInt(customerId) : null,
+        expense_type_id: parseInt(expenseTypeId),
+        amount: parseFloat(amount),
+        due_date: dueDate,
+        description: description
+    };
+
+    var btn = $('#btnSubmitReceivable');
+    btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 提交中...');
+
+    $.ajax({
+        url: '/finance/receivable/create',
+        type: 'POST',
+        contentType: 'application/json',
+        headers: { 'X-CSRFToken': getCSRFToken() },
+        data: JSON.stringify(postData),
+        success: function(resp) {
+            if (resp.success) {
+                bootstrap.Modal.getInstance(document.getElementById('addReceivableModal')).hide();
+                loadReceivables(1);
+                showToast('success', '添加成功');
+            } else {
+                showToast('error', resp.message || '添加失败');
+            }
+        },
+        error: function(xhr) {
+            var resp = xhr.responseJSON;
+            showToast('error', resp ? resp.message : '网络错误，请稍后重试');
+        },
+        complete: function() {
+            btn.prop('disabled', false).html('<i class="fa fa-check"></i> 确认添加');
+        }
+    });
+}
+
+// 收款核销
+function openCollectModal(id, merchant, amount, remaining, customerType, customerId) {
+    $('#collectReceivableId').val(id);
+    $('#collectCustomerType').val(customerType || 'Merchant');
+    $('#collectCustomerId').val(customerId);
+    $('#collectMerchantName').text(merchant);
+    $('#collectTotalAmount').text(formatNumber(amount));
+    $('#collectRemainingAmount').text(formatNumber(remaining));
+    $('#collectMaxAmount').text(formatNumber(remaining));
+    $('#prepayMaxAmount').text(formatNumber(remaining));
+    $('#collectAmount').val('').attr('max', remaining);
+    $('#prepayApplyAmount').val('').attr('max', remaining);
+    $('#collectPaymentMethod').val('');
+    $('#collectAccountId').val('');
+    $('#collectDescription').val('');
+    $('#prepayApplyDescription').val('');
+    $('#collectTransactionDate').val(new Date().toISOString().split('T')[0]);
+    // 默认现金收款
+    $('#collectModeCash').prop('checked', true);
+    $('#cashCollectArea').show();
+    $('#prepayCollectArea').hide();
+    // 加载账户选项
+    loadAccountOptions('#collectAccountId');
+    // 加载可用预收
+    loadAvailablePrepayments(customerType, customerId);
+    var modal = new bootstrap.Modal(document.getElementById('collectModal'));
+    modal.show();
+}
+
+function loadAvailablePrepayments(customerType, customerId) {
+    if (!customerType || !customerId) {
+        $('#prepayList').html('<p class="text-muted small">无可用预收</p>');
+        return;
+    }
+    $.ajax({
+        url: '/finance/prepayment/available',
+        type: 'GET',
+        data: { direction: 'income', customer_type: customerType, customer_id: customerId },
+        success: function(resp) {
+            if (resp.success && resp.data.length > 0) {
+                var html = '<div class="list-group">';
+                for (var i = 0; i < resp.data.length; i++) {
+                    var p = resp.data[i];
+                    html += '<label class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">';
+                    html += '<div><input type="radio" name="selectedPrepayment" value="' + p.prepayment_id + '" class="me-2" ' + (i === 0 ? 'checked' : '') + '>';
+                    html += '预收#' + p.prepayment_id + ' — ' + escapeHtml(p.customer_name) + '</div>';
+                    html += '<span class="badge bg-primary rounded-pill">¥' + formatNumber(p.remaining_amount) + '</span>';
+                    html += '</label>';
+                }
+                html += '</div>';
+                $('#prepayList').html(html);
+            } else {
+                $('#prepayList').html('<p class="text-muted small">该客户暂无可用预收</p>');
+            }
+        },
+        error: function() {
+            $('#prepayList').html('<p class="text-danger small">加载预收失败</p>');
+        }
+    });
+}
+
+function loadAccountOptions(selector) {
+    $.ajax({
+        url: '/finance/account/active_list',
+        type: 'GET',
+        success: function(resp) {
+            if (resp.success) {
+                var select = $(selector);
+                select.html('<option value="">默认账户</option>');
+                for (var i = 0; i < resp.data.length; i++) {
+                    var a = resp.data[i];
+                    var label = a.account_name + ' (¥' + formatNumber(a.balance) + ')';
+                    var defaultFlag = a.is_default ? ' selected' : '';
+                    select.append('<option value="' + a.account_id + '"' + defaultFlag + '>' + escapeHtml(label) + '</option>');
+                }
+            }
+        }
+    });
+}
+
+function submitCollect() {
+    var mode = $('input[name="collectMode"]:checked').val();
+    var id = $('#collectReceivableId').val();
+
+    if (mode === 'prepayment') {
+        // 预收冲抵
+        var prepaymentId = $('input[name="selectedPrepayment"]:checked').val();
+        var applyAmount = parseFloat($('#prepayApplyAmount').val());
+
+        if (!prepaymentId) { showToast('warning', '请选择预收记录'); return; }
+        if (!applyAmount || applyAmount <= 0) { showToast('warning', '请输入有效的冲抵金额'); return; }
+
+        var btn = $('#btnSubmitCollect');
+        btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 处理中...');
+
+        $.ajax({
+            url: '/finance/prepayment/apply',
+            type: 'POST',
+            contentType: 'application/json',
+            headers: { 'X-CSRFToken': getCSRFToken() },
+            data: JSON.stringify({
+                prepayment_id: parseInt(prepaymentId),
+                target_items: [{ receivable_id: parseInt(id), amount: applyAmount }]
+            }),
+            success: function(resp) {
+                if (resp.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('collectModal')).hide();
+                    loadReceivables(currentPage);
+                    showToast('success', resp.message || '冲抵成功');
+                } else {
+                    showToast('error', resp.message || '冲抵失败');
+                }
+            },
+            error: function(xhr) {
+                var resp = xhr.responseJSON;
+                showToast('error', resp ? resp.message : '网络错误');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fa fa-check"></i> 确认收款');
+            }
+        });
+    } else {
+        // 现金收款
+        var amount = parseFloat($('#collectAmount').val());
+        var method = $('#collectPaymentMethod').val();
+        var date = $('#collectTransactionDate').val();
+        var desc = $('#collectDescription').val();
+        var accountId = $('#collectAccountId').val() || null;
+
+        if (!amount || amount <= 0) { showToast('warning', '请输入有效的收款金额'); return; }
+        if (!method) { showToast('warning', '请选择付款方式'); return; }
+        if (!date) { showToast('warning', '请选择收款日期'); return; }
+
+        var btn = $('#btnSubmitCollect');
+        btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 处理中...');
+
+        $.ajax({
+            url: '/finance/receivable/collect/' + id,
+            type: 'POST',
+            contentType: 'application/json',
+            headers: { 'X-CSRFToken': getCSRFToken() },
+            data: JSON.stringify({ amount: amount, payment_method: method, transaction_date: date, description: desc, account_id: accountId }),
+            success: function(resp) {
+                if (resp.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('collectModal')).hide();
+                    loadReceivables(currentPage);
+                    showToast('success', resp.message || '收款成功');
+                } else {
+                    showToast('error', resp.message || '收款失败');
+                }
+            },
+            error: function(xhr) {
+                var resp = xhr.responseJSON;
+                showToast('error', resp ? resp.message : '网络错误');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fa fa-check"></i> 确认收款');
+            }
+        });
+    }
+}
+
+// 详情
+function openDetailModal(id) {
+    $.ajax({
+        url: '/finance/receivable/detail/' + id,
+        type: 'GET',
+        success: function(resp) {
+            if (!resp.success) { showToast('error', resp.message); return; }
+            var d = resp.data;
+            var html = '<div class="detail-section"><h6><i class="fa fa-info-circle"></i> 基本信息</h6><div class="row">';
+            html += '<div class="col-md-6 detail-field"><span class="label">客户类型：</span><span class="value">' + getCustomerTypeBadge(d.customer_type) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">名称：</span><span class="value">' + escapeHtml(d.merchant_name) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">费用类型：</span><span class="value">' + escapeHtml(d.expense_type_name) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">应收金额：</span><span class="value">¥' + formatNumber(d.amount) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">已收金额：</span><span class="value text-success">¥' + formatNumber(d.paid_amount) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">剩余金额：</span><span class="value text-danger">¥' + formatNumber(d.remaining_amount) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">到期日期：</span><span class="value">' + d.due_date + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">状态：</span><span class="status-badge ' + getStatusClass(d.status) + '">' + escapeHtml(d.status) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">创建时间：</span><span class="value">' + d.create_time + '</span></div>';
+            if (d.description) {
+                html += '<div class="col-md-12 detail-field"><span class="label">备注：</span><span class="value">' + escapeHtml(d.description) + '</span></div>';
+            }
+            html += '</div></div>';
+            html += '<div class="detail-section"><h6><i class="fa fa-history"></i> 收款历史</h6>';
+            var records = d.collection_records;
+            if (records && records.length > 0) {
+                html += '<table class="table table-sm table-bordered"><thead><tr><th>日期</th><th>金额</th><th>方式</th><th>操作人</th><th>备注</th></tr></thead><tbody>';
+                for (var i = 0; i < records.length; i++) {
+                    var r = records[i];
+                    html += '<tr><td>' + r.transaction_date + '</td><td class="text-end">¥' + formatNumber(r.amount) + '</td><td>' + escapeHtml(r.payment_method) + '</td><td>' + escapeHtml(r.operator_name) + '</td><td>' + escapeHtml(r.description) + '</td></tr>';
+                }
+                html += '</tbody></table>';
+            } else {
+                html += '<p class="text-muted">暂无收款记录</p>';
+            }
+            html += '</div>';
+            $('#detailContent').html(html);
+            var modal = new bootstrap.Modal(document.getElementById('detailModal'));
+            modal.show();
+        },
+        error: function() { showToast('error', '获取详情失败'); }
+    });
+}
+
+$(document).ready(function() {
+    loadReceivables(1);
+    $('#btnSearch').on('click', function() { loadReceivables(1); });
+    $('#searchInput').on('keypress', function(e) { if (e.which === 13) loadReceivables(1); });
+    $('#statusFilter').on('change', function() { loadReceivables(1); });
+    $(document).on('click', '#paginationList .page-link', function(e) {
+        e.preventDefault();
+        var page = $(this).data('page');
+        if (page && page >= 1) loadReceivables(page);
+    });
+
+    // 添加应收弹窗
+    $('#btnAddReceivable').on('click', function() {
+        $('#addReceivableForm')[0].reset();
+        $('#selectedCustomerId').val('');
+        $('#selectedCustomerInfo').text('');
+        $('#customerDropdown').html('').removeClass('show');
+        $('#customerTypeSelect').val('Merchant');
+        updateCustomerLabel();
+        loadExpenseTypes();
+        var nextMonth = new Date();
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        $('#dueDateInput').val(nextMonth.toISOString().split('T')[0]);
+        var modal = new bootstrap.Modal(document.getElementById('addReceivableModal'));
+        modal.show();
+    });
+
+    // 客户类型切换
+    $('#customerTypeSelect').on('change', updateCustomerLabel);
+
+    // 客户搜索
+    $('#customerSearchInput').on('input', function() {
+        var keyword = $(this).val().trim();
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function() { searchCustomers(keyword); }, 300);
+    });
+
+    // 选择客户
+    $(document).on('click', '#customerDropdown .dropdown-item', function() {
+        var id = $(this).data('id');
+        var name = $(this).data('name');
+        $('#selectedCustomerId').val(id);
+        $('#customerSearchInput').val(name);
+        var typeLabel = $('#customerTypeSelect').val() === 'Customer' ? '客户' : '商户';
+        $('#selectedCustomerInfo').text('已选择' + typeLabel + '：' + name);
+        $('#customerDropdown').removeClass('show');
+    });
+
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('#customerSearchInput, #customerDropdown').length) {
+            $('#customerDropdown').removeClass('show');
+        }
+    });
+
+    $('#btnSubmitReceivable').on('click', submitReceivable);
+    $(document).on('click', '.btn-collect', function() {
+        openCollectModal($(this).data('id'), $(this).data('merchant'), $(this).data('amount'), $(this).data('remaining'), $(this).data('customer-type'), $(this).data('customer-id'));
+    });
+
+    // 收款模式切换
+    $(document).on('change', 'input[name="collectMode"]', function() {
+        if ($(this).val() === 'prepayment') {
+            $('#cashCollectArea').hide();
+            $('#prepayCollectArea').show();
+        } else {
+            $('#cashCollectArea').show();
+            $('#prepayCollectArea').hide();
+        }
+    });
+    $('#btnSubmitCollect').on('click', submitCollect);
+    $(document).on('click', '.btn-detail', function() { openDetailModal($(this).data('id')); });
+    $('#btnExportExcel').on('click', function() { showToast('info', '导出功能开发中'); });
+});
+</script>
 {% endblock %}

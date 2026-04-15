@@ -1,0 +1,123 @@
+{% extends "admin_base.html" %}
+
+{% block title %}我的工资条{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-file-invoice-dollar"></i> 我的工资条
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title mb-0">工资条明细</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>月份</th>
+                        <th>基本工资</th>
+                        <th>岗位工资</th>
+                        <th>补贴</th>
+                        <th>加班费</th>
+                        <th>奖金</th>
+                        <th>其他收入</th>
+                        <th>应发合计</th>
+                        <th>社保</th>
+                        <th>公积金</th>
+                        <th>个税</th>
+                        <th>其他扣款</th>
+                        <th>扣款合计</th>
+                        <th>实发合计</th>
+                        <th>状态</th>
+                    </tr>
+                </thead>
+                <tbody id="payslipTableBody">
+                    <tr>
+                        <td colspan="15" class="text-center text-muted">加载中...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <nav aria-label="Page navigation" id="paginationNav" style="display:none;">
+            <ul class="pagination justify-content-center" id="paginationList"></ul>
+        </nav>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(function() {
+    let currentPage = 1;
+
+    function loadPayslips(page) {
+        currentPage = page || 1;
+        $.get('/salary/payslip/list', {
+            page: currentPage,
+            per_page: 12
+        }, function(res) {
+            if (!res.success) return alert(res.message);
+            var data = res.data;
+            var html = '';
+            if (data.items.length === 0) {
+                html = '<tr><td colspan="15" class="text-center text-muted">暂无工资记录</td></tr>';
+            } else {
+                data.items.forEach(function(item) {
+                    var statusBadge = '';
+                    if (item.status === '待审核') statusBadge = '<span class="badge bg-warning text-dark">待审核</span>';
+                    else if (item.status === '已审核') statusBadge = '<span class="badge bg-info">已审核</span>';
+                    else if (item.status === '已发放') statusBadge = '<span class="badge bg-success">已发放</span>';
+
+                    html += '<tr>' +
+                        '<td>' + item.year_month + '</td>' +
+                        '<td class="text-end">¥' + item.base_salary.toFixed(2) + '</td>' +
+                        '<td class="text-end">¥' + item.post_salary.toFixed(2) + '</td>' +
+                        '<td class="text-end">¥' + item.subsidy.toFixed(2) + '</td>' +
+                        '<td class="text-end">¥' + item.overtime_pay.toFixed(2) + '</td>' +
+                        '<td class="text-end">¥' + item.bonus.toFixed(2) + '</td>' +
+                        '<td class="text-end">¥' + item.other_income.toFixed(2) + '</td>' +
+                        '<td class="text-end fw-bold">¥' + item.gross_pay.toFixed(2) + '</td>' +
+                        '<td class="text-end">¥' + item.insurance.toFixed(2) + '</td>' +
+                        '<td class="text-end">¥' + item.housing_fund.toFixed(2) + '</td>' +
+                        '<td class="text-end">¥' + item.tax.toFixed(2) + '</td>' +
+                        '<td class="text-end">¥' + item.deduction.toFixed(2) + '</td>' +
+                        '<td class="text-end text-danger">¥' + item.total_deduction.toFixed(2) + '</td>' +
+                        '<td class="text-end fw-bold text-success">¥' + item.net_pay.toFixed(2) + '</td>' +
+                        '<td>' + statusBadge + '</td></tr>';
+                });
+            }
+            $('#payslipTableBody').html(html);
+            renderPagination(data);
+        });
+    }
+
+    function renderPagination(data) {
+        if (data.total_pages <= 1) {
+            $('#paginationNav').hide();
+            return;
+        }
+        $('#paginationNav').show();
+        var html = '<li class="page-item ' + (data.current_page <= 1 ? 'disabled' : '') + '">' +
+            '<a class="page-link" href="#" data-page="' + (data.current_page - 1) + '">&laquo;</a></li>';
+        for (var i = 1; i <= data.total_pages; i++) {
+            html += '<li class="page-item ' + (i === data.current_page ? 'active' : '') + '">' +
+                '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
+        }
+        html += '<li class="page-item ' + (data.current_page >= data.total_pages ? 'disabled' : '') + '">' +
+            '<a class="page-link" href="#" data-page="' + (data.current_page + 1) + '">&raquo;</a></li>';
+        $('#paginationList').html(html);
+    }
+
+    $(document).on('click', '#paginationList .page-link', function(e) {
+        e.preventDefault();
+        var page = $(this).data('page');
+        if (page) loadPayslips(page);
+    });
+
+    loadPayslips(1);
+});
+</script>
+{% endblock %}

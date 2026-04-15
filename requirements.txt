@@ -15,6 +15,7 @@ SQLAlchemy
 
 # 表单验证
 wtforms
+email-validator
 
 # 模板处理
 jinja2

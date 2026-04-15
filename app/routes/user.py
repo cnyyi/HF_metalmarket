@@ -1,5 +1,5 @@
 # 用户管理相关路由
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 from app.forms.user_form import UserAddForm, UserEditForm, PasswordChangeForm
 from app.services.user_service import UserService
@@ -155,27 +155,102 @@ def delete(user_id):
 @user_bp.route('/change_password', methods=['GET', 'POST'])
 @login_required
 def change_password():
-    """
-    修改密码页面
-    """
     form = PasswordChangeForm()
-    
+
     if form.validate_on_submit():
-        # 检查当前密码是否正确
         if not AuthService.verify_password(form.current_password.data, current_user.password):
             flash('当前密码错误', 'danger')
             return render_template('user/change_password.html', form=form)
-        
-        # 检查新密码和确认新密码是否一致
+
         if form.new_password.data != form.confirm_new_password.data:
             flash('两次输入的新密码不一致', 'danger')
             return render_template('user/change_password.html', form=form)
-        
-        # 更新密码
+
         if UserService.update_user_password(current_user.user_id, form.new_password.data):
             flash('密码修改成功，请重新登录', 'success')
             return redirect(url_for('auth.logout'))
         else:
             flash('密码修改失败', 'danger')
-    
+
     return render_template('user/change_password.html', form=form)
+
+
+@user_bp.route('/api/detail/<int:user_id>', methods=['GET'])
+@login_required
+def api_user_detail(user_id):
+    try:
+        user = UserService.get_user_by_id(user_id)
+        if not user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+        role_ids = [role.role_id for role in user.roles]
+        role_names = [role.role_name for role in user.roles]
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'user_id': user.user_id,
+                'username': user.username,
+                'real_name': user.real_name or '',
+                'phone': user.phone or '',
+                'email': user.email or '',
+                'is_active': user.is_active,
+                'merchant_id': user.merchant_id,
+                'role_ids': role_ids,
+                'role_names': role_names
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@user_bp.route('/api/update/<int:user_id>', methods=['POST'])
+@login_required
+def api_user_update(user_id):
+    try:
+        if not hasattr(current_user, 'has_permission') or not current_user.has_permission('user_manage'):
+            return jsonify({'success': False, 'message': '无权限'}), 403
+
+        data = request.json
+        updated = UserService.update_user(
+            user_id=user_id,
+            real_name=data.get('real_name'),
+            phone=data.get('phone'),
+            email=data.get('email'),
+            role_ids=data.get('role_ids', []),
+            is_active=data.get('is_active', True),
+            merchant_id=data.get('merchant_id') if data.get('merchant_id') else None
+        )
+
+        if updated:
+            return jsonify({'success': True, 'message': '更新成功'})
+        else:
+            return jsonify({'success': False, 'message': '更新失败'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@user_bp.route('/api/merchants', methods=['GET'])
+@login_required
+def api_merchants():
+    try:
+        from utils.database import execute_query
+        results = execute_query("""
+            SELECT MerchantID, MerchantName FROM Merchant ORDER BY MerchantID
+        """, fetch_type='all')
+
+        merchants = [{'merchant_id': r.MerchantID, 'merchant_name': r.MerchantName} for r in results]
+        return jsonify({'success': True, 'data': merchants})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@user_bp.route('/api/roles', methods=['GET'])
+@login_required
+def api_roles():
+    try:
+        roles = UserService.get_all_roles()
+        data = [{'role_id': r.role_id, 'role_name': r.role_name} for r in roles]
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500

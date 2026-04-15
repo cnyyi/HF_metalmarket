@@ -1,0 +1,618 @@
+{% extends "admin_base.html" %}
+
+{% block title %}月度工资{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-calculator"></i> 月度工资核算
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col-md-6">
+                <h5 class="card-title mb-0">月度工资单</h5>
+            </div>
+            <div class="col-md-6 text-end">
+                <button type="button" class="btn btn-success" id="btnGenerate">
+                    <i class="fa fa-magic"></i> 批量生成
+                </button>
+                <button type="button" class="btn btn-info ms-2" id="btnBatchApprove" style="display:none;">
+                    <i class="fa fa-check-circle"></i> 批量审核
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- 汇总统计 -->
+        <div class="row mb-3" id="summaryRow" style="display:none;">
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h6 class="text-muted mb-1">应发总额</h6>
+                        <h4 class="mb-0 text-primary" id="totalGross">¥0.00</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h6 class="text-muted mb-1">扣款总额</h6>
+                        <h4 class="mb-0 text-warning" id="totalDeduction">¥0.00</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h6 class="text-muted mb-1">实发总额</h6>
+                        <h4 class="mb-0 text-success" id="totalNet">¥0.00</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h6 class="text-muted mb-1">状态分布</h6>
+                        <div id="statusDistribution" class="small"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 筛选 -->
+        <div class="row mb-3">
+            <div class="col-md-3">
+                <input type="month" class="form-control" id="yearMonthFilter">
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="statusFilter">
+                    <option value="">全部状态</option>
+                    <option value="待审核">待审核</option>
+                    <option value="已审核">已审核</option>
+                    <option value="已发放">已发放</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa fa-search"></i></span>
+                    <input type="text" class="form-control" id="searchInput" placeholder="搜索员工姓名">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-primary" id="btnSearch">
+                    <i class="fa fa-search"></i> 搜索
+                </button>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll"></th>
+                        <th>员工</th>
+                        <th>月份</th>
+                        <th>基本工资</th>
+                        <th>岗位工资</th>
+                        <th>补贴</th>
+                        <th>加班/奖金</th>
+                        <th>应发合计</th>
+                        <th>社保/公积金</th>
+                        <th>个税/扣款</th>
+                        <th>实发合计</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="salaryTableBody">
+                    <tr>
+                        <td colspan="13" class="text-center text-muted">请选择月份后搜索</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <nav aria-label="Page navigation" id="paginationNav" style="display:none;">
+            <ul class="pagination justify-content-center" id="paginationList"></ul>
+        </nav>
+    </div>
+</div>
+
+<!-- 批量生成弹窗 -->
+<div class="modal fade" id="generateModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa fa-magic"></i> 批量生成工资单</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">工资月份 <span class="text-danger">*</span></label>
+                    <input type="month" class="form-control" id="generateMonth" required>
+                </div>
+                <div class="alert alert-info">
+                    <i class="fa fa-info-circle"></i> 系统将为所有拥有有效工资档案的员工自动生成月度工资单，已存在的将跳过。
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" id="btnDoGenerate">
+                    <i class="fa fa-check"></i> 确认生成
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑工资单弹窗 -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa fa-edit"></i> 编辑工资单</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editRecordId">
+                <h6 class="text-muted mb-3" id="editEmployeeInfo"></h6>
+
+                <div class="row mb-2">
+                    <div class="col-12"><strong>收入项</strong></div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-2">
+                        <label class="form-label">基本工资</label>
+                        <input type="number" class="form-control salary-input" id="editBaseSalary" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">岗位工资</label>
+                        <input type="number" class="form-control salary-input" id="editPostSalary" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">补贴</label>
+                        <input type="number" class="form-control salary-input" id="editSubsidy" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">加班费</label>
+                        <input type="number" class="form-control salary-input" id="editOvertimePay" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">奖金</label>
+                        <input type="number" class="form-control salary-input" id="editBonus" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">其他收入</label>
+                        <input type="number" class="form-control salary-input" id="editOtherIncome" step="0.01" min="0">
+                    </div>
+                </div>
+
+                <div class="row mb-2">
+                    <div class="col-12"><strong>扣款项</strong></div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label">社保</label>
+                        <input type="number" class="form-control salary-input" id="editInsurance" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">公积金</label>
+                        <input type="number" class="form-control salary-input" id="editHousingFund" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">个税</label>
+                        <input type="number" class="form-control salary-input" id="editTax" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">其他扣款</label>
+                        <input type="number" class="form-control salary-input" id="editDeduction" step="0.01" min="0">
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-2">
+                        <label class="form-label">应出勤天数</label>
+                        <input type="number" class="form-control" id="editWorkDays" min="0" max="31">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">实出勤天数</label>
+                        <input type="number" class="form-control" id="editActualDays" min="0" max="31">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">备注</label>
+                        <input type="text" class="form-control" id="editDescription">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="alert alert-primary mb-0">
+                            <strong>应发合计：</strong><span id="calcGrossPay">¥0.00</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="alert alert-warning mb-0">
+                            <strong>扣款合计：</strong><span id="calcTotalDeduction">¥0.00</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="alert alert-success mb-0">
+                            <strong>实发合计：</strong><span id="calcNetPay">¥0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="btnSaveRecord">
+                    <i class="fa fa-save"></i> 保存
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 发放弹窗 -->
+<div class="modal fade" id="payModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa fa-money"></i> 发放工资</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="payRecordId">
+                <div class="alert alert-success">
+                    <strong>实发金额：</strong><span id="payNetAmount">¥0.00</span>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">付款方式</label>
+                    <select class="form-select" id="payMethod">
+                        <option value="转账">转账</option>
+                        <option value="现金">现金</option>
+                        <option value="支票">支票</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">交易日期</label>
+                    <input type="date" class="form-control" id="payDate">
+                </div>
+                <div class="alert alert-warning">
+                    <i class="fa fa-exclamation-triangle"></i> 发放后将自动创建应付账款和现金流水记录，此操作不可撤销。
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" id="btnDoPay">
+                    <i class="fa fa-check"></i> 确认发放
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(function() {
+    let currentPage = 1;
+
+    // 默认当月
+    var now = new Date();
+    var defaultMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    $('#yearMonthFilter').val(defaultMonth);
+
+    function loadRecords(page) {
+        currentPage = page || 1;
+        $.get('/salary/monthly/list', {
+            page: currentPage,
+            per_page: 10,
+            year_month: $('#yearMonthFilter').val(),
+            status: $('#statusFilter').val(),
+            search: $('#searchInput').val().trim()
+        }, function(res) {
+            if (!res.success) return alert(res.message);
+            var data = res.data;
+            var html = '';
+            if (data.items.length === 0) {
+                html = '<tr><td colspan="13" class="text-center text-muted">暂无数据</td></tr>';
+            } else {
+                data.items.forEach(function(item) {
+                    var statusBadge = '';
+                    if (item.status === '待审核') statusBadge = '<span class="badge bg-warning text-dark">待审核</span>';
+                    else if (item.status === '已审核') statusBadge = '<span class="badge bg-info">已审核</span>';
+                    else if (item.status === '已发放') statusBadge = '<span class="badge bg-success">已发放</span>';
+
+                    var ops = '';
+                    if (item.status === '待审核') {
+                        ops += '<button class="btn btn-sm btn-outline-info me-1 btn-approve" data-id="' + item.record_id + '"><i class="fa fa-check"></i> 审核</button>';
+                        ops += '<button class="btn btn-sm btn-outline-primary me-1 btn-edit" data-id="' + item.record_id + '"><i class="fa fa-edit"></i> 编辑</button>';
+                        ops += '<button class="btn btn-sm btn-outline-danger btn-del" data-id="' + item.record_id + '"><i class="fa fa-trash"></i> 删除</button>';
+                    } else if (item.status === '已审核') {
+                        ops += '<button class="btn btn-sm btn-outline-success me-1 btn-pay" data-id="' + item.record_id + '" data-net="' + item.net_pay + '"><i class="fa fa-money"></i> 发放</button>';
+                    }
+
+                    html += '<tr>' +
+                        '<td><input type="checkbox" class="record-check" value="' + item.record_id + '" data-status="' + item.status + '"></td>' +
+                        '<td>' + item.real_name + '</td>' +
+                        '<td>' + item.year_month + '</td>' +
+                        '<td class="text-end">¥' + item.base_salary.toFixed(2) + '</td>' +
+                        '<td class="text-end">¥' + item.post_salary.toFixed(2) + '</td>' +
+                        '<td class="text-end">¥' + item.subsidy.toFixed(2) + '</td>' +
+                        '<td class="text-end">¥' + (item.overtime_pay + item.bonus).toFixed(2) + '</td>' +
+                        '<td class="text-end fw-bold">¥' + item.gross_pay.toFixed(2) + '</td>' +
+                        '<td class="text-end">¥' + (item.insurance + item.housing_fund).toFixed(2) + '</td>' +
+                        '<td class="text-end">¥' + (item.tax + item.deduction).toFixed(2) + '</td>' +
+                        '<td class="text-end fw-bold text-success">¥' + item.net_pay.toFixed(2) + '</td>' +
+                        '<td>' + statusBadge + '</td>' +
+                        '<td>' + ops + '</td></tr>';
+                });
+            }
+            $('#salaryTableBody').html(html);
+            renderPagination(data);
+            updateBatchButton();
+
+            // 汇总
+            if (res.summary) {
+                var s = res.summary;
+                $('#totalGross').text('¥' + s.total_gross.toFixed(2));
+                $('#totalDeduction').text('¥' + s.total_deduction.toFixed(2));
+                $('#totalNet').text('¥' + s.total_net.toFixed(2));
+                $('#statusDistribution').html(
+                    '<span class="badge bg-warning text-dark me-1">待审核 ' + s.pending_count + '</span>' +
+                    '<span class="badge bg-info me-1">已审核 ' + s.approved_count + '</span>' +
+                    '<span class="badge bg-success">已发放 ' + s.paid_count + '</span>'
+                );
+                $('#summaryRow').show();
+            } else {
+                $('#summaryRow').hide();
+            }
+        });
+    }
+
+    function renderPagination(data) {
+        if (data.total_pages <= 1) {
+            $('#paginationNav').hide();
+            return;
+        }
+        $('#paginationNav').show();
+        var html = '<li class="page-item ' + (data.current_page <= 1 ? 'disabled' : '') + '">' +
+            '<a class="page-link" href="#" data-page="' + (data.current_page - 1) + '">&laquo;</a></li>';
+        for (var i = 1; i <= data.total_pages; i++) {
+            html += '<li class="page-item ' + (i === data.current_page ? 'active' : '') + '">' +
+                '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
+        }
+        html += '<li class="page-item ' + (data.current_page >= data.total_pages ? 'disabled' : '') + '">' +
+            '<a class="page-link" href="#" data-page="' + (data.current_page + 1) + '">&raquo;</a></li>';
+        $('#paginationList').html(html);
+    }
+
+    $(document).on('click', '#paginationList .page-link', function(e) {
+        e.preventDefault();
+        var page = $(this).data('page');
+        if (page) loadRecords(page);
+    });
+
+    $('#btnSearch').click(function() { loadRecords(1); });
+    $('#searchInput').keypress(function(e) { if (e.which === 13) loadRecords(1); });
+    $('#yearMonthFilter, #statusFilter').change(function() { loadRecords(1); });
+
+    // 全选
+    $('#selectAll').change(function() {
+        $('.record-check').prop('checked', $(this).prop('checked'));
+        updateBatchButton();
+    });
+    $(document).on('change', '.record-check', updateBatchButton);
+
+    function updateBatchButton() {
+        var checked = $('.record-check:checked').filter(function() {
+            return $(this).data('status') === '待审核';
+        });
+        if (checked.length > 0) {
+            $('#btnBatchApprove').show();
+        } else {
+            $('#btnBatchApprove').hide();
+        }
+    }
+
+    // 批量生成
+    $('#btnGenerate').click(function() {
+        $('#generateMonth').val($('#yearMonthFilter').val() || defaultMonth);
+        new bootstrap.Modal($('#generateModal')[0]).show();
+    });
+
+    $('#btnDoGenerate').click(function() {
+        var month = $('#generateMonth').val();
+        if (!month) return alert('请选择月份');
+        $.ajax({
+            url: '/salary/monthly/generate',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ year_month: month }),
+            success: function(res) {
+                bootstrap.Modal.getInstance($('#generateModal')[0]).hide();
+                if (res.success) {
+                    showToast(res.message, 'success');
+                    loadRecords(1);
+                } else {
+                    alert(res.message);
+                }
+            },
+            error: function(xhr) { alert(xhr.responseJSON ? xhr.responseJSON.message : '操作失败'); }
+        });
+    });
+
+    // 审核
+    $(document).on('click', '.btn-approve', function() {
+        var id = $(this).data('id');
+        if (!confirm('确认审核此工资单？')) return;
+        $.ajax({
+            url: '/salary/monthly/approve/' + id,
+            method: 'POST',
+            contentType: 'application/json',
+            success: function(res) {
+                if (res.success) {
+                    showToast('审核成功', 'success');
+                    loadRecords(currentPage);
+                } else { alert(res.message); }
+            },
+            error: function(xhr) { alert(xhr.responseJSON ? xhr.responseJSON.message : '审核失败'); }
+        });
+    });
+
+    // 批量审核
+    $('#btnBatchApprove').click(function() {
+        var ids = [];
+        $('.record-check:checked').each(function() {
+            if ($(this).data('status') === '待审核') ids.push($(this).val());
+        });
+        if (ids.length === 0) return alert('请选择待审核的工资单');
+        if (!confirm('确认批量审核 ' + ids.length + ' 条工资单？')) return;
+        $.ajax({
+            url: '/salary/monthly/batch_approve',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ record_ids: ids }),
+            success: function(res) {
+                if (res.success) {
+                    showToast(res.message, 'success');
+                    loadRecords(currentPage);
+                } else { alert(res.message); }
+            },
+            error: function(xhr) { alert(xhr.responseJSON ? xhr.responseJSON.message : '审核失败'); }
+        });
+    });
+
+    // 编辑
+    $(document).on('click', '.btn-edit', function() {
+        var id = $(this).data('id');
+        $.get('/salary/monthly/detail/' + id, function(res) {
+            if (!res.success) return alert(res.message);
+            var d = res.data;
+            $('#editRecordId').val(d.record_id);
+            $('#editEmployeeInfo').text(d.real_name + ' — ' + d.year_month);
+            $('#editBaseSalary').val(d.base_salary);
+            $('#editPostSalary').val(d.post_salary);
+            $('#editSubsidy').val(d.subsidy);
+            $('#editOvertimePay').val(d.overtime_pay);
+            $('#editBonus').val(d.bonus);
+            $('#editOtherIncome').val(d.other_income);
+            $('#editInsurance').val(d.insurance);
+            $('#editHousingFund').val(d.housing_fund);
+            $('#editTax').val(d.tax);
+            $('#editDeduction').val(d.deduction);
+            $('#editWorkDays').val(d.work_days);
+            $('#editActualDays').val(d.actual_days);
+            $('#editDescription').val(d.description);
+            recalcEdit();
+            new bootstrap.Modal($('#editModal')[0]).show();
+        });
+    });
+
+    // 实时计算
+    function recalcEdit() {
+        var gross = f('editBaseSalary') + f('editPostSalary') + f('editSubsidy') + f('editOvertimePay') + f('editBonus') + f('editOtherIncome');
+        var deduc = f('editInsurance') + f('editHousingFund') + f('editTax') + f('editDeduction');
+        var net = gross - deduc;
+        $('#calcGrossPay').text('¥' + gross.toFixed(2));
+        $('#calcTotalDeduction').text('¥' + deduc.toFixed(2));
+        $('#calcNetPay').text('¥' + net.toFixed(2));
+    }
+    function f(id) { return parseFloat($('#' + id).val()) || 0; }
+    $(document).on('input', '.salary-input', recalcEdit);
+
+    // 保存编辑
+    $('#btnSaveRecord').click(function() {
+        var payload = {
+            base_salary: f('editBaseSalary'),
+            post_salary: f('editPostSalary'),
+            subsidy: f('editSubsidy'),
+            overtime_pay: f('editOvertimePay'),
+            bonus: f('editBonus'),
+            other_income: f('editOtherIncome'),
+            insurance: f('editInsurance'),
+            housing_fund: f('editHousingFund'),
+            tax: f('editTax'),
+            deduction: f('editDeduction'),
+            work_days: parseInt($('#editWorkDays').val()) || 0,
+            actual_days: parseInt($('#editActualDays').val()) || 0,
+            description: $('#editDescription').val()
+        };
+        $.ajax({
+            url: '/salary/monthly/edit/' + $('#editRecordId').val(),
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(payload),
+            success: function(res) {
+                if (res.success) {
+                    bootstrap.Modal.getInstance($('#editModal')[0]).hide();
+                    showToast(res.message, 'success');
+                    loadRecords(currentPage);
+                } else { alert(res.message); }
+            },
+            error: function(xhr) { alert(xhr.responseJSON ? xhr.responseJSON.message : '保存失败'); }
+        });
+    });
+
+    // 删除
+    $(document).on('click', '.btn-del', function() {
+        var id = $(this).data('id');
+        if (!confirm('确定要删除此工资单？')) return;
+        $.ajax({
+            url: '/salary/monthly/delete/' + id,
+            method: 'POST',
+            contentType: 'application/json',
+            success: function(res) {
+                if (res.success) { showToast('删除成功', 'success'); loadRecords(currentPage); }
+                else { alert(res.message); }
+            },
+            error: function(xhr) { alert(xhr.responseJSON ? xhr.responseJSON.message : '删除失败'); }
+        });
+    });
+
+    // 发放
+    $(document).on('click', '.btn-pay', function() {
+        var id = $(this).data('id');
+        var net = $(this).data('net');
+        $('#payRecordId').val(id);
+        $('#payNetAmount').text('¥' + parseFloat(net).toFixed(2));
+        $('#payDate').val(new Date().toISOString().split('T')[0]);
+        new bootstrap.Modal($('#payModal')[0]).show();
+    });
+
+    $('#btnDoPay').click(function() {
+        $.ajax({
+            url: '/salary/monthly/pay/' + $('#payRecordId').val(),
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                payment_method: $('#payMethod').val(),
+                transaction_date: $('#payDate').val()
+            }),
+            success: function(res) {
+                bootstrap.Modal.getInstance($('#payModal')[0]).hide();
+                if (res.success) {
+                    showToast(res.message, 'success');
+                    loadRecords(currentPage);
+                } else { alert(res.message); }
+            },
+            error: function(xhr) { alert(xhr.responseJSON ? xhr.responseJSON.message : '发放失败'); }
+        });
+    });
+
+    function showToast(msg, type) {
+        var cls = type === 'success' ? 'bg-success' : 'bg-danger';
+        var toast = $('<div class="toast align-items-center text-white ' + cls + ' border-0 position-fixed top-0 end-0 m-3" role="alert" style="z-index:9999">' +
+            '<div class="d-flex"><div class="toast-body">' + msg + '</div>' +
+            '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>');
+        $('body').append(toast);
+        new bootstrap.Toast(toast[0], { delay: 2000 }).show();
+        toast.on('hidden.bs.toast', function() { toast.remove(); });
+    }
+
+    // 初始加载
+    loadRecords(1);
+});
+</script>
+{% endblock %}

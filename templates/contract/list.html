@@ -6,6 +6,29 @@
     <i class="fa fa-file-text"></i> 合同管理
 {% endblock %}
 
+{% block extra_css %}
+<style>
+.contract-number-link {
+    color: var(--color-primary, #0d6efd);
+    text-decoration: none;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.contract-number-link:hover {
+    text-decoration: underline;
+    background-color: rgba(13, 110, 253, 0.1);
+}
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
+<li class="breadcrumb-item active">合同管理</li>
+{% endblock %}
+
 {% block content %}
 <div class="card">
     <div class="card-header">
@@ -104,126 +127,10 @@
 {% endblock %}
 
 {% block extra_js %}
-<style>
-.table-striped tbody tr:nth-of-type(odd) {
-    background-color: #f8f9fa;
-}
-
-.table-hover tbody tr:hover {
-    background-color: #e5f5ff;
-}
-
-.contract-number-link {
-    color: #0d6efd;
-    text-decoration: none;
-    font-weight: 500;
-    padding: 2px 6px;
-    border-radius: 4px;
-    transition: all 0.2s ease;
-}
-
-.contract-number-link:hover {
-    color: #0a58ca;
-    text-decoration: underline;
-    background-color: rgba(13, 110, 253, 0.1);
-}
-
-.contract-number-link:active {
-    background-color: rgba(13, 110, 253, 0.2);
-}
-
-.btn-outline-primary, .btn-outline-danger, .btn-outline-info {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.875rem;
-}
-
-/* 模态窗口样式优化 */
-#viewModal .modal-content {
-    border-radius: 12px;
-    border: none;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-}
-
-#viewModal .modal-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 12px 12px 0 0;
-    padding: 1.25rem 1.5rem;
-    border: none;
-}
-
-#viewModal .modal-title {
-    font-weight: 600;
-    font-size: 1.25rem;
-}
-
-#viewModal .modal-body {
-    padding: 2rem 1.5rem;
-    background-color: #f8f9fa;
-}
-
-#viewModal .form-label {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: #6c757d;
-    margin-bottom: 0.5rem;
-}
-
-#viewModal p {
-    margin: 0;
-    color: #212529;
-    font-weight: 500;
-}
-
-#viewModal .badge {
-    padding: 0.5em 1em;
-    font-size: 0.875rem;
-}
-
-/* 模态窗口动画 */
-#viewModal .modal-dialog {
-    transition: all 0.3s ease;
-}
-
-#viewModal.fade .modal-dialog {
-    transform: scale(0.95);
-    opacity: 0;
-}
-
-#viewModal.show .modal-dialog {
-    transform: scale(1);
-    opacity: 1;
-}
-
-/* 加载动画 */
-.spinner-border-sm {
-    width: 1rem;
-    height: 1rem;
-    border-width: 0.15em;
-}
-
-/* 表格样式优化 - 防止日期换行 */
-.table th, .table td {
-    vertical-align: middle;
-    white-space: nowrap;
-}
-
-.table th {
-    border-top: none;
-    font-weight: 600;
-}
-</style>
 <script>
 var currentPage = 1;
 var perPage = 10;
 var deleteContractId = null;
-
-function formatCurrency(amount) {
-    if (amount === null || amount === undefined || isNaN(amount)) {
-        return '0.00';
-    }
-    return parseFloat(amount).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
-}
 
 function loadContractDetail(contractId) {
     $('#viewModalBody').html('<div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">加载中...</span></div></div>');
@@ -261,7 +168,7 @@ function loadContractDetail(contractId) {
                     '</div>' +
                     '<div class="col-md-6">' +
                         '<label class="form-label">合同金额</label>' +
-                        '<p class="fs-5 text-primary fw-bold">¥' + formatCurrency(contract.contract_amount || 0) + '</p>' +
+                        '<p class="fs-5 text-primary fw-bold">¥' + formatNumber(contract.contract_amount || 0) + '</p>' +
                     '</div>' +
                     '<div class="col-md-6">' +
                         '<label class="form-label">合同状态</label>' +
@@ -288,15 +195,15 @@ function loadContractDetail(contractId) {
                     '</div>' +
                     '<div class="col-md-4">' +
                         '<label class="form-label">地块年租金合计</label>' +
-                        '<p class="fs-6">¥' + formatCurrency(contract.contract_amount || 0) + '</p>' +
+                        '<p class="fs-6">¥' + formatNumber(contract.contract_amount || 0) + '</p>' +
                     '</div>' +
                     '<div class="col-md-4">' +
                         '<label class="form-label">租金增减</label>' +
-                        '<p class="fs-6">' + (contract.amount_reduction >= 0 ? '+' : '') + '¥' + formatCurrency(contract.amount_reduction || 0) + '</p>' +
+                        '<p class="fs-6">' + (contract.amount_reduction >= 0 ? '+' : '') + '¥' + formatNumber(contract.amount_reduction || 0) + '</p>' +
                     '</div>' +
                     '<div class="col-md-4">' +
                         '<label class="form-label">实际合同金额</label>' +
-                        '<p class="fs-5 text-primary fw-bold">¥' + formatCurrency(contract.actual_amount || 0) + '</p>' +
+                        '<p class="fs-5 text-primary fw-bold">¥' + formatNumber(contract.actual_amount || 0) + '</p>' +
                     '</div>';
                 
                 if (contract.description) {
@@ -379,11 +286,11 @@ function loadContracts(page) {
                             '<td>' + contract.contact_person + '</td>' +
                             '<td>' + (contract.start_date || '-') + '</td>' +
                             '<td>' + (contract.end_date || '-') + '</td>' +
-                            '<td class="text-end">¥' + formatCurrency(contract.actual_amount) + '</td>' +
+                            '<td class="text-end">¥' + formatNumber(contract.actual_amount) + '</td>' +
                             '<td>' +
-                                '<button type="button" class="btn btn-sm btn-outline-success me-1 download-btn" data-id="' + contract.contract_id + '" title="下载合同"><i class="fa fa-download"></i></button>' +
-                                '<a href="/contract/edit/' + contract.contract_id + '" class="btn btn-sm btn-outline-primary me-1"><i class="fa fa-edit"></i></a>' +
-                                '<button type="button" class="btn btn-sm btn-outline-danger delete-btn" data-id="' + contract.contract_id + '"><i class="fa fa-trash"></i></button>' +
+                                '<button type="button" class="btn btn-sm btn-outline-success me-1 download-btn" data-id="' + contract.contract_id + '" title="下载合同"><i class="fa fa-download"></i> 下载</button>' +
+                                '<a href="/contract/edit/' + contract.contract_id + '" class="btn btn-sm btn-outline-primary me-1"><i class="fa fa-edit"></i> 编辑</a>' +
+                                '<button type="button" class="btn btn-sm btn-outline-danger delete-btn" data-id="' + contract.contract_id + '"><i class="fa fa-trash"></i> 删除</button>' +
                             '</td>' +
                         '</tr>';
                         tbody.append(row);
@@ -464,12 +371,12 @@ $(document).on('click', '.download-btn', function() {
                     btn.html('<i class="fa fa-download"></i>');
                 }, 2000);
             } else {
-                alert('生成失败：' + response.message);
+                showToast('error', '生成失败：' + response.message);
                 btn.prop('disabled', false).html('<i class="fa fa-download"></i>');
             }
         },
         error: function() {
-            alert('生成失败，请稍后重试');
+            showToast('error', '生成失败，请稍后重试');
             btn.prop('disabled', false).html('<i class="fa fa-download"></i>');
         }
     });
@@ -493,11 +400,11 @@ $('#confirmDelete').click(function() {
                     $('#deleteModal').modal('hide');
                     loadContracts(currentPage);
                 } else {
-                    alert('删除失败: ' + response.message);
+                    showToast('error', '删除失败: ' + response.message);
                 }
             },
             error: function() {
-                alert('删除失败');
+                showToast('error', '删除失败');
             }
         });
     }

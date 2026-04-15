@@ -6,6 +6,11 @@
     <i class="fa fa-user-plus"></i> 添加用户
 {% endblock %}
 
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('user.user_list') }}">用户管理</a></li>
+<li class="breadcrumb-item active">添加用户</li>
+{% endblock %}
+
 {% block content %}
 <div class="card">
     <div class="card-body">

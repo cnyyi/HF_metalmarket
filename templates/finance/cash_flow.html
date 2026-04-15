@@ -1,161 +1,316 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>现金流水 - 宏发金属交易市场管理系统</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
-        <div class="container">
-            <a class="navbar-brand" href="#">宏发金属交易市场管理系统</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('auth.index') }}">首页</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('user.user_list') }}">用户管理</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('merchant.merchant_list') }}">商户管理</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('plot.plot_list') }}">地块管理</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('contract.contract_list') }}">合同管理</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('utility.utility_list') }}">水电计费</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" aria-current="page" href="#">财务管理</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('scale.scale_list') }}">磅秤管理</a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fa fa-user"></i> 账户
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            {% if current_user.is_authenticated %}
-                                <li><a class="dropdown-item" href="#">欢迎, {{ current_user.real_name }}</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="{{ url_for('user.change_password') }}">修改密码</a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">登出</a></li>
-                            {% else %}
-                                <li><a class="dropdown-item" href="{{ url_for('auth.login') }}">登录</a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('auth.register') }}">注册</a></li>
-                            {% endif %}
-                        </ul>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+{% extends "admin_base.html" %}
 
-    <div class="container mt-5 pt-5">
-        <div class="row">
-            <div class="col-md-12">
-                <h2><i class="fa fa-money"></i> 现金流水</h2>
-                <hr>
-                
-                <div class="card">
-                    <div class="card-header">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <h5 class="card-title mb-0">现金流水记录</h5>
-                            </div>
-                            <div class="col-md-6 text-end">
-                                <button type="button" class="btn btn-primary">
-                                    <i class="fa fa-plus"></i> 添加流水
-                                </button>
-                                <button type="button" class="btn btn-success ms-2">
-                                    <i class="fa fa-file-excel-o"></i> 导出Excel
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div class="row mb-3">
-                            <div class="col-md-3">
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="fa fa-calendar"></i></span>
-                                    <input type="date" class="form-control" placeholder="开始日期">
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="fa fa-calendar"></i></span>
-                                    <input type="date" class="form-control" placeholder="结束日期">
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <select class="form-select">
-                                    <option value="">全部类型</option>
-                                    <option value="income">收入</option>
-                                    <option value="expense">支出</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <button type="button" class="btn btn-primary">搜索</button>
-                            </div>
-                        </div>
-                        
-                        <div class="table-responsive">
-                            <table class="table table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>序号</th>
-                                        <th>日期</th>
-                                        <th>类型</th>
-                                        <th>摘要</th>
-                                        <th>收入金额</th>
-                                        <th>支出金额</th>
-                                        <th>余额</th>
-                                        <th>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td colspan="8" class="text-center">暂无数据</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        
-                        <nav aria-label="Page navigation">
-                            <ul class="pagination justify-content-center">
-                                <li class="page-item disabled">
-                                    <a class="page-link" href="#" tabindex="-1" aria-disabled="true">上一页</a>
-                                </li>
-                                <li class="page-item active"><a class="page-link" href="#">1</a></li>
-                                <li class="page-item"><a class="page-link" href="#">2</a></li>
-                                <li class="page-item"><a class="page-link" href="#">3</a></li>
-                                <li class="page-item">
-                                    <a class="page-link" href="#">下一页</a>
-                                </li>
-                            </ul>
-                        </nav>
-                    </div>
-                </div>
+{% block title %}现金流水{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-money"></i> 现金流水
+{% endblock %}
+
+{% block extra_css %}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">财务管理</a></li>
+<li class="breadcrumb-item active">现金流水</li>
+{% endblock %}
+
+{% block content %}
+<!-- 汇总卡片 -->
+<div class="row mb-4" id="summaryCards">
+    <div class="col-md-4">
+        <div class="card summary-card summary-income">
+            <div class="card-body">
+                <div class="summary-label"><i class="fa fa-arrow-down"></i> 总收入</div>
+                <div class="summary-amount text-success" id="totalIncome">¥0.00</div>
             </div>
         </div>
     </div>
-
-    <footer class="mt-5 py-4 bg-dark text-white">
-        <div class="container text-center">
-            <p>&copy; 2026 宏发金属交易市场管理系统. 保留所有权利.</p>
+    <div class="col-md-4">
+        <div class="card summary-card summary-expense">
+            <div class="card-body">
+                <div class="summary-label"><i class="fa fa-arrow-up"></i> 总支出</div>
+                <div class="summary-amount text-danger" id="totalExpense">¥0.00</div>
+            </div>
         </div>
-    </footer>
+    </div>
+    <div class="col-md-4">
+        <div class="card summary-card summary-net">
+            <div class="card-body">
+                <div class="summary-label"><i class="fa fa-balance-scale"></i> 净现金流</div>
+                <div class="summary-amount" id="netCashFlow">¥0.00</div>
+            </div>
+        </div>
+    </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col-md-6">
+                <h5 class="card-title mb-0">资金流水记录</h5>
+            </div>
+            <div class="col-md-6 text-end">
+                <button type="button" class="btn btn-success" id="btnExportExcel">
+                    <i class="fa fa-file-excel-o"></i> 导出Excel
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-2">
+                <label class="form-label form-label-sm">开始日期</label>
+                <input type="date" class="form-control form-control-sm" id="startDate">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label form-label-sm">结束日期</label>
+                <input type="date" class="form-control form-control-sm" id="endDate">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label form-label-sm">方向</label>
+                <select class="form-select form-select-sm" id="directionFilter">
+                    <option value="">全部</option>
+                    <option value="收入">收入</option>
+                    <option value="支出">支出</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label form-label-sm">费用类型</label>
+                <select class="form-select form-select-sm" id="expenseTypeFilter">
+                    <option value="">全部</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label form-label-sm">账户</label>
+                <select class="form-select form-select-sm" id="accountFilter">
+                    <option value="">全部</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="button" class="btn btn-primary btn-sm" id="btnSearch">
+                    <i class="fa fa-search"></i> 搜索
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm ms-2" id="btnReset">
+                    重置
+                </button>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>序号</th>
+                        <th>日期</th>
+                        <th>方向</th>
+                        <th>账户</th>
+                        <th>费用类型</th>
+                        <th>金额</th>
+                        <th>摘要</th>
+                        <th>操作人</th>
+                    </tr>
+                </thead>
+                <tbody id="cashFlowTableBody">
+                    <tr>
+                        <td colspan="8" class="text-center text-muted">加载中...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <nav aria-label="Page navigation" id="paginationNav" style="display:none;">
+            <ul class="pagination justify-content-center" id="paginationList">
+            </ul>
+        </nav>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var currentPage = 1;
+var perPage = 15;
+
+function loadCashFlows(page) {
+    if (!page) page = 1;
+    currentPage = page;
+
+    var data = {
+        page: page,
+        per_page: perPage,
+        direction: $('#directionFilter').val(),
+        start_date: $('#startDate').val(),
+        end_date: $('#endDate').val()
+    };
+    var etid = $('#expenseTypeFilter').val();
+    if (etid) data.expense_type_id = etid;
+    var aid = $('#accountFilter').val();
+    if (aid) data.account_id = aid;
+
+    $.ajax({
+        url: '/finance/cash_flow/list',
+        type: 'GET',
+        data: data,
+        success: function(resp) {
+            if (resp.success) {
+                renderTable(resp.data);
+                renderSummary(resp.summary);
+            } else {
+                $('#cashFlowTableBody').html(
+                    '<tr><td colspan="8" class="text-center text-danger">' + (resp.message || '获取数据失败') + '</td></tr>'
+                );
+            }
+        },
+        error: function() {
+            $('#cashFlowTableBody').html(
+                '<tr><td colspan="8" class="text-center text-danger">网络错误</td></tr>'
+            );
+        }
+    });
+}
+
+function renderSummary(summary) {
+    if (!summary) return;
+    $('#totalIncome').text('¥' + formatNumber(summary.total_income));
+    $('#totalExpense').text('¥' + formatNumber(summary.total_expense));
+    var netEl = $('#netCashFlow');
+    netEl.text('¥' + formatNumber(Math.abs(summary.net_cash_flow)));
+    if (summary.net_cash_flow >= 0) {
+        netEl.removeClass('text-danger').addClass('text-success');
+        netEl.text('¥' + formatNumber(summary.net_cash_flow));
+    } else {
+        netEl.removeClass('text-success').addClass('text-danger');
+        netEl.text('-¥' + formatNumber(Math.abs(summary.net_cash_flow)));
+    }
+}
+
+function renderTable(data) {
+    var items = data.items;
+    var tbody = $('#cashFlowTableBody');
+
+    if (!items || items.length === 0) {
+        tbody.html(emptyStateHtml('暂无数据'));
+        $('#paginationNav').hide();
+        return;
+    }
+
+    var html = '';
+    var startIndex = (data.current_page - 1) * perPage;
+
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        var rowNo = startIndex + i + 1;
+        var dirClass = item.direction === '收入' ? 'direction-income' : 'direction-expense';
+        var dirIcon = item.direction === '收入' ? 'fa-arrow-down' : 'fa-arrow-up';
+        var amountPrefix = item.direction === '收入' ? '+' : '-';
+
+        // 来源标签
+        var refLabel = '';
+        if (item.reference_type === 'direct_entry') refLabel = ' <span class="badge bg-info">直记</span>';
+        else if (item.reference_type === 'collection_record') refLabel = ' <span class="badge bg-success">收款</span>';
+        else if (item.reference_type === 'payment_record') refLabel = ' <span class="badge bg-danger">付款</span>';
+
+        html += '<tr>';
+        html += '<td>' + rowNo + '</td>';
+        html += '<td>' + item.transaction_date + '</td>';
+        html += '<td><span class="' + dirClass + '"><i class="fa ' + dirIcon + '"></i> ' + escapeHtml(item.direction) + '</span>' + refLabel + '</td>';
+        html += '<td>' + escapeHtml(item.account_name || '-') + '</td>';
+        html += '<td>' + escapeHtml(item.expense_type_name) + '</td>';
+        html += '<td class="text-end ' + dirClass + '">' + amountPrefix + '¥' + formatNumber(item.amount) + '</td>';
+        html += '<td>' + escapeHtml(item.description) + '</td>';
+        html += '<td>' + escapeHtml(item.operator_name) + '</td>';
+        html += '</tr>';
+    }
+
+    tbody.html(html);
+    renderPagination(data);
+}
+
+function renderPagination(data) {
+    var totalPages = data.total_pages;
+    var currentPage = data.current_page;
+    if (totalPages <= 1) { $('#paginationNav').hide(); return; }
+
+    var html = '';
+    html += '<li class="page-item ' + (currentPage === 1 ? 'disabled' : '') + '">';
+    html += '<a class="page-link" href="#" data-page="' + (currentPage - 1) + '">上一页</a></li>';
+
+    var startPage = Math.max(1, currentPage - 2);
+    var endPage = Math.min(totalPages, currentPage + 2);
+    if (startPage > 1) {
+        html += '<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>';
+        if (startPage > 2) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+    }
+    for (var i = startPage; i <= endPage; i++) {
+        html += '<li class="page-item ' + (i === currentPage ? 'active' : '') + '">';
+        html += '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
+    }
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        html += '<li class="page-item"><a class="page-link" href="#" data-page="' + totalPages + '">' + totalPages + '</a></li>';
+    }
+    html += '<li class="page-item ' + (currentPage === totalPages ? 'disabled' : '') + '">';
+    html += '<a class="page-link" href="#" data-page="' + (currentPage + 1) + '">下一页</a></li>';
+
+    $('#paginationList').html(html);
+    $('#paginationNav').show();
+}
+
+function loadExpenseTypes() {
+    $.ajax({
+        url: '/finance/cash_flow/expense_types',
+        type: 'GET',
+        success: function(resp) {
+            if (resp.success) {
+                var select = $('#expenseTypeFilter');
+                select.html('<option value="">全部</option>');
+                for (var i = 0; i < resp.data.length; i++) {
+                    var et = resp.data[i];
+                    select.append('<option value="' + et.expense_type_id + '">' + escapeHtml(et.expense_type_name) + '</option>');
+                }
+            }
+        }
+    });
+}
+
+function loadAccountFilter() {
+    $.ajax({
+        url: '/finance/account/active_list',
+        type: 'GET',
+        success: function(resp) {
+            if (resp.success) {
+                var select = $('#accountFilter');
+                select.html('<option value="">全部</option>');
+                for (var i = 0; i < resp.data.length; i++) {
+                    var a = resp.data[i];
+                    select.append('<option value="' + a.account_id + '">' + escapeHtml(a.account_name) + '</option>');
+                }
+            }
+        }
+    });
+}
+
+$(document).ready(function() {
+    loadCashFlows(1);
+    loadExpenseTypes();
+    loadAccountFilter();
+
+    $('#btnSearch').on('click', function() { loadCashFlows(1); });
+    $('#btnReset').on('click', function() {
+        $('#startDate').val('');
+        $('#endDate').val('');
+        $('#directionFilter').val('');
+        $('#expenseTypeFilter').val('');
+        $('#accountFilter').val('');
+        loadCashFlows(1);
+    });
+
+    $(document).on('click', '#paginationList .page-link', function(e) {
+        e.preventDefault();
+        var page = $(this).data('page');
+        if (page && page >= 1) loadCashFlows(page);
+    });
+
+    $('#btnExportExcel').on('click', function() { showToast('info', '导出功能开发中'); });
+});
+</script>
+{% endblock %}

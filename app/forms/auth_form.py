@@ -9,7 +9,7 @@ class LoginForm(FlaskForm):
     用户登录表单
     """
     username = StringField('用户名', validators=[DataRequired('用户名不能为空'), Length(min=2, max=50, message='用户名长度必须在2到50个字符之间')])
-    password = PasswordField('密码', validators=[DataRequired('密码不能为空'), Length(min=8, max=100, message='密码长度必须在8到100个字符之间')])
+    password = PasswordField('密码', validators=[DataRequired('密码不能为空')])
     remember_me = BooleanField('记住我')
     submit = SubmitField('登录')
 

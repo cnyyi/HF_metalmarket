@@ -1,0 +1,656 @@
+{% extends "admin_base.html" %}
+
+{% block title %}字典管理{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-book"></i> 字典管理
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">字典管理</li>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h5 class="card-title mb-0">字典数据列表</h5>
+            </div>
+            <div class="col-md-6 text-end">
+                {% if current_user.has_permission('dict_manage') %}
+                <button type="button" class="btn btn-primary" id="btnAdd">
+                    <i class="fa fa-plus"></i> 新增字典项
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-3">
+                <select class="form-select" id="filterDictType">
+                    <option value="">全部类型</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input type="text" class="form-control" id="filterKeyword" placeholder="搜索编码/名称/描述">
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="filterStatus">
+                    <option value="">全部状态</option>
+                    <option value="1">启用</option>
+                    <option value="0">禁用</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-primary" id="btnSearch">
+                    <i class="fa fa-search"></i> 搜索
+                </button>
+            </div>
+            <div class="col-md-2 text-end">
+                {% if current_user.has_permission('dict_manage') %}
+                <div class="btn-group" id="batchActions" style="display:none;">
+                    <button type="button" class="btn btn-sm btn-success" id="btnBatchEnable" title="批量启用">
+                        <i class="fa fa-check-circle"></i> 启用
+                    </button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="btnBatchDisable" title="批量禁用">
+                        <i class="fa fa-ban"></i> 禁用
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger" id="btnBatchDelete" title="批量删除">
+                        <i class="fa fa-trash"></i> 删除
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        {% if current_user.has_permission('dict_manage') %}
+                        <th style="width:40px;"><input type="checkbox" id="checkAll"></th>
+                        {% endif %}
+                        <th>ID</th>
+                        <th>字典类型</th>
+                        <th>编码</th>
+                        <th>名称</th>
+                        <th>描述</th>
+                        <th>排序</th>
+                        <th class="unit-price-col" style="display:none;">单价</th>
+                        <th>状态</th>
+                        <th>更新时间</th>
+                        {% if current_user.has_permission('dict_manage') %}
+                        <th>操作</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody id="dictTableBody">
+                    <tr>
+                        <td colspan="10" class="text-center text-muted">加载中...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <span class="text-muted" id="pageInfo"></span>
+            </div>
+            <div class="col-md-6">
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-end mb-0" id="pagination">
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editModalLabel"><i class="fa fa-edit"></i> 编辑字典项</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editForm">
+                    <input type="hidden" id="edit_dict_id">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">字典类型 <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <select class="form-select" id="edit_dict_type_select">
+                                    <option value="">-- 选择已有类型 --</option>
+                                </select>
+                                <input type="text" class="form-control" id="edit_dict_type_input" placeholder="或输入新类型" style="max-width: 160px;">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">编码 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="edit_dict_code" placeholder="请输入编码（如 active）">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">名称 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="edit_dict_name" placeholder="请输入名称（如 有效）">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">排序</label>
+                            <input type="number" class="form-control" id="edit_sort_order" value="0" min="0">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">描述</label>
+                            <input type="text" class="form-control" id="edit_description" placeholder="请输入描述">
+                        </div>
+                        <div class="col-md-6" id="unitPriceGroup" style="display:none;">
+                            <label class="form-label fw-bold">单价（元）</label>
+                            <input type="number" class="form-control" id="edit_unit_price" step="0.01" min="0" placeholder="请输入单价">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">状态</label>
+                            <div class="form-check form-switch mt-1">
+                                <input class="form-check-input" type="checkbox" id="edit_is_active" checked>
+                                <label class="form-check-label" for="edit_is_active">启用</label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fa fa-times"></i> 取消
+                </button>
+                <button type="button" class="btn btn-primary" id="btnSave">
+                    <i class="fa fa-save"></i> 保存
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var currentPage = 1;
+var dictTypes = [];
+
+function loadDictTypes() {
+    $.ajax({
+        url: '/dict/api/types',
+        type: 'GET',
+        dataType: 'json',
+        success: function(res) {
+            if (res.success) {
+                dictTypes = res.data;
+                var $filter = $('#filterDictType');
+                $filter.empty();
+                $filter.append('<option value="">全部类型</option>');
+                for (var i = 0; i < dictTypes.length; i++) {
+                    $filter.append('<option value="' + dictTypes[i] + '">' + escapeHtml(dictTypes[i]) + '</option>');
+                }
+
+                var $edit = $('#edit_dict_type_select');
+                $edit.empty();
+                $edit.append('<option value="">-- 选择已有类型 --</option>');
+                for (var i = 0; i < dictTypes.length; i++) {
+                    $edit.append('<option value="' + dictTypes[i] + '">' + escapeHtml(dictTypes[i]) + '</option>');
+                }
+            }
+        }
+    });
+}
+
+function loadList(page) {
+    currentPage = page || 1;
+    var dictType = $('#filterDictType').val();
+    var keyword = $('#filterKeyword').val().trim();
+    var isActive = $('#filterStatus').val();
+
+    $.ajax({
+        url: '/dict/api/list',
+        type: 'GET',
+        data: {
+            page: currentPage,
+            per_page: 15,
+            dict_type: dictType,
+            keyword: keyword,
+            is_active: isActive
+        },
+        dataType: 'json',
+        success: function(res) {
+            if (res.success) {
+                renderTable(res.data);
+            } else {
+                showToast('error', res.message || '获取数据失败');
+            }
+        },
+        error: function() {
+            showToast('error', '获取数据失败');
+        }
+    });
+}
+
+function renderTable(data) {
+    var items = data.items;
+    var $tbody = $('#dictTableBody');
+    $tbody.empty();
+
+    if (!items || items.length === 0) {
+        var colSpan = $('#checkAll').length > 0 ? 11 : 10;
+        colSpan = $('.unit-price-col:visible').length > 0 ? colSpan : colSpan;
+        $tbody.append('<tr><td colspan="' + colSpan + '" class="text-center text-muted">暂无数据</td></tr>');
+        $('#pageInfo').text('');
+        $('#pagination').empty();
+        $('#batchActions').hide();
+        return;
+    }
+
+    var showUnitPrice = $('#filterDictType').val() === 'plot_type';
+
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        var showUP = item.dict_type === 'plot_type';
+        var tr = '<tr>';
+
+        if ($('#checkAll').length > 0) {
+            tr += '<td><input type="checkbox" class="dict-check" value="' + item.dict_id + '"></td>';
+        }
+
+        tr += '<td>' + item.dict_id + '</td>';
+        tr += '<td><span class="badge bg-primary">' + escapeHtml(item.dict_type) + '</span></td>';
+        tr += '<td><code>' + escapeHtml(item.dict_code) + '</code></td>';
+        tr += '<td>' + escapeHtml(item.dict_name) + '</td>';
+        tr += '<td>' + escapeHtml(item.description || '-') + '</td>';
+        tr += '<td>' + item.sort_order + '</td>';
+
+        if (showUP) {
+            tr += '<td>' + (item.unit_price !== null ? '¥' + parseFloat(item.unit_price).toFixed(2) : '-') + '</td>';
+        } else {
+            tr += '<td style="display:none;"></td>';
+        }
+
+        if (item.is_active) {
+            tr += '<td><span class="badge bg-success">启用</span></td>';
+        } else {
+            tr += '<td><span class="badge bg-danger">禁用</span></td>';
+        }
+
+        tr += '<td>' + (item.update_time || item.create_time || '-') + '</td>';
+
+        if ($('#checkAll').length > 0) {
+            tr += '<td class="table-actions">';
+            tr += '<button type="button" class="btn btn-sm btn-warning" title="编辑" onclick="openEditModal(' + item.dict_id + ')"><i class="fa fa-edit"></i></button> ';
+            tr += '<button type="button" class="btn btn-sm btn-danger" title="删除" onclick="deleteItem(' + item.dict_id + ')"><i class="fa fa-trash"></i></button>';
+            tr += '</td>';
+        }
+
+        tr += '</tr>';
+        $tbody.append(tr);
+    }
+
+    updateUnitPriceColumn();
+
+    $('#pageInfo').text('共 ' + data.total_count + ' 条记录，第 ' + data.page + '/' + data.total_pages + ' 页');
+    renderPagination(data.page, data.total_pages);
+    updateBatchButtons();
+}
+
+function updateUnitPriceColumn() {
+    var selectedType = $('#filterDictType').val();
+    if (selectedType === 'plot_type') {
+        $('.unit-price-col').show();
+        $('#dictTableBody td:nth-child(8)').show();
+    } else {
+        $('.unit-price-col').hide();
+        $('#dictTableBody td:nth-child(8)').hide();
+    }
+}
+
+function renderPagination(current, totalPages) {
+    var $ul = $('#pagination');
+    $ul.empty();
+
+    if (totalPages <= 1) return;
+
+    $ul.append('<li class="page-item ' + (current <= 1 ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="loadList(' + (current - 1) + ');return false;">上一页</a></li>');
+
+    var start = Math.max(1, current - 2);
+    var end = Math.min(totalPages, current + 2);
+
+    if (start > 1) {
+        $ul.append('<li class="page-item"><a class="page-link" href="#" onclick="loadList(1);return false;">1</a></li>');
+        if (start > 2) {
+            $ul.append('<li class="page-item disabled"><span class="page-link">...</span></li>');
+        }
+    }
+
+    for (var i = start; i <= end; i++) {
+        $ul.append('<li class="page-item ' + (i === current ? 'active' : '') + '"><a class="page-link" href="#" onclick="loadList(' + i + ');return false;">' + i + '</a></li>');
+    }
+
+    if (end < totalPages) {
+        if (end < totalPages - 1) {
+            $ul.append('<li class="page-item disabled"><span class="page-link">...</span></li>');
+        }
+        $ul.append('<li class="page-item"><a class="page-link" href="#" onclick="loadList(' + totalPages + ');return false;">' + totalPages + '</a></li>');
+    }
+
+    $ul.append('<li class="page-item ' + (current >= totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="loadList(' + (current + 1) + ');return false;">下一页</a></li>');
+}
+
+function openAddModal() {
+    $('#edit_dict_id').val('');
+    $('#editModalLabel').html('<i class="fa fa-plus-circle"></i> 新增字典项');
+    $('#edit_dict_type_select').val('');
+    $('#edit_dict_type_input').val('');
+    $('#edit_dict_code').val('').prop('readonly', false);
+    $('#edit_dict_name').val('');
+    $('#edit_description').val('');
+    $('#edit_sort_order').val(0);
+    $('#edit_is_active').prop('checked', true);
+    $('#edit_unit_price').val('');
+    $('#unitPriceGroup').hide();
+
+    var $modal = new bootstrap.Modal(document.getElementById('editModal'));
+    $modal.show();
+}
+
+function openEditModal(dictId) {
+    $.ajax({
+        url: '/dict/api/detail/' + dictId,
+        type: 'GET',
+        dataType: 'json',
+        success: function(res) {
+            if (res.success) {
+                var d = res.data;
+                $('#edit_dict_id').val(d.dict_id);
+                $('#editModalLabel').html('<i class="fa fa-edit"></i> 编辑字典项');
+
+                var typeFound = false;
+                $('#edit_dict_type_select option').each(function() {
+                    if ($(this).val() === d.dict_type) {
+                        typeFound = true;
+                        return false;
+                    }
+                });
+
+                if (typeFound) {
+                    $('#edit_dict_type_select').val(d.dict_type);
+                    $('#edit_dict_type_input').val('');
+                } else {
+                    $('#edit_dict_type_select').val('');
+                    $('#edit_dict_type_input').val(d.dict_type);
+                }
+
+                $('#edit_dict_code').val(d.dict_code).prop('readonly', false);
+                $('#edit_dict_name').val(d.dict_name);
+                $('#edit_description').val(d.description || '');
+                $('#edit_sort_order').val(d.sort_order);
+                $('#edit_is_active').prop('checked', d.is_active);
+
+                if (d.dict_type === 'plot_type') {
+                    $('#unitPriceGroup').show();
+                    $('#edit_unit_price').val(d.unit_price !== null ? d.unit_price : '');
+                } else {
+                    $('#unitPriceGroup').hide();
+                    $('#edit_unit_price').val('');
+                }
+
+                var $modal = new bootstrap.Modal(document.getElementById('editModal'));
+                $modal.show();
+            } else {
+                showToast('error', res.message || '获取字典项失败');
+            }
+        },
+        error: function() {
+            showToast('error', '获取字典项失败');
+        }
+    });
+}
+
+function saveItem() {
+    var dictId = $('#edit_dict_id').val();
+    var dictType = $('#edit_dict_type_input').val().trim() || $('#edit_dict_type_select').val();
+    var dictCode = $('#edit_dict_code').val().trim();
+    var dictName = $('#edit_dict_name').val().trim();
+
+    if (!dictType) {
+        showToast('warning', '请选择或输入字典类型');
+        return;
+    }
+    if (!dictCode) {
+        showToast('warning', '请输入编码');
+        return;
+    }
+    if (!dictName) {
+        showToast('warning', '请输入名称');
+        return;
+    }
+
+    var description = $('#edit_description').val().trim();
+    var sortOrder = parseInt($('#edit_sort_order').val()) || 0;
+    var isActive = $('#edit_is_active').is(':checked');
+    var unitPrice = null;
+
+    if (dictType === 'plot_type') {
+        var upVal = $('#edit_unit_price').val().trim();
+        if (upVal) {
+            unitPrice = parseFloat(upVal);
+            if (isNaN(unitPrice)) {
+                showToast('warning', '单价必须是有效数字');
+                return;
+            }
+        }
+    }
+
+    var payload = {
+        dict_type: dictType,
+        dict_code: dictCode,
+        dict_name: dictName,
+        description: description,
+        sort_order: sortOrder,
+        is_active: isActive,
+        unit_price: unitPrice
+    };
+
+    var url, method;
+    if (dictId) {
+        url = '/dict/api/update/' + dictId;
+    } else {
+        url = '/dict/api/add';
+    }
+
+    var $btn = $('#btnSave');
+    $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 保存中...');
+
+    $.ajax({
+        url: url,
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        dataType: 'json',
+        success: function(res) {
+            if (res.success) {
+                showToast('success', res.message || '保存成功');
+                var $modal = bootstrap.Modal.getInstance(document.getElementById('editModal'));
+                $modal.hide();
+                loadDictTypes();
+                loadList(currentPage);
+            } else {
+                showToast('error', res.message || '保存失败');
+            }
+        },
+        error: function(xhr) {
+            var msg = '保存失败';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                msg = xhr.responseJSON.message;
+            }
+            showToast('error', msg);
+        },
+        complete: function() {
+            $btn.prop('disabled', false).html('<i class="fa fa-save"></i> 保存');
+        }
+    });
+}
+
+function deleteItem(dictId) {
+    if (!confirm('确定要删除该字典项吗？此操作不可恢复。')) return;
+
+    $.ajax({
+        url: '/dict/api/delete/' + dictId,
+        type: 'POST',
+        dataType: 'json',
+        success: function(res) {
+            if (res.success) {
+                showToast('success', res.message || '删除成功');
+                loadList(currentPage);
+            } else {
+                showToast('error', res.message || '删除失败');
+            }
+        },
+        error: function(xhr) {
+            var msg = '删除失败';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                msg = xhr.responseJSON.message;
+            }
+            showToast('error', msg);
+        }
+    });
+}
+
+function getSelectedIds() {
+    var ids = [];
+    $('.dict-check:checked').each(function() {
+        ids.push(parseInt($(this).val()));
+    });
+    return ids;
+}
+
+function updateBatchButtons() {
+    var count = getSelectedIds().length;
+    if (count > 0) {
+        $('#batchActions').show();
+    } else {
+        $('#batchActions').hide();
+    }
+}
+
+function batchUpdateStatus(isActive) {
+    var ids = getSelectedIds();
+    if (ids.length === 0) {
+        showToast('warning', '请先选择要操作的记录');
+        return;
+    }
+
+    var statusText = isActive ? '启用' : '禁用';
+    if (!confirm('确定要批量' + statusText + '选中的 ' + ids.length + ' 条记录吗？')) return;
+
+    $.ajax({
+        url: '/dict/api/batch_status',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ ids: ids, is_active: isActive }),
+        dataType: 'json',
+        success: function(res) {
+            if (res.success) {
+                showToast('success', res.message || '操作成功');
+                loadList(currentPage);
+            } else {
+                showToast('error', res.message || '操作失败');
+            }
+        },
+        error: function() {
+            showToast('error', '操作失败');
+        }
+    });
+}
+
+function batchDelete() {
+    var ids = getSelectedIds();
+    if (ids.length === 0) {
+        showToast('warning', '请先选择要删除的记录');
+        return;
+    }
+
+    if (!confirm('确定要批量删除选中的 ' + ids.length + ' 条记录吗？此操作不可恢复。')) return;
+
+    $.ajax({
+        url: '/dict/api/batch_delete',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ ids: ids }),
+        dataType: 'json',
+        success: function(res) {
+            if (res.success) {
+                showToast('success', res.message || '删除成功');
+                loadList(currentPage);
+            } else {
+                showToast('error', res.message || '删除失败');
+            }
+        },
+        error: function() {
+            showToast('error', '删除失败');
+        }
+    });
+}
+
+$(document).ready(function() {
+    loadDictTypes();
+    loadList(1);
+
+    $('#btnSearch').on('click', function() { loadList(1); });
+    $('#filterKeyword').on('keypress', function(e) {
+        if (e.which === 13) { e.preventDefault(); loadList(1); }
+    });
+    $('#filterDictType').on('change', function() { loadList(1); });
+    $('#filterStatus').on('change', function() { loadList(1); });
+
+    $('#btnAdd').on('click', openAddModal);
+    $('#btnSave').on('click', saveItem);
+
+    $('#checkAll').on('change', function() {
+        $('.dict-check').prop('checked', $(this).prop('checked'));
+        updateBatchButtons();
+    });
+    $(document).on('change', '.dict-check', updateBatchButtons);
+
+    $('#btnBatchEnable').on('click', function() { batchUpdateStatus(true); });
+    $('#btnBatchDisable').on('click', function() { batchUpdateStatus(false); });
+    $('#btnBatchDelete').on('click', batchDelete);
+
+    $('#edit_dict_type_select').on('change', function() {
+        var val = $(this).val();
+        if (val === 'plot_type') {
+            $('#unitPriceGroup').show();
+        } else {
+            $('#unitPriceGroup').hide();
+            $('#edit_unit_price').val('');
+        }
+        if (val) {
+            $('#edit_dict_type_input').val('');
+        }
+    });
+
+    $('#edit_dict_type_input').on('input', function() {
+        var val = $(this).val().trim();
+        if (val) {
+            $('#edit_dict_type_select').val('');
+        }
+        if (val === 'plot_type') {
+            $('#unitPriceGroup').show();
+        } else {
+            $('#unitPriceGroup').hide();
+            $('#edit_unit_price').val('');
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -4,84 +4,79 @@
 """
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
 from flask_login import login_required
-import pyodbc
 import re
 from datetime import datetime
-from config import Config
+from utils.database import DBConnection
 
 contract_bp = Blueprint('contract', __name__)
 
 
-def get_connection():
-    return pyodbc.connect(Config.ODBC_CONNECTION_STRING)
-
-
 def get_contract_periods():
-    conn = get_connection()
-    cursor = conn.cursor()
+    with DBConnection() as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT DictName
+            FROM Sys_Dictionary
+            WHERE DictType = N'contract_period'
+            ORDER BY SortOrder
+        """)
+        
+        periods = [r.DictName for r in cursor.fetchall()]
     
-    cursor.execute("""
-        SELECT DictName
-        FROM Sys_Dictionary
-        WHERE DictType = N'contract_period'
-        ORDER BY SortOrder
-    """)
-    
-    periods = [r.DictName for r in cursor.fetchall()]
-    conn.close()
     return periods
 
 
 def get_available_merchants(period):
-    conn = get_connection()
-    cursor = conn.cursor()
+    with DBConnection() as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT m.MerchantID, m.MerchantName
+            FROM Merchant m
+            WHERE m.MerchantID NOT IN (
+                SELECT MerchantID FROM Contract
+                WHERE ContractPeriod = ?
+            )
+            ORDER BY m.MerchantName
+        """, (period,))
+        
+        merchants = [{
+            'merchant_id': r.MerchantID,
+            'merchant_name': r.MerchantName
+        } for r in cursor.fetchall()]
     
-    cursor.execute("""
-        SELECT m.MerchantID, m.MerchantName
-        FROM Merchant m
-        WHERE m.MerchantID NOT IN (
-            SELECT MerchantID FROM Contract
-            WHERE ContractPeriod = ?
-        )
-        ORDER BY m.MerchantName
-    """, (period,))
-    
-    merchants = [{
-        'merchant_id': r.MerchantID,
-        'merchant_name': r.MerchantName
-    } for r in cursor.fetchall()]
-    conn.close()
     return merchants
 
 
 def get_available_plots(period):
-    conn = get_connection()
-    cursor = conn.cursor()
+    with DBConnection() as conn:
+        cursor = conn.cursor()
+        
+        # 查询可用地块，排除已被占用（结束日期 > 当前日期 -1 个月）的地块
+        cursor.execute("""
+            SELECT p.PlotID, p.PlotNumber, p.PlotName, p.Area, p.UnitPrice, p.MonthlyRent, p.YearlyRent, p.ImagePath
+            FROM Plot p
+            WHERE p.PlotID NOT IN (
+                SELECT cp.PlotID 
+                FROM ContractPlot cp
+                INNER JOIN Contract c ON cp.ContractID = c.ContractID
+                WHERE c.EndDate > DATEADD(MONTH, -1, GETDATE())
+            )
+            ORDER BY p.PlotNumber
+        """)
+        
+        plots = [{
+            'plot_id': r.PlotID,
+            'plot_number': r.PlotNumber,
+            'plot_name': r.PlotName,
+            'area': float(r.Area) if r.Area else 0,
+            'unit_price': float(r.UnitPrice) if r.UnitPrice else 0,
+            'monthly_rent': float(r.MonthlyRent) if r.MonthlyRent else 0,
+            'yearly_rent': float(r.YearlyRent) if r.YearlyRent else 0,
+            'image_path': r.ImagePath
+        } for r in cursor.fetchall()]
     
-    # 查询可用地块，排除已被占用（结束日期 > 当前日期 -1 个月）的地块
-    cursor.execute("""
-        SELECT p.PlotID, p.PlotNumber, p.PlotName, p.Area, p.UnitPrice, p.MonthlyRent, p.YearlyRent, p.ImagePath
-        FROM Plot p
-        WHERE p.PlotID NOT IN (
-            SELECT cp.PlotID 
-            FROM ContractPlot cp
-            INNER JOIN Contract c ON cp.ContractID = c.ContractID
-            WHERE c.EndDate > DATEADD(MONTH, -1, GETDATE())
-        )
-        ORDER BY p.PlotNumber
-    """)
-    
-    plots = [{
-        'plot_id': r.PlotID,
-        'plot_number': r.PlotNumber,
-        'plot_name': r.PlotName,
-        'area': float(r.Area) if r.Area else 0,
-        'unit_price': float(r.UnitPrice) if r.UnitPrice else 0,
-        'monthly_rent': float(r.MonthlyRent) if r.MonthlyRent else 0,
-        'yearly_rent': float(r.YearlyRent) if r.YearlyRent else 0,
-        'image_path': r.ImagePath
-    } for r in cursor.fetchall()]
-    conn.close()
     return plots
 
 
@@ -113,48 +108,46 @@ def list_data():
         
         offset = (page - 1) * per_page
         
-        conn = get_connection()
-        cursor = conn.cursor()
-        
-        where_clause = "WHERE 1=1"
-        params = []
-        
-        if search:
-            where_clause += " AND (c.ContractNumber LIKE ? OR m.MerchantName LIKE ?)"
-            search_param = f"%{search}%"
-            params.extend([search_param, search_param])
-        
-        cursor.execute(f"SELECT COUNT(*) FROM Contract c LEFT JOIN Merchant m ON c.MerchantID = m.MerchantID {where_clause}", params)
-        total = cursor.fetchone()[0]
-        
-        cursor.execute(f"""
-            SELECT c.ContractID, c.ContractNumber, c.ActualAmount as ActualAmount, m.MerchantName, m.ContactPerson,
-                   c.StartDate, c.EndDate, c.Status, c.CreateTime,
-                   (SELECT COUNT(*) FROM ContractPlot cp WHERE cp.ContractID = c.ContractID) as PlotCount
-            FROM Contract c
-            LEFT JOIN Merchant m ON c.MerchantID = m.MerchantID
-            {where_clause}
-            ORDER BY c.CreateTime DESC
-            OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
-        """, params + [offset, per_page])
-        
-        contracts = []
-        for r in cursor.fetchall():
-            actual_amount_val = r.ActualAmount if hasattr(r, 'ActualAmount') else (r[2] if len(r) > 2 else 0)
-            contracts.append({
-                'contract_id': r.ContractID,
-                'contract_number': r.ContractNumber,
-                'actual_amount': float(actual_amount_val) if actual_amount_val is not None else 0,
-                'merchant_name': r.MerchantName or '-',
-                'contact_person': r.ContactPerson or '-',
-                'plot_count': r.PlotCount,
-                'start_date': r.StartDate.strftime('%Y-%m-%d') if r.StartDate else None,
-                'end_date': r.EndDate.strftime('%Y-%m-%d') if r.EndDate else None,
-                'status': r.Status or '有效',
-                'create_time': r.CreateTime.strftime('%Y-%m-%d %H:%M:%S') if r.CreateTime else None
-            })
-        
-        conn.close()
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            
+            where_clause = "WHERE 1=1"
+            params = []
+            
+            if search:
+                where_clause += " AND (c.ContractNumber LIKE ? OR m.MerchantName LIKE ?)"
+                search_param = f"%{search}%"
+                params.extend([search_param, search_param])
+            
+            cursor.execute(f"SELECT COUNT(*) FROM Contract c LEFT JOIN Merchant m ON c.MerchantID = m.MerchantID {where_clause}", params)
+            total = cursor.fetchone()[0]
+            
+            cursor.execute(f"""
+                SELECT c.ContractID, c.ContractNumber, c.ActualAmount as ActualAmount, m.MerchantName, m.ContactPerson,
+                       c.StartDate, c.EndDate, c.Status, c.CreateTime,
+                       (SELECT COUNT(*) FROM ContractPlot cp WHERE cp.ContractID = c.ContractID) as PlotCount
+                FROM Contract c
+                LEFT JOIN Merchant m ON c.MerchantID = m.MerchantID
+                {where_clause}
+                ORDER BY c.CreateTime DESC
+                OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
+            """, params + [offset, per_page])
+            
+            contracts = []
+            for r in cursor.fetchall():
+                actual_amount_val = r.ActualAmount if hasattr(r, 'ActualAmount') else (r[2] if len(r) > 2 else 0)
+                contracts.append({
+                    'contract_id': r.ContractID,
+                    'contract_number': r.ContractNumber,
+                    'actual_amount': float(actual_amount_val) if actual_amount_val is not None else 0,
+                    'merchant_name': r.MerchantName or '-',
+                    'contact_person': r.ContactPerson or '-',
+                    'plot_count': r.PlotCount,
+                    'start_date': r.StartDate.strftime('%Y-%m-%d') if r.StartDate else None,
+                    'end_date': r.EndDate.strftime('%Y-%m-%d') if r.EndDate else None,
+                    'status': r.Status or '有效',
+                    'create_time': r.CreateTime.strftime('%Y-%m-%d %H:%M:%S') if r.CreateTime else None
+                })
         
         return jsonify({
             'success': True,
@@ -296,23 +289,21 @@ def add():
         
         contract_name = f"{period}-{merchant_id}号合同"
         
-        total_rent = 0
-        conn = get_connection()
-        cursor = conn.cursor()
-        
-        for plot_id in plot_ids:
-            cursor.execute("SELECT YearlyRent, UnitPrice, Area FROM Plot WHERE PlotID = ?", (int(plot_id),))
-            result = cursor.fetchone()
-            if result and result.YearlyRent:
-                total_rent += float(result.YearlyRent)
-        
-        try:
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            
+            total_rent = 0
+            for plot_id in plot_ids:
+                cursor.execute("SELECT YearlyRent, UnitPrice, Area FROM Plot WHERE PlotID = ?", (int(plot_id),))
+                result = cursor.fetchone()
+                if result and result.YearlyRent:
+                    total_rent += float(result.YearlyRent)
+
             cursor.execute("""
                 INSERT INTO Contract (
                     ContractNumber, ContractName, MerchantID, ContractPeriod, StartDate, EndDate,
                     ContractAmount, AmountReduction, ActualAmount, PaymentMethod, ContractPeriodYear, BusinessType, Status, Description, CreateTime
-                ) OUTPUT INSERTED.ContractID
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE())
             """, (
                 contract_number,
                 contract_name,
@@ -329,7 +320,8 @@ def add():
                 '有效',
                 description
             ))
-            
+
+            cursor.execute("SELECT CAST(SCOPE_IDENTITY() AS INT)")
             result = cursor.fetchone()
             contract_id = result[0] if result else None
             
@@ -345,14 +337,45 @@ def add():
                         INSERT INTO ContractPlot (ContractID, PlotID, UnitPrice, Area, MonthlyPrice)
                         VALUES (?, ?, ?, ?, ?)
                     """, (contract_id, int(plot_id), unit_price, area, monthly_price))
+
+                actual_amount = total_rent + rent_adjust
+                if actual_amount > 0:
+                    cursor.execute(
+                        "SELECT ExpenseTypeID FROM ExpenseType WHERE ExpenseTypeCode = N'rent' AND IsActive = 1"
+                    )
+                    et_row = cursor.fetchone()
+                    if et_row:
+                        expense_type_id = et_row.ExpenseTypeID
+                        due_date = end_date_obj
+                        description = f'{period}租金'
+
+                        cursor.execute("""
+                            SELECT 1 FROM Receivable
+                            WHERE ReferenceID = ? AND ReferenceType = N'contract'
+                        """, (contract_id,))
+                        if not cursor.fetchone():
+                            cursor.execute("""
+                                INSERT INTO Receivable (
+                                    MerchantID, ExpenseTypeID, Amount, Description,
+                                    DueDate, ReferenceID, ReferenceType, Status,
+                                    PaidAmount, RemainingAmount, CustomerType, CustomerID,
+                                    CreateTime
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, N'未付款', 0, ?, N'Merchant', ?, GETDATE())
+                            """, (
+                                merchant_id,
+                                expense_type_id,
+                                actual_amount,
+                                description,
+                                due_date,
+                                contract_id,
+                                'contract',
+                                actual_amount,
+                                merchant_id
+                            ))
             
             conn.commit()
-            return jsonify({'success': True, 'message': '合同添加成功', 'contract_number': contract_number})
-        except Exception as e:
-            conn.rollback()
-            return jsonify({'success': False, 'message': str(e)})
-        finally:
-            conn.close()
+        
+        return jsonify({'success': True, 'message': '合同添加成功', 'contract_number': contract_number})
             
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
@@ -362,64 +385,61 @@ def add():
 @login_required
 def detail(contract_id):
     try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT c.ContractID, c.ContractNumber, c.ContractName, c.MerchantID, m.MerchantName, m.ContactPerson,
-                   c.ContractPeriod, c.StartDate, c.EndDate, c.ContractAmount, c.AmountReduction,
-                   c.ActualAmount, c.Status, c.Description, c.CreateTime
-            FROM Contract c
-            LEFT JOIN Merchant m ON c.MerchantID = m.MerchantID
-            WHERE c.ContractID = ?
-        """, (contract_id,))
-        
-        row = cursor.fetchone()
-        if not row:
-            conn.close()
-            return jsonify({'success': False, 'message': '合同不存在'})
-        
-        contract = {
-            'contract_id': row.ContractID,
-            'contract_number': row.ContractNumber,
-            'contract_name': row.ContractName,
-            'merchant_id': row.MerchantID,
-            'merchant_name': row.MerchantName or '-',
-            'contact_person': row.ContactPerson or '-',
-            'contract_period': row.ContractPeriod,
-            'start_date': row.StartDate.strftime('%Y-%m-%d') if row.StartDate else None,
-            'end_date': row.EndDate.strftime('%Y-%m-%d') if row.EndDate else None,
-            'contract_amount': float(row.ContractAmount) if row.ContractAmount else 0,
-            'amount_reduction': float(row.AmountReduction) if row.AmountReduction else 0,
-            'actual_amount': float(row.ActualAmount) if row.ActualAmount else 0,
-            'status': row.Status or '有效',
-            'description': row.Description or '',
-            'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M:%S') if row.CreateTime else None
-        }
-        
-        cursor.execute("""
-            SELECT cp.PlotID, cp.UnitPrice, cp.Area, cp.MonthlyPrice, p.PlotNumber, p.PlotName, p.YearlyRent, p.ImagePath
-            FROM ContractPlot cp
-            LEFT JOIN Plot p ON cp.PlotID = p.PlotID
-            WHERE cp.ContractID = ?
-        """, (contract_id,))
-        
-        plots = []
-        for p in cursor.fetchall():
-            plots.append({
-                'plot_id': p.PlotID,
-                'plot_number': p.PlotNumber,
-                'plot_name': p.PlotName,
-                'area': float(p.Area) if p.Area else 0,
-                'unit_price': float(p.UnitPrice) if p.UnitPrice else 0,
-                'monthly_rent': float(p.MonthlyPrice) if p.MonthlyPrice else 0,
-                'yearly_rent': float(p.YearlyRent) if p.YearlyRent else 0,
-                'image_path': p.ImagePath
-            })
-        
-        contract['plots'] = plots
-        
-        conn.close()
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT c.ContractID, c.ContractNumber, c.ContractName, c.MerchantID, m.MerchantName, m.ContactPerson,
+                       c.ContractPeriod, c.StartDate, c.EndDate, c.ContractAmount, c.AmountReduction,
+                       c.ActualAmount, c.Status, c.Description, c.CreateTime
+                FROM Contract c
+                LEFT JOIN Merchant m ON c.MerchantID = m.MerchantID
+                WHERE c.ContractID = ?
+            """, (contract_id,))
+            
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({'success': False, 'message': '合同不存在'})
+            
+            contract = {
+                'contract_id': row.ContractID,
+                'contract_number': row.ContractNumber,
+                'contract_name': row.ContractName,
+                'merchant_id': row.MerchantID,
+                'merchant_name': row.MerchantName or '-',
+                'contact_person': row.ContactPerson or '-',
+                'contract_period': row.ContractPeriod,
+                'start_date': row.StartDate.strftime('%Y-%m-%d') if row.StartDate else None,
+                'end_date': row.EndDate.strftime('%Y-%m-%d') if row.EndDate else None,
+                'contract_amount': float(row.ContractAmount) if row.ContractAmount else 0,
+                'amount_reduction': float(row.AmountReduction) if row.AmountReduction else 0,
+                'actual_amount': float(row.ActualAmount) if row.ActualAmount else 0,
+                'status': row.Status or '有效',
+                'description': row.Description or '',
+                'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M:%S') if row.CreateTime else None
+            }
+            
+            cursor.execute("""
+                SELECT cp.PlotID, cp.UnitPrice, cp.Area, cp.MonthlyPrice, p.PlotNumber, p.PlotName, p.YearlyRent, p.ImagePath
+                FROM ContractPlot cp
+                LEFT JOIN Plot p ON cp.PlotID = p.PlotID
+                WHERE cp.ContractID = ?
+            """, (contract_id,))
+            
+            plots = []
+            for p in cursor.fetchall():
+                plots.append({
+                    'plot_id': p.PlotID,
+                    'plot_number': p.PlotNumber,
+                    'plot_name': p.PlotName,
+                    'area': float(p.Area) if p.Area else 0,
+                    'unit_price': float(p.UnitPrice) if p.UnitPrice else 0,
+                    'monthly_rent': float(p.MonthlyPrice) if p.MonthlyPrice else 0,
+                    'yearly_rent': float(p.YearlyRent) if p.YearlyRent else 0,
+                    'image_path': p.ImagePath
+                })
+            
+            contract['plots'] = plots
         
         return jsonify({'success': True, 'data': contract})
         
@@ -454,24 +474,22 @@ def edit(contract_id):
         
         if end_date_obj <= start_date_obj:
             return jsonify({'success': False, 'message': '结束日期必须晚于开始日期'})
-        
-        conn = get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT ContractPeriod FROM Contract WHERE ContractID = ?", (contract_id,))
-        contract_row = cursor.fetchone()
-        if not contract_row:
-            conn.close()
-            return jsonify({'success': False, 'message': '合同不存在'})
-        
-        total_rent = 0
-        for plot_id in plot_ids:
-            cursor.execute("SELECT YearlyRent FROM Plot WHERE PlotID = ?", (int(plot_id),))
-            result = cursor.fetchone()
-            if result and result.YearlyRent:
-                total_rent += float(result.YearlyRent)
-        
-        try:
+
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT ContractPeriod FROM Contract WHERE ContractID = ?", (contract_id,))
+            contract_row = cursor.fetchone()
+            if not contract_row:
+                return jsonify({'success': False, 'message': '合同不存在'})
+
+            total_rent = 0
+            for plot_id in plot_ids:
+                cursor.execute("SELECT YearlyRent FROM Plot WHERE PlotID = ?", (int(plot_id),))
+                result = cursor.fetchone()
+                if result and result.YearlyRent:
+                    total_rent += float(result.YearlyRent)
+
             cursor.execute("""
                 UPDATE Contract
                 SET StartDate = ?, EndDate = ?, ContractAmount = ?, AmountReduction = ?,
@@ -503,12 +521,8 @@ def edit(contract_id):
                 """, (contract_id, int(plot_id), unit_price, area, monthly_price))
             
             conn.commit()
-            return jsonify({'success': True, 'message': '合同更新成功'})
-        except Exception as e:
-            conn.rollback()
-            return jsonify({'success': False, 'message': str(e)})
-        finally:
-            conn.close()
+        
+        return jsonify({'success': True, 'message': '合同更新成功'})
             
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
@@ -518,14 +532,13 @@ def edit(contract_id):
 @login_required
 def delete(contract_id):
     try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("DELETE FROM ContractPlot WHERE ContractID = ?", (contract_id,))
-        cursor.execute("DELETE FROM Contract WHERE ContractID = ?", (contract_id,))
-        
-        conn.commit()
-        conn.close()
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("DELETE FROM ContractPlot WHERE ContractID = ?", (contract_id,))
+            cursor.execute("DELETE FROM Contract WHERE ContractID = ?", (contract_id,))
+            
+            conn.commit()
         
         return jsonify({'success': True, 'message': '删除成功'})
         

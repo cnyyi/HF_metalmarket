@@ -1,15 +1,20 @@
 {% extends "admin_base.html" %}
 
-{% block title %}添加地块 - 宏发金属交易市场管理系统{% endblock %}
+{% block title %}添加地块{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-plus"></i> 添加地块
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('plot.plot_list') }}">地块管理</a></li>
+<li class="breadcrumb-item active">添加地块</li>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <h2 class="mb-4"><i class="fa fa-plus"></i> 添加地块</h2>
-            
-            <div class="card">
-                <div class="card-body">
+<div class="card">
+    <div class="card-body">
                     <form method="POST" action="{{ url_for('plot.add') }}" enctype="multipart/form-data" id="plotForm">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         
@@ -98,8 +103,6 @@
                     </form>
                 </div>
             </div>
-        </div>
-    </div>
 </div>
 {% endblock %}
 
@@ -154,7 +157,7 @@ $('#price').on('input', function() {
 $('#plotForm').submit(function(e) {
     if (!validatePrice()) {
         e.preventDefault();
-        alert('请输入有效的单价（必须大于0）');
+        showToast('warning', '请输入有效的单价（必须大于0）');
         return false;
     }
 });

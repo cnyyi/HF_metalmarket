@@ -27,8 +27,11 @@ def login():
             login_user(user)
             flash('登录成功', 'success')
             
-            # 重定向到首页
-            return redirect(url_for('auth.index'))
+            # 根据用户类型重定向
+            if getattr(user, 'user_type', 'Admin') == 'Merchant':
+                return redirect(url_for('portal.index'))
+            else:
+                return redirect(url_for('admin.index'))
         else:
             flash('用户名或密码错误', 'danger')
     
@@ -75,8 +78,6 @@ def logout():
 @auth_bp.route('/')
 def index():
     """
-    系统首页
+    系统首页 → 重定向到管理首页
     """
-    from datetime import datetime
-    current_time = datetime.now()
-    return render_template('index.html', current_time=current_time)
+    return redirect(url_for('admin.index'))

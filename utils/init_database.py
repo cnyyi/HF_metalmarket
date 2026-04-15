@@ -223,6 +223,7 @@ class DatabaseInitializer:
                                 TaxRegistration NVARCHAR(100) NULL,
                                 Description NVARCHAR(500) NULL,
                                 Status NVARCHAR(50) DEFAULT N'正常',
+                                BusinessType NVARCHAR(100) NULL,
                                 CreateTime DATETIME DEFAULT GETDATE(),
                                 UpdateTime DATETIME NULL
                             );
@@ -261,6 +262,7 @@ class DatabaseInitializer:
                                 Description NVARCHAR(500) NULL,
                                 ImagePath NVARCHAR(255) NULL,
                                 Status NVARCHAR(50) DEFAULT N'空闲',
+                                PlotType NVARCHAR(50) NULL,
                                 CreateTime DATETIME DEFAULT GETDATE(),
                                 UpdateTime DATETIME NULL
                             );
@@ -284,6 +286,7 @@ class DatabaseInitializer:
                                 ActualAmount DECIMAL(12,2) NOT NULL,
                                 PaymentMethod NVARCHAR(50) NOT NULL,
                                 ContractPeriodYear INT NOT NULL,
+                                ContractPeriod NVARCHAR(50) NULL,
                                 BusinessType NVARCHAR(50) NOT NULL,
                                 Description NVARCHAR(500) NULL,
                                 Status NVARCHAR(50) DEFAULT N'有效',
@@ -320,9 +323,6 @@ class DatabaseInitializer:
                                 MeterNumber NVARCHAR(50) NOT NULL UNIQUE,
                                 MeterType NVARCHAR(50) NOT NULL DEFAULT N'electricity',
                                 InstallationLocation NVARCHAR(200) NULL,
-                                UnitPrice DECIMAL(10,2) NOT NULL,
-                                LastReading DECIMAL(10,2) DEFAULT 0,
-                                CurrentReading DECIMAL(10,2) DEFAULT 0,
                                 Status NVARCHAR(50) DEFAULT N'正常',
                                 CreateTime DATETIME DEFAULT GETDATE(),
                                 UpdateTime DATETIME NULL
@@ -340,9 +340,6 @@ class DatabaseInitializer:
                                 MeterNumber NVARCHAR(50) NOT NULL UNIQUE,
                                 MeterType NVARCHAR(50) NOT NULL DEFAULT N'water',
                                 InstallationLocation NVARCHAR(200) NULL,
-                                UnitPrice DECIMAL(10,2) NOT NULL,
-                                LastReading DECIMAL(10,2) DEFAULT 0,
-                                CurrentReading DECIMAL(10,2) DEFAULT 0,
                                 Status NVARCHAR(50) DEFAULT N'正常',
                                 CreateTime DATETIME DEFAULT GETDATE(),
                                 UpdateTime DATETIME NULL
@@ -360,6 +357,7 @@ class DatabaseInitializer:
                                 ContractID INT NOT NULL FOREIGN KEY REFERENCES Contract(ContractID),
                                 MeterID INT NOT NULL FOREIGN KEY REFERENCES ElectricityMeter(MeterID),
                                 StartReading DECIMAL(10,2) NOT NULL,
+                                UnitPrice DECIMAL(10,4) DEFAULT 0,
                                 CreateTime DATETIME DEFAULT GETDATE()
                             );
                         """)
@@ -375,6 +373,7 @@ class DatabaseInitializer:
                                 ContractID INT NOT NULL FOREIGN KEY REFERENCES Contract(ContractID),
                                 MeterID INT NOT NULL FOREIGN KEY REFERENCES WaterMeter(MeterID),
                                 StartReading DECIMAL(10,2) NOT NULL,
+                                UnitPrice DECIMAL(10,4) DEFAULT 0,
                                 CreateTime DATETIME DEFAULT GETDATE()
                             );
                         """)
@@ -411,8 +410,6 @@ class DatabaseInitializer:
                                 ReadingID INT PRIMARY KEY IDENTITY(1,1),
                                 MeterID INT NOT NULL,
                                 MeterType NVARCHAR(50) NOT NULL,
-                                ContractID INT NOT NULL FOREIGN KEY REFERENCES Contract(ContractID),
-                                MerchantID INT NOT NULL FOREIGN KEY REFERENCES Merchant(MerchantID),
                                 LastReading DECIMAL(10,2) NOT NULL,
                                 CurrentReading DECIMAL(10,2) NOT NULL,
                                 Usage DECIMAL(10,2) NOT NULL,
@@ -420,7 +417,6 @@ class DatabaseInitializer:
                                 TotalAmount DECIMAL(12,2) NOT NULL,
                                 ReadingDate DATETIME DEFAULT GETDATE(),
                                 ReadingMonth NVARCHAR(7) NOT NULL,
-                                CreatedBy INT NOT NULL FOREIGN KEY REFERENCES [User](UserID),
                                 CreateTime DATETIME DEFAULT GETDATE()
                             );
                         """)

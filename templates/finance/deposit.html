@@ -1,0 +1,598 @@
+{% extends "admin_base.html" %}
+
+{% block title %}押金管理{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-shield"></i> 押金管理
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">首页</a></li>
+<li class="breadcrumb-item active">押金管理</li>
+{% endblock %}
+
+{% block content %}
+<!-- 汇总卡片 -->
+<div class="row mb-4" id="summaryCards">
+    <div class="col-md-3">
+        <div class="card summary-card" style="border-left: 4px solid #0d6efd;">
+            <div class="card-body py-3">
+                <div class="text-muted small">押金总额</div>
+                <div class="fs-5 fw-bold" id="totalAmount">¥0.00</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card summary-card" style="border-left: 4px solid #198754;">
+            <div class="card-body py-3">
+                <div class="text-muted small">已退还</div>
+                <div class="fs-5" id="totalRefund">¥0.00</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card summary-card" style="border-left: 4px solid #dc3545;">
+            <div class="card-body py-3">
+                <div class="text-muted small">已扣除/转抵</div>
+                <div class="fs-5" id="totalDeductTransfer">¥0.00</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card summary-card" style="border-left: 4px solid #6f42c1;">
+            <div class="card-body py-3">
+                <div class="text-muted small">持有中</div>
+                <div class="fs-5 fw-bold" id="totalRemaining">¥0.00</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 筛选栏 -->
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label mb-0 small">客户类型</label>
+                <select class="form-select form-select-sm" id="filterCustomerType" style="min-width:100px">
+                    <option value="">全部</option>
+                    <option value="Merchant">商户</option>
+                    <option value="Customer">往来客户</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-0 small">押金类型</label>
+                <select class="form-select form-select-sm" id="filterDepositType" style="min-width:100px">
+                    <option value="">全部</option>
+                    <option value="contract">合同押金</option>
+                    <option value="decoration">装修押金</option>
+                    <option value="other">其他押金</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-0 small">状态</label>
+                <select class="form-select form-select-sm" id="filterStatus" style="min-width:100px">
+                    <option value="">全部</option>
+                    <option value="收取中">收取中</option>
+                    <option value="部分退还">部分退还</option>
+                    <option value="已结清">已结清</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-0 small">搜索</label>
+                <input type="text" class="form-control form-control-sm" id="filterSearch" placeholder="客户名称">
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-primary btn-sm" onclick="loadList(1)"><i class="fa fa-search"></i> 查询</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="resetFilters()"><i class="fa fa-refresh"></i> 重置</button>
+            </div>
+            <div class="col-auto ms-auto">
+                <button class="btn btn-success btn-sm" onclick="showCreateModal()"><i class="fa fa-plus"></i> 收取押金</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 数据表格 -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>客户名称</th>
+                        <th>押金类型</th>
+                        <th>押金金额</th>
+                        <th>已退</th>
+                        <th>已扣</th>
+                        <th>已转抵</th>
+                        <th>剩余</th>
+                        <th>状态</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="dataBody">
+                    <tr><td colspan="11" class="text-center text-muted py-4">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer d-flex justify-content-between align-items-center">
+        <span class="text-muted small" id="pageInfo">共 0 条</span>
+        <nav id="pagination"></nav>
+    </div>
+</div>
+
+<!-- 收取押金弹窗 -->
+<div class="modal fade" id="createModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">收取押金</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">客户类型</label>
+                    <select class="form-select" id="createCustomerType" onchange="onCustomerTypeChange()">
+                        <option value="Merchant">商户</option>
+                        <option value="Customer">往来客户</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">客户名称 <span class="text-danger">*</span></label>
+                    <div class="position-relative">
+                        <input type="text" class="form-control" id="createCustomerName" placeholder="输入关键字搜索" autocomplete="off">
+                        <input type="hidden" id="createCustomerId">
+                        <div class="dropdown-menu w-100" id="customerDropdown" style="max-height:200px;overflow-y:auto"></div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">押金类型 <span class="text-danger">*</span></label>
+                    <select class="form-select" id="createDepositType">
+                        <option value="">选择类型</option>
+                        <option value="contract">合同押金</option>
+                        <option value="decoration">装修押金</option>
+                        <option value="other">其他押金</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">金额 <span class="text-danger">*</span></label>
+                    <input type="number" class="form-control" id="createAmount" step="0.01" min="0.01" placeholder="0.00">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">收款账户 <span class="text-danger">*</span></label>
+                    <select class="form-select" id="createAccount">
+                        <option value="">选择账户</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">关联合同ID</label>
+                    <input type="number" class="form-control" id="createContractId" placeholder="选填">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" id="createDescription" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitCreate()">确认收取</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 操作弹窗（退还/扣除/转抵） -->
+<div class="modal fade" id="operationModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="operationModalTitle">操作</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="opDepositId">
+                <input type="hidden" id="opType">
+                <div class="alert alert-info small" id="opInfo"></div>
+                <div class="mb-3" id="opAccountGroup">
+                    <label class="form-label">退款账户 <span class="text-danger">*</span></label>
+                    <select class="form-select" id="opAccount">
+                        <option value="">选择账户</option>
+                    </select>
+                </div>
+                <div class="mb-3" id="opReceivableGroup" style="display:none">
+                    <label class="form-label">转抵应收 <span class="text-danger">*</span></label>
+                    <select class="form-select" id="opReceivable">
+                        <option value="">选择应收</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">金额 <span class="text-danger">*</span></label>
+                    <input type="number" class="form-control" id="opAmount" step="0.01" min="0.01" placeholder="0.00">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" id="opDescription" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="opSubmitBtn" onclick="submitOperation()">确认</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 详情弹窗 -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">押金详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailBody">加载中...</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentPage = 1;
+
+$(document).ready(function() {
+    loadList(1);
+    loadSummary();
+    loadAccounts();
+
+    let searchTimer;
+    $('#createCustomerName').on('input', function() {
+        clearTimeout(searchTimer);
+        const val = $(this).val().trim();
+        if (val.length < 1) { $('#customerDropdown').hide(); return; }
+        searchTimer = setTimeout(() => searchCustomers(val), 300);
+    });
+
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('#createCustomerName, #customerDropdown').length) {
+            $('#customerDropdown').hide();
+        }
+    });
+});
+
+function loadSummary() {
+    $.get('/finance/deposit/summary', function(res) {
+        if (res.success) {
+            const d = res.data;
+            $('#totalAmount').text('¥' + d.total_amount.toFixed(2));
+            $('#totalRefund').text('¥' + d.total_refund.toFixed(2));
+            $('#totalDeductTransfer').text('¥' + (d.total_deduct + d.total_transfer).toFixed(2));
+            $('#totalRemaining').text('¥' + d.total_remaining.toFixed(2));
+        }
+    });
+}
+
+function loadAccounts() {
+    $.get('/finance/account/active_list', function(res) {
+        if (res.success) {
+            const opts = res.data.map(a => `<option value="${a.account_id}">${a.account_name} (¥${a.balance.toFixed(2)})</option>`).join('');
+            $('#createAccount, #opAccount').html('<option value="">选择账户</option>' + opts);
+        }
+    });
+}
+
+// ===== 列表 =====
+function loadList(page) {
+    currentPage = page;
+    const params = {
+        page: page,
+        per_page: 10,
+        customer_type: $('#filterCustomerType').val(),
+        deposit_type: $('#filterDepositType').val(),
+        status: $('#filterStatus').val(),
+        search: $('#filterSearch').val().trim()
+    };
+
+    $.get('/finance/deposit/list', params, function(res) {
+        if (!res.success) return;
+        const data = res.data;
+        const items = data.items;
+        let html = '';
+
+        if (items.length === 0) {
+            html = '<tr><td colspan="11" class="text-center text-muted py-4">暂无数据</td></tr>';
+        } else {
+            items.forEach(item => {
+                const statusBadge = item.status === '收取中' ? 'bg-primary'
+                    : item.status === '部分退还' ? 'bg-warning text-dark' : 'bg-secondary';
+                const canOperate = item.status !== '已结清';
+                html += `<tr>
+                    <td>${item.deposit_id}</td>
+                    <td>${item.customer_name}</td>
+                    <td>${item.deposit_type_name}</td>
+                    <td class="fw-bold">¥${item.amount.toFixed(2)}</td>
+                    <td class="text-success">¥${item.refund_amount.toFixed(2)}</td>
+                    <td class="text-danger">¥${item.deduct_amount.toFixed(2)}</td>
+                    <td class="text-info">¥${item.transfer_amount.toFixed(2)}</td>
+                    <td class="text-primary fw-bold">¥${item.remaining_amount.toFixed(2)}</td>
+                    <td><span class="badge ${statusBadge}">${item.status}</span></td>
+                    <td>${item.create_time}</td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-info" onclick="showDetail(${item.deposit_id})"><i class="fa fa-eye"></i> 详情</button>
+                            ${canOperate ? `
+                            <button class="btn btn-outline-success" onclick="showOpModal(${item.deposit_id},'refund')" title="退还"><i class="fa fa-undo"></i> 退还</button>
+                            <button class="btn btn-outline-danger" onclick="showOpModal(${item.deposit_id},'deduct')" title="扣除"><i class="fa fa-minus-circle"></i> 扣除</button>
+                            <button class="btn btn-outline-primary" onclick="showOpModal(${item.deposit_id},'transfer')" title="转抵"><i class="fa fa-exchange"></i> 转抵</button>
+                            ` : ''}
+                        </div>
+                    </td>
+                </tr>`;
+            });
+        }
+
+        $('#dataBody').html(html);
+        $('#pageInfo').text(`共 ${data.total_count} 条，第 ${data.current_page}/${data.total_pages} 页`);
+        renderPagination(data);
+    });
+}
+
+function renderPagination(data) {
+    if (data.total_pages <= 1) { $('#pagination').html(''); return; }
+    let html = '<ul class="pagination pagination-sm mb-0">';
+    for (let i = 1; i <= data.total_pages; i++) {
+        html += `<li class="page-item ${i === data.current_page ? 'active' : ''}">
+            <a class="page-link" href="#" onclick="loadList(${i});return false">${i}</a></li>`;
+    }
+    html += '</ul>';
+    $('#pagination').html(html);
+}
+
+function resetFilters() {
+    $('#filterCustomerType, #filterDepositType, #filterStatus').val('');
+    $('#filterSearch').val('');
+    loadList(1);
+}
+
+// ===== 客户搜索 =====
+function onCustomerTypeChange() {
+    $('#createCustomerName').val('');
+    $('#createCustomerId').val('');
+}
+
+function searchCustomers(keyword) {
+    const cType = $('#createCustomerType').val();
+    const url = cType === 'Merchant'
+        ? '/finance/receivable/search_merchants?keyword=' + encodeURIComponent(keyword)
+        : '/finance/receivable/search_customers?keyword=' + encodeURIComponent(keyword);
+
+    $.get(url, function(res) {
+        if (!res.success) return;
+        let html = '';
+        const list = res.data;
+        list.forEach(item => {
+            const name = cType === 'Merchant' ? item.merchant_name : item.customer_name;
+            const id = cType === 'Merchant' ? item.merchant_id : item.customer_id;
+            html += `<a class="dropdown-item" href="#" onclick="selectCustomer('${id}','${name}');return false">${name}</a>`;
+        });
+        if (!html) html = '<span class="dropdown-item text-muted">无结果</span>';
+        $('#customerDropdown').html(html).show();
+    });
+}
+
+function selectCustomer(id, name) {
+    $('#createCustomerId').val(id);
+    $('#createCustomerName').val(name);
+    $('#customerDropdown').hide();
+}
+
+// ===== 收取 =====
+function showCreateModal() {
+    $('#createCustomerType').val('Merchant');
+    $('#createCustomerName').val('');
+    $('#createCustomerId').val('');
+    $('#createDepositType').val('');
+    $('#createAmount').val('');
+    $('#createContractId').val('');
+    $('#createDescription').val('');
+    new bootstrap.Modal('#createModal').show();
+}
+
+function submitCreate() {
+    const data = {
+        customer_type: $('#createCustomerType').val(),
+        customer_id: $('#createCustomerId').val(),
+        customer_name: $('#createCustomerName').val().trim(),
+        deposit_type: $('#createDepositType').val(),
+        amount: parseFloat($('#createAmount').val()) || 0,
+        account_id: parseInt($('#createAccount').val()) || null,
+        related_contract_id: $('#createContractId').val() || null,
+        description: $('#createDescription').val().trim()
+    };
+
+    if (!data.customer_id) { showToast('请选择客户', 'error'); return; }
+    if (!data.deposit_type) { showToast('请选择押金类型', 'error'); return; }
+    if (!data.amount || data.amount <= 0) { showToast('请输入有效金额', 'error'); return; }
+    if (!data.account_id) { showToast('请选择收款账户', 'error'); return; }
+
+    $.ajax({
+        url: '/finance/deposit/create',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function(res) {
+            if (res.success) {
+                showToast(res.message, 'success');
+                bootstrap.Modal.getInstance('#createModal').hide();
+                loadList(1);
+                loadSummary();
+                loadAccounts();
+            } else {
+                showToast(res.message, 'error');
+            }
+        },
+        error: function(xhr) {
+            const res = xhr.responseJSON || {};
+            showToast(res.message || '收取失败', 'error');
+        }
+    });
+}
+
+// ===== 操作（退还/扣除/转抵） =====
+function showOpModal(depositId, opType) {
+    $('#opDepositId').val(depositId);
+    $('#opType').val(opType);
+    $('#opAmount').val('');
+    $('#opDescription').val('');
+
+    const typeMap = { 'refund': '退还押金', 'deduct': '扣除押金', 'transfer': '押金转抵应收' };
+    const btnTextMap = { 'refund': '确认退还', 'deduct': '确认扣除', 'transfer': '确认转抵' };
+    const btnClassMap = { 'refund': 'btn-success', 'deduct': 'btn-danger', 'transfer': 'btn-primary' };
+    $('#operationModalTitle').text(typeMap[opType]);
+    $('#opSubmitBtn').text(btnTextMap[opType]).removeClass('btn-success btn-danger btn-primary').addClass(btnClassMap[opType]);
+
+    // 显示/隐藏字段
+    if (opType === 'refund') {
+        $('#opAccountGroup').show();
+        $('#opReceivableGroup').hide();
+    } else if (opType === 'deduct') {
+        $('#opAccountGroup').hide();
+        $('#opReceivableGroup').hide();
+    } else if (opType === 'transfer') {
+        $('#opAccountGroup').hide();
+        $('#opReceivableGroup').show();
+        loadReceivablesForTransfer(depositId);
+    }
+
+    // 获取押金详情
+    $.get(`/finance/deposit/detail/${depositId}`, function(res) {
+        if (!res.success) return;
+        const d = res.data;
+        $('#opInfo').html(`<strong>${d.deposit_type_name}#${d.deposit_id}</strong> — ${d.customer_name} | 金额: ¥${d.amount.toFixed(2)} | 剩余: <strong class="text-primary">¥${d.remaining_amount.toFixed(2)}</strong>`);
+    });
+
+    new bootstrap.Modal('#operationModal').show();
+}
+
+function loadReceivablesForTransfer(depositId) {
+    // 先获取押金详情，拿客户信息
+    $.get(`/finance/deposit/detail/${depositId}`, function(res) {
+        if (!res.success) return;
+        const d = res.data;
+        // 获取该客户的未付款应收
+        $.get('/finance/receivable/list', { per_page: 100, status: '未付款' }, function(res2) {
+            if (!res2.success) return;
+            let opts = '<option value="">选择应收</option>';
+            (res2.data.items || []).forEach(item => {
+                if (item.customer_id == d.customer_id && item.customer_type == d.customer_type) {
+                    opts += `<option value="${item.receivable_id}">应收#${item.receivable_id} ¥${item.remaining_amount.toFixed(2)}</option>`;
+                }
+            });
+            $('#opReceivable').html(opts);
+        });
+    });
+}
+
+function submitOperation() {
+    const opType = $('#opType').val();
+    const depositId = parseInt($('#opDepositId').val());
+    const amount = parseFloat($('#opAmount').val()) || 0;
+
+    if (amount <= 0) { showToast('请输入有效金额', 'error'); return; }
+
+    const urlMap = {
+        'refund': '/finance/deposit/refund',
+        'deduct': '/finance/deposit/deduct',
+        'transfer': '/finance/deposit/transfer'
+    };
+
+    const data = {
+        deposit_id: depositId,
+        amount: amount,
+        description: $('#opDescription').val().trim()
+    };
+
+    if (opType === 'refund') {
+        data.account_id = parseInt($('#opAccount').val()) || null;
+        if (!data.account_id) { showToast('请选择退款账户', 'error'); return; }
+    } else if (opType === 'transfer') {
+        data.receivable_id = parseInt($('#opReceivable').val()) || null;
+        if (!data.receivable_id) { showToast('请选择应收记录', 'error'); return; }
+    }
+
+    $.ajax({
+        url: urlMap[opType],
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function(res) {
+            if (res.success) {
+                showToast(res.message, 'success');
+                bootstrap.Modal.getInstance('#operationModal').hide();
+                loadList(currentPage);
+                loadSummary();
+                loadAccounts();
+            } else {
+                showToast(res.message, 'error');
+            }
+        },
+        error: function(xhr) {
+            const res = xhr.responseJSON || {};
+            showToast(res.message || '操作失败', 'error');
+        }
+    });
+}
+
+// ===== 详情 =====
+function showDetail(depositId) {
+    $.get(`/finance/deposit/detail/${depositId}`, function(res) {
+        if (!res.success) { showToast(res.message, 'error'); return; }
+        const d = res.data;
+        const statusBadge = d.status === '收取中' ? 'bg-primary'
+            : d.status === '部分退还' ? 'bg-warning text-dark' : 'bg-secondary';
+
+        let opHtml = '';
+        if (d.operations && d.operations.length > 0) {
+            opHtml = `<hr><h6>操作记录</h6><table class="table table-sm">
+                <thead><tr><th>类型</th><th>金额</th><th>关联</th><th>备注</th><th>操作人</th><th>时间</th></tr></thead><tbody>`;
+            d.operations.forEach(op => {
+                let ref = '-';
+                if (op.receivable_id) ref = `应收#${op.receivable_id}`;
+                else if (op.account_name) ref = op.account_name;
+                opHtml += `<tr><td><span class="badge ${op.operation_type === 'refund' ? 'bg-success' : op.operation_type === 'deduct' ? 'bg-danger' : 'bg-info'}">${op.operation_type_text}</span></td>
+                    <td>¥${op.amount.toFixed(2)}</td><td>${ref}</td><td>${op.description}</td><td>${op.operator_name}</td><td>${op.create_time}</td></tr>`;
+            });
+            opHtml += '</tbody></table>';
+        } else {
+            opHtml = '<hr><p class="text-muted small">暂无操作记录</p>';
+        }
+
+        $('#detailBody').html(`
+            <div class="row">
+                <div class="col-6">
+                    <p><strong>客户：</strong>${d.customer_name} (${d.customer_type})</p>
+                    <p><strong>押金类型：</strong>${d.deposit_type_name}</p>
+                    <p><strong>关联合同：</strong>${d.related_contract_id ? '#' + d.related_contract_id : '-'}</p>
+                </div>
+                <div class="col-6">
+                    <p><strong>金额：</strong>¥${d.amount.toFixed(2)}</p>
+                    <p><strong>已退还：</strong><span class="text-success">¥${d.refund_amount.toFixed(2)}</span></p>
+                    <p><strong>已扣除：</strong><span class="text-danger">¥${d.deduct_amount.toFixed(2)}</span></p>
+                    <p><strong>已转抵：</strong><span class="text-info">¥${d.transfer_amount.toFixed(2)}</span></p>
+                    <p><strong>剩余：</strong><span class="text-primary fw-bold">¥${d.remaining_amount.toFixed(2)}</span></p>
+                    <p><strong>状态：</strong><span class="badge ${statusBadge}">${d.status}</span></p>
+                </div>
+            </div>
+            <p><strong>备注：</strong>${d.description || '-'}</p>
+            <p><strong>创建时间：</strong>${d.create_time}</p>
+            ${opHtml}
+        `);
+        new bootstrap.Modal('#detailModal').show();
+    });
+}
+</script>
+{% endblock %}

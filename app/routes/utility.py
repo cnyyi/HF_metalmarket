@@ -1,6 +1,6 @@
 # 水电计费相关路由
 from flask import Blueprint, render_template, request, jsonify
-from flask_login import login_required
+from flask_login import login_required, current_user
 from app.services.utility_service import UtilityService
 
 # 创建蓝图
@@ -26,15 +26,17 @@ def list_data():
     获取水电表列表数据（带分页和筛选）
     """
     try:
-        meter_type = request.args.get('type', 'all').strip()
-        merchant_id = request.args.get('merchant_id', '').strip()
+        meter_number = request.args.get('meter_number', '').strip()
+        meter_type = request.args.get('meter_type', 'all')
+        page = int(request.args.get('page', 1))
+        page_size = int(request.args.get('page_size', 20))
         
-        if merchant_id:
-            merchant_id = int(merchant_id)
-        else:
-            merchant_id = None
-        
-        result = utility_service.get_meter_list(meter_type=meter_type, merchant_id=merchant_id)
+        result = utility_service.get_meter_list_paginated(
+            meter_number=meter_number,
+            meter_type=meter_type,
+            page=page,
+            page_size=page_size
+        )
         return jsonify(result)
     
     except Exception as e:
@@ -51,7 +53,7 @@ def detail(meter_id):
     查看水电表明细
     """
     try:
-        meter_type = request.args.get('type', 'water').strip()
+        meter_type = request.args.get('meter_type', request.args.get('type', 'water')).strip()
         result = utility_service.get_meter_detail(meter_id, meter_type)
         return jsonify(result)
     
@@ -68,31 +70,56 @@ def create():
     """
     新增水电表
     """
+    # 标记：这是最新版本的代码 2026-04-02
+    print("=" * 50)
+    print("进入 /utility/create 路由")
+    print("=" * 50)
+    
     try:
         data = request.get_json()
+        print(f"接收到的数据：{data}")
+
+        if not data:
+            print("错误：没有接收到数据")
+            return jsonify({
+                'success': False,
+                'message': '[CREATE_V3] 请求数据格式错误，需要JSON格式'
+            }), 400
+
         meter_type = data.get('meter_type', '').strip()
+        print(f"表类型：{meter_type}")
 
         if not meter_type or meter_type not in ['water', 'electricity']:
             return jsonify({
                 'success': False,
-                'message': '表类型参数错误'
+                'message': '[CREATE_V3] 表类型参数错误，必须为 water 或 electricity'
             }), 400
 
-        required_fields = ['meter_number', 'meter_type', 'installation_date']
+        required_fields = ['meter_number', 'meter_type']
+        print(f"必填字段：{required_fields}")
+
         for field in required_fields:
-            if field not in data or not data[field]:
+            field_value = data.get(field)
+            print(f"检查字段 '{field}': {field_value}")
+            if field not in data or not str(data[field]).strip():
+                print(f"验证失败：字段 '{field}' 为空")
                 return jsonify({
                     'success': False,
-                    'message': f'缺少必填字段：{field}'
+                    'message': f'[CREATE_V3] 缺少必填字段：{field}'
                 }), 400
 
+        print("所有验证通过，调用 service.create_meter")
         result = utility_service.create_meter(meter_type, data)
+        print(f"service 返回结果：{result}")
         return jsonify(result)
-    
+
     except Exception as e:
+        import traceback
+        print(f"异常：{e}")
+        print(f"堆栈：{traceback.format_exc()}")
         return jsonify({
             'success': False,
-            'message': f'创建失败：{str(e)}'
+            'message': f'[CREATE_V3] 创建失败：{str(e)}'
         }), 500
 
 
@@ -163,18 +190,50 @@ def unlink(meter_id):
 def water_meter():
     """
     水表抄表页面
+    支持URL参数传递日期，格式：?date=2026-01-01
     """
-    return render_template('utility/water_meter.html')
+    from datetime import datetime, date
+    from dateutil.relativedelta import relativedelta
+    from flask import request
+    
+    reading_date = request.args.get('date')
+    
+    if reading_date:
+        try:
+            parsed_date = datetime.strptime(reading_date, '%Y-%m-%d').date()
+        except ValueError:
+            parsed_date = date.today().replace(day=1)
+    else:
+        parsed_date = date.today().replace(day=1)
+    
+    # 生成所属月份选项：前6个月 + 当月 + 后5个月，格式"YYYY年MM月"
+    today = date.today()
+    month_options = []
+    for i in range(-6, 6):
+        m = today + relativedelta(months=i)
+        label = f"{m.year}年{m.month:02d}月"
+        value = f"{m.year}-{m.month:02d}"
+        month_options.append({'label': label, 'value': value})
+    
+    # 默认选择上一个月
+    last_month = today + relativedelta(months=-1)
+    default_belong_month = f"{last_month.year}-{last_month.month:02d}"
+    
+    return render_template('utility/water_meter.html', 
+                         default_reading_date=parsed_date.strftime('%Y-%m-%d'),
+                         month_options=month_options,
+                         default_belong_month=default_belong_month)
 
 
 @utility_bp.route('/water_meter_data', methods=['GET'])
 @login_required
 def water_meter_data():
     """
-    获取待抄水表列表
+    获取待抄水表列表（按所属月份过滤已抄表记录）
     """
     try:
-        result = utility_service.get_meters_to_read('water')
+        belong_month = request.args.get('belong_month', '').strip()
+        result = utility_service.get_meters_to_read('water', belong_month=belong_month or None)
         return jsonify(result)
     except Exception as e:
         return jsonify({
@@ -192,6 +251,8 @@ def water_meter_submit():
     try:
         data = request.get_json()
         readings = data.get('readings', [])
+        reading_date = data.get('reading_date')
+        belong_month = data.get('belong_month')
         
         if not readings:
             return jsonify({
@@ -199,7 +260,10 @@ def water_meter_submit():
                 'message': '未提供抄表数据'
             }), 400
         
-        result = utility_service.submit_meter_readings('water', readings)
+        # 注入当前操作用户ID
+        for r in readings:
+            r['created_by'] = current_user.user_id
+        result = utility_service.submit_meter_readings('water', readings, reading_date, belong_month)
         return jsonify(result)
     
     except Exception as e:
@@ -214,18 +278,50 @@ def water_meter_submit():
 def electricity_meter():
     """
     电表抄表页面
+    支持URL参数传递日期，格式：?date=2026-01-01
     """
-    return render_template('utility/electricity_meter.html')
+    from datetime import datetime, date
+    from dateutil.relativedelta import relativedelta
+    from flask import request
+    
+    reading_date = request.args.get('date')
+    
+    if reading_date:
+        try:
+            parsed_date = datetime.strptime(reading_date, '%Y-%m-%d').date()
+        except ValueError:
+            parsed_date = date.today().replace(day=1)
+    else:
+        parsed_date = date.today().replace(day=1)
+    
+    # 生成所属月份选项：前6个月 + 当月 + 后5个月，格式"YYYY年MM月"
+    today = date.today()
+    month_options = []
+    for i in range(-6, 6):
+        m = today + relativedelta(months=i)
+        label = f"{m.year}年{m.month:02d}月"
+        value = f"{m.year}-{m.month:02d}"
+        month_options.append({'label': label, 'value': value})
+    
+    # 默认选择上一个月
+    last_month = today + relativedelta(months=-1)
+    default_belong_month = f"{last_month.year}-{last_month.month:02d}"
+    
+    return render_template('utility/electricity_meter.html', 
+                         default_reading_date=parsed_date.strftime('%Y-%m-%d'),
+                         month_options=month_options,
+                         default_belong_month=default_belong_month)
 
 
 @utility_bp.route('/electricity_meter_data', methods=['GET'])
 @login_required
 def electricity_meter_data():
     """
-    获取待抄电表列表
+    获取待抄电表列表（按所属月份过滤已抄表记录）
     """
     try:
-        result = utility_service.get_meters_to_read('electricity')
+        belong_month = request.args.get('belong_month', '').strip()
+        result = utility_service.get_meters_to_read('electricity', belong_month=belong_month or None)
         return jsonify(result)
     except Exception as e:
         return jsonify({
@@ -243,6 +339,8 @@ def electricity_meter_submit():
     try:
         data = request.get_json()
         readings = data.get('readings', [])
+        reading_date = data.get('reading_date')
+        belong_month = data.get('belong_month')
         
         if not readings:
             return jsonify({
@@ -250,7 +348,10 @@ def electricity_meter_submit():
                 'message': '未提供抄表数据'
             }), 400
         
-        result = utility_service.submit_meter_readings('electricity', readings)
+        # 注入当前操作用户ID
+        for r in readings:
+            r['created_by'] = current_user.user_id
+        result = utility_service.submit_meter_readings('electricity', readings, reading_date, belong_month)
         return jsonify(result)
     
     except Exception as e:
@@ -292,25 +393,173 @@ def contracts():
         }), 500
 
 
-@utility_bp.route('/debug_contracts')
-@login_required
-def debug_contracts():
-    """
-    调试合同接口页面
-    """
-    return render_template('utility/debug_contracts.html')
+# [已移除] debug_contracts 和 test_contracts 路由 — 生产环境不需要调试页面
 
-@utility_bp.route('/test_contracts')
+
+@utility_bp.route('/valid_contracts', methods=['GET'])
 @login_required
-def test_contracts():
+def valid_contracts():
     """
-    测试合同接口
+    获取有效合同列表
+    有效期：起始日期 ≤ 今天 ≤ 结束日期+3个月
     """
     try:
-        result = utility_service.get_contracts_list()
+        result = utility_service.get_valid_contracts()
         return jsonify(result)
     except Exception as e:
         return jsonify({
             'success': False,
-            'message': f'测试失败：{str(e)}'
+            'message': f'获取有效合同失败：{str(e)}'
+        }), 500
+
+
+@utility_bp.route('/bind', methods=['POST'])
+@login_required
+def bind():
+    """
+    绑定水电表到合同
+    """
+    try:
+        data = request.get_json()
+        meter_id = data.get('meter_id')
+        meter_type = data.get('meter_type')
+        contract_id = data.get('contract_id')
+        unit_price = data.get('unit_price', 0)
+        
+        if not meter_id or not meter_type or not contract_id:
+            return jsonify({
+                'success': False,
+                'message': '参数不完整'
+            }), 400
+        
+        if meter_type not in ['water', 'electricity']:
+            return jsonify({
+                'success': False,
+                'message': '表类型参数错误'
+            }), 400
+        
+        if unit_price <= 0:
+            return jsonify({
+                'success': False,
+                'message': '单价必须大于0'
+            }), 400
+        
+        result = utility_service.bind_meter_to_contract(meter_id, meter_type, contract_id, unit_price)
+        return jsonify(result)
+    
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'绑定失败：{str(e)}'
+        }), 500
+
+
+@utility_bp.route('/unbind', methods=['POST'])
+@login_required
+def unbind():
+    """
+    解绑水电表
+    """
+    try:
+        data = request.get_json()
+        meter_id = data.get('meter_id')
+        meter_type = data.get('meter_type')
+        
+        if not meter_id or not meter_type:
+            return jsonify({
+                'success': False,
+                'message': '参数不完整'
+            }), 400
+        
+        if meter_type not in ['water', 'electricity']:
+            return jsonify({
+                'success': False,
+                'message': '表类型参数错误'
+            }), 400
+        
+        result = utility_service.unbind_meter_from_contract(meter_id, meter_type)
+        return jsonify(result)
+    
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'解绑失败：{str(e)}'
+        }), 500
+
+
+@utility_bp.route('/toggle_meter_status', methods=['POST'])
+@login_required
+def toggle_meter_status():
+    """
+    切换水电表绑定的启用/停用状态
+    """
+    try:
+        data = request.get_json()
+        meter_id = data.get('meter_id')
+        meter_type = data.get('meter_type')
+        contract_id = data.get('contract_id')
+        
+        if not meter_id or not meter_type:
+            return jsonify({
+                'success': False,
+                'message': '参数不完整'
+            }), 400
+        
+        if meter_type not in ['water', 'electricity']:
+            return jsonify({
+                'success': False,
+                'message': '表类型参数错误'
+            }), 400
+        
+        result = utility_service.toggle_meter_binding_status(meter_id, meter_type, contract_id)
+        return jsonify(result)
+    
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'操作失败：{str(e)}'
+        }), 500
+
+
+# [已移除] diagnose_electricity 和 diagnose_electricity_page 路由 — 生产环境不需要调试页面
+
+
+@utility_bp.route('/reading_data')
+@login_required
+def reading_data():
+    from datetime import date
+    from dateutil.relativedelta import relativedelta
+
+    today = date.today()
+    month_options = []
+    for i in range(-12, 1):
+        m = today + relativedelta(months=i)
+        label = f"{m.year}年{m.month:02d}月"
+        value = f"{m.year}-{m.month:02d}"
+        month_options.append({'label': label, 'value': value})
+
+    default_belong_month = f"{today.year}-{today.month:02d}"
+
+    return render_template('utility/reading_data.html',
+                         month_options=month_options,
+                         default_belong_month=default_belong_month)
+
+
+@utility_bp.route('/reading_data_list', methods=['GET'])
+@login_required
+def reading_data_list():
+    try:
+        belong_month = request.args.get('belong_month', '').strip()
+        meter_type = request.args.get('meter_type', '').strip()
+
+        if not belong_month:
+            return jsonify({'success': False, 'message': '请选择月份'}), 400
+
+        result = utility_service.get_reading_data(belong_month, meter_type or None)
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取数据失败：{str(e)}'
         }), 500

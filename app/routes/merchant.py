@@ -1,5 +1,5 @@
 # 商户管理相关路由
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required
 from app.forms.merchant_form import MerchantAddForm, MerchantEditForm
 from app.services.merchant_service import MerchantService
@@ -128,3 +128,38 @@ def edit(merchant_id):
             flash('商户更新失败', 'danger')
     
     return render_template('merchant/edit.html', form=form, merchant=merchant)
+
+
+# ==================== 商户门户管理 ====================
+
+@merchant_bp.route('/api/portal_status/<int:merchant_id>', methods=['GET'])
+@login_required
+def portal_status(merchant_id):
+    """获取商户门户状态"""
+    status = MerchantService.get_portal_status(merchant_id)
+    return jsonify({'success': True, 'data': status})
+
+
+@merchant_bp.route('/api/open_portal/<int:merchant_id>', methods=['POST'])
+@login_required
+def open_portal(merchant_id):
+    """为商户开通门户"""
+    data = request.get_json(silent=True) or {}
+    result = MerchantService.open_portal(
+        merchant_id=merchant_id,
+        username=data.get('username'),
+        password=data.get('password')
+    )
+    if result['success']:
+        return jsonify(result)
+    return jsonify(result), 400
+
+
+@merchant_bp.route('/api/reset_portal_password/<int:merchant_id>', methods=['POST'])
+@login_required
+def reset_portal_password(merchant_id):
+    """重置商户门户密码"""
+    result = MerchantService.reset_portal_password(merchant_id)
+    if result['success']:
+        return jsonify(result)
+    return jsonify(result), 400

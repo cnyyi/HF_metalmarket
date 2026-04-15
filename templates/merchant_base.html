@@ -7,8 +7,8 @@
     
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome -->
-    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- Font Awesome 6 (含v4兼容层) -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@6.5.1/css/all.min.css" rel="stylesheet">
     
     <!-- 页面特定CSS -->
     {% block extra_css %}{% endblock %}
@@ -80,32 +80,37 @@
                     </li>
                     
                     {% if current_user.is_authenticated %}
-                        <!-- TODO: 商户特定功能菜单 - 待根据商户权限体系开发 -->
+                        <!-- 首页 -->
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('portal.index') }}">
+                                <i class="fa fa-home"></i> 首页
+                            </a>
+                        </li>
                         
                         <!-- 我的合同 -->
                         <li class="nav-item">
-                            <a class="nav-link" href="#">
+                            <a class="nav-link" href="{{ url_for('portal.contracts') }}">
                                 <i class="fa fa-file-text"></i> 我的合同
                             </a>
                         </li>
                         
-                        <!-- 水电费用 -->
+                        <!-- 缴费记录 -->
                         <li class="nav-item">
-                            <a class="nav-link" href="#">
-                                <i class="fa fa-tint"></i> 水电费用
+                            <a class="nav-link" href="{{ url_for('portal.receivables') }}">
+                                <i class="fa fa-money"></i> 缴费记录
                             </a>
                         </li>
                         
-                        <!-- 财务账单 -->
+                        <!-- 水电抄表 -->
                         <li class="nav-item">
-                            <a class="nav-link" href="#">
-                                <i class="fa fa-money"></i> 财务账单
+                            <a class="nav-link" href="{{ url_for('portal.utility_readings') }}">
+                                <i class="fa fa-tint"></i> 水电抄表
                             </a>
                         </li>
                         
                         <!-- 过磅记录 -->
                         <li class="nav-item">
-                            <a class="nav-link" href="#">
+                            <a class="nav-link" href="{{ url_for('portal.scale_records') }}">
                                 <i class="fa fa-balance-scale"></i> 过磅记录
                             </a>
                         </li>
@@ -118,13 +123,11 @@
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="fa fa-user-circle"></i> 
-                                {# TODO: 显示商户名称 #}
-                                {{ current_user.real_name }}
+                                {{ current_user.merchant_name or current_user.real_name }}
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="#"><i class="fa fa-building"></i> 商户信息</a></li>
-                                <li><a class="dropdown-item" href="#"><i class="fa fa-user"></i> 个人信息</a></li>
-                                <li><a class="dropdown-item" href="#"><i class="fa fa-key"></i> 修改密码</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('portal.profile') }}"><i class="fa fa-building"></i> 商户信息</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('user.change_password') }}"><i class="fa fa-key"></i> 修改密码</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="fa fa-sign-out"></i> 退出登录</a></li>
                             </ul>
@@ -150,30 +153,34 @@
                         <span>功能菜单</span>
                     </h6>
                     <ul class="nav flex-column">
-                        <!-- TODO: 待根据商户权限体系添加侧边栏菜单 -->
                         <li class="nav-item">
-                            <a class="nav-link active" href="#">
+                            <a class="nav-link {% if request.endpoint == 'portal.index' %}active{% endif %}" href="{{ url_for('portal.index') }}">
                                 <i class="fa fa-tachometer"></i> 数据概览
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="#">
-                                <i class="fa fa-file-text"></i> 合同管理
+                            <a class="nav-link {% if request.endpoint == 'portal.contracts' %}active{% endif %}" href="{{ url_for('portal.contracts') }}">
+                                <i class="fa fa-file-text"></i> 我的合同
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="#">
-                                <i class="fa fa-tint"></i> 水电管理
+                            <a class="nav-link {% if request.endpoint == 'portal.receivables' %}active{% endif %}" href="{{ url_for('portal.receivables') }}">
+                                <i class="fa fa-money"></i> 缴费记录
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="#">
-                                <i class="fa fa-money"></i> 财务管理
+                            <a class="nav-link {% if request.endpoint == 'portal.utility_readings' %}active{% endif %}" href="{{ url_for('portal.utility_readings') }}">
+                                <i class="fa fa-tint"></i> 水电抄表
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="#">
+                            <a class="nav-link {% if request.endpoint == 'portal.scale_records' %}active{% endif %}" href="{{ url_for('portal.scale_records') }}">
                                 <i class="fa fa-balance-scale"></i> 过磅记录
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'portal.profile' %}active{% endif %}" href="{{ url_for('portal.profile') }}">
+                                <i class="fa fa-building"></i> 商户信息
                             </a>
                         </li>
                     </ul>
@@ -218,8 +225,8 @@
         </div>
     </footer>
 
-    <!-- jQuery -->
-    <script src="{{ url_for('static', filename='js/jquery-4.0.0.min.js') }}"></script>
+    <!-- jQuery 3.7.1 -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     

@@ -1,6 +1,7 @@
 # 数据库工具类
 import pyodbc
 import logging
+from contextlib import contextmanager
 from flask import current_app
 from functools import wraps
 
@@ -9,9 +10,47 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+class DBConnection:
+    """
+    数据库连接上下文管理器
+    
+    使用方式（推荐）：
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM Table WHERE id = ?", (id,))
+            rows = cursor.fetchall()
+    
+    退出 with 块时自动关闭连接，即使发生异常也不会泄漏。
+    兼容旧的 get_connection() 直接调用方式。
+    """
+
+    def __init__(self):
+        self._conn = None
+
+    def __enter__(self):
+        self._conn = get_connection()
+        return self._conn
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._conn:
+            # 如果在 with 块内发生了未处理的异常，自动回滚
+            if exc_type is not None:
+                try:
+                    self._conn.rollback()
+                except Exception:
+                    pass
+            close_connection(self._conn)
+        # 不吞掉异常，让调用者处理
+        return False
+
+
 def get_connection():
     """
     获取数据库连接
+    
+    注意：直接使用此函数需要手动管理连接关闭。
+    推荐使用 DBConnection 上下文管理器替代：
+        with DBConnection() as conn: ...
     """
     try:
         conn = pyodbc.connect(current_app.config['ODBC_CONNECTION_STRING'])

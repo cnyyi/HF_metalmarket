@@ -1,0 +1,265 @@
+{% extends "admin_base.html" %}
+
+{% block title %}电表抄表{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">首页</a></li>
+<li class="breadcrumb-item active">电表抄表</li>
+{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-bolt"></i> 电表抄表
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col-md-6">
+                <h5 class="card-title mb-0">宿舍电表抄表</h5>
+            </div>
+            <div class="col-md-6 text-end">
+                <button type="button" class="btn btn-primary" id="btnLoadRooms">
+                    <i class="fa fa-download"></i> 加载待抄表房间
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-3">
+                <label class="form-label">抄表月份 <span class="text-danger">*</span></label>
+                <input type="month" class="form-control" id="yearMonth">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">抄表日期</label>
+                <input type="date" class="form-control" id="readingDate">
+            </div>
+        </div>
+
+        <!-- 待抄表房间列表 -->
+        <div id="readingSection" style="display:none;">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>房间号</th>
+                            <th>租户</th>
+                            <th>电表号</th>
+                            <th>上次读数</th>
+                            <th>本次读数 <span class="text-danger">*</span></th>
+                            <th>用电量</th>
+                            <th>电费单价</th>
+                            <th>电费金额</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="readingTableBody">
+                    </tbody>
+                </table>
+            </div>
+            <div class="text-end mt-3">
+                <button type="button" class="btn btn-success" id="btnBatchSave">
+                    <i class="fa fa-save"></i> 批量保存
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 历史抄表记录 -->
+<div class="card mt-3">
+    <div class="card-header">
+        <h5 class="card-title mb-0">历史抄表记录</h5>
+    </div>
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-3">
+                <input type="month" class="form-control" id="historyMonth" placeholder="选择月份查看">
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-outline-primary" id="btnViewHistory">
+                    <i class="fa fa-search"></i> 查询
+                </button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover table-sm">
+                <thead>
+                    <tr>
+                        <th>房间号</th>
+                        <th>租户</th>
+                        <th>月份</th>
+                        <th>上次读数</th>
+                        <th>本次读数</th>
+                        <th>用电量(度)</th>
+                        <th>单价</th>
+                        <th>金额(元)</th>
+                        <th>抄表日期</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody">
+                    <tr><td colspan="9" class="text-center text-muted">选择月份查看</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+$(function() {
+    // 默认当月
+    var now = new Date();
+    $('#yearMonth').val(now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0'));
+    $('#readingDate').val(now.toISOString().split('T')[0]);
+
+    // 加载待抄表房间
+    $('#btnLoadRooms').click(function() {
+        var yearMonth = $('#yearMonth').val();
+        if (!yearMonth) { showToast('请选择抄表月份', 'warning'); return; }
+
+        $.get('{{ url_for("dorm.reading_rooms") }}', { year_month: yearMonth }, function(res) {
+            if (!res.success) { showToast(res.message, 'danger'); return; }
+            var rooms = res.data;
+            if (rooms.length === 0) {
+                showToast('该月所有在住房间已抄表', 'info');
+                $('#readingSection').hide();
+                return;
+            }
+
+            var html = '';
+            rooms.forEach(function(r) {
+                html += '<tr data-room-id="' + r.room_id + '">' +
+                    '<td><strong>' + escapeHtml(r.room_number) + '</strong></td>' +
+                    '<td>' + escapeHtml(r.tenant_name || '-') + '</td>' +
+                    '<td>' + escapeHtml(r.meter_number || '-') + '</td>' +
+                    '<td>' + r.last_reading.toFixed(2) + '</td>' +
+                    '<td><input type="number" class="form-control form-control-sm current-reading" step="0.01" min="' + r.last_reading + '" data-room-id="' + r.room_id + '" data-unit-price="' + r.electricity_unit_price + '" data-last-reading="' + r.last_reading + '"></td>' +
+                    '<td class="consumption">-</td>' +
+                    '<td>' + r.electricity_unit_price.toFixed(2) + '</td>' +
+                    '<td class="amount">-</td>' +
+                    '<td><button class="btn btn-sm btn-outline-primary btn-save-one" data-room-id="' + r.room_id + '"><i class="fa fa-save"></i> 保存</button></td>' +
+                '</tr>';
+            });
+            $('#readingTableBody').html(html);
+            $('#readingSection').show();
+
+            // 实时计算
+            $('.current-reading').on('input', function() {
+                var val = parseFloat($(this).val());
+                var last = parseFloat($(this).data('last-reading'));
+                var price = parseFloat($(this).data('unit-price'));
+                var $tr = $(this).closest('tr');
+                if (!isNaN(val) && val >= last) {
+                    var consumption = val - last;
+                    $tr.find('.consumption').text(consumption.toFixed(2));
+                    $tr.find('.amount').text((consumption * price).toFixed(2));
+                } else {
+                    $tr.find('.consumption').text('-');
+                    $tr.find('.amount').text('-');
+                }
+            });
+        });
+    });
+
+    // 单条保存
+    $(document).on('click', '.btn-save-one', function() {
+        var roomId = $(this).data('room-id');
+        var $input = $('.current-reading[data-room-id="' + roomId + '"]');
+        var val = parseFloat($input.val());
+        var last = parseFloat($input.data('last-reading'));
+
+        if (isNaN(val)) { showToast('请输入读数', 'warning'); return; }
+        if (val < last) { showToast('读数不能小于上次读数 ' + last, 'warning'); return; }
+
+        saveReading(roomId, val);
+    });
+
+    // 批量保存
+    $('#btnBatchSave').click(function() {
+        var yearMonth = $('#yearMonth').val();
+        var saved = 0, failed = 0;
+        var inputs = $('.current-reading').filter(function() { return $(this).val().trim() !== ''; });
+
+        if (inputs.length === 0) { showToast('没有需要保存的读数', 'warning'); return; }
+
+        inputs.each(function() {
+            var roomId = $(this).data('room-id');
+            var val = parseFloat($(this).val());
+            var last = parseFloat($(this).data('last-reading'));
+            if (isNaN(val) || val < last) { failed++; return; }
+
+            $.ajax({
+                url: '{{ url_for("dorm.reading_save") }}',
+                method: 'POST',
+                contentType: 'application/json',
+                async: false,
+                data: JSON.stringify({
+                    room_id: roomId,
+                    year_month: yearMonth,
+                    current_reading: val,
+                    reading_date: $('#readingDate').val()
+                }),
+                success: function(res) { if (res.success) saved++; else failed++; },
+                error: function() { failed++; }
+            });
+        });
+
+        showToast('保存完成：成功 ' + saved + ' 条，失败 ' + failed + ' 条', saved > 0 ? 'success' : 'warning');
+        $('#btnLoadRooms').trigger('click'); // 刷新
+    });
+
+    function saveReading(roomId, currentReading) {
+        $.ajax({
+            url: '{{ url_for("dorm.reading_save") }}',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                room_id: roomId,
+                year_month: $('#yearMonth').val(),
+                current_reading: currentReading,
+                reading_date: $('#readingDate').val()
+            }),
+            success: function(res) {
+                if (res.success) {
+                    showToast('保存成功：用电 ' + res.data.consumption.toFixed(2) + ' 度，电费 ' + res.data.amount.toFixed(2) + ' 元', 'success');
+                } else {
+                    showToast(res.message, 'danger');
+                }
+            },
+            error: function(xhr) { showToast(xhr.responseJSON?.message || '保存失败', 'danger'); }
+        });
+    }
+
+    // 历史查询
+    $('#btnViewHistory').click(function() {
+        var yearMonth = $('#historyMonth').val();
+        if (!yearMonth) { showToast('请选择月份', 'warning'); return; }
+
+        $.get('{{ url_for("dorm.reading_list") }}', { year_month: yearMonth, per_page: 100 }, function(res) {
+            if (!res.success) return showToast(res.message, 'danger');
+            var data = res.data;
+            if (data.items.length === 0) {
+                $('#historyTableBody').html('<tr><td colspan="9" class="text-center text-muted">该月无抄表记录</td></tr>');
+                return;
+            }
+            var html = '';
+            data.items.forEach(function(item) {
+                html += '<tr>' +
+                    '<td>' + escapeHtml(item.room_number) + '</td>' +
+                    '<td>' + escapeHtml(item.tenant_name || '-') + '</td>' +
+                    '<td>' + item.year_month + '</td>' +
+                    '<td>' + item.previous_reading.toFixed(2) + '</td>' +
+                    '<td>' + item.current_reading.toFixed(2) + '</td>' +
+                    '<td>' + item.consumption.toFixed(2) + '</td>' +
+                    '<td>' + item.unit_price.toFixed(2) + '</td>' +
+                    '<td>' + item.amount.toFixed(2) + '</td>' +
+                    '<td>' + item.reading_date + '</td>' +
+                '</tr>';
+            });
+            $('#historyTableBody').html(html);
+        });
+    });
+});
+</script>
+{% endblock %}

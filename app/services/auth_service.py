@@ -51,7 +51,8 @@ class AuthService:
             User对象，如果用户不存在则返回None
         """
         query = """
-            SELECT UserID, Username, Password, RealName, Phone, Email, IsActive, CreateTime, UpdateTime, LastLoginTime, WeChatOpenID, MerchantID
+            SELECT UserID, Username, Password, RealName, Phone, Email, IsActive, 
+                   CreateTime, UpdateTime, LastLoginTime, WeChatOpenID, MerchantID, UserType
             FROM [User]
             WHERE Username = ?
         """
@@ -59,6 +60,14 @@ class AuthService:
         
         if not result:
             return None
+        
+        # 获取商户名称（如果是商户用户）
+        merchant_name = None
+        if result.MerchantID:
+            m_query = "SELECT MerchantName FROM Merchant WHERE MerchantID = ?"
+            m_result = execute_query(m_query, (result.MerchantID,), fetch_type='one')
+            if m_result:
+                merchant_name = m_result.MerchantName
         
         user = User(
             user_id=result.UserID,
@@ -72,7 +81,9 @@ class AuthService:
             update_time=result.UpdateTime,
             last_login_time=result.LastLoginTime,
             wechat_openid=result.WeChatOpenID,
-            merchant_id=result.MerchantID
+            merchant_id=result.MerchantID,
+            merchant_name=merchant_name,
+            user_type=getattr(result, 'UserType', 'Admin') or 'Admin'
         )
         
         # 获取用户角色
@@ -95,7 +106,8 @@ class AuthService:
             User对象，如果用户不存在则返回None
         """
         query = """
-            SELECT UserID, Username, Password, RealName, Phone, Email, IsActive, CreateTime, UpdateTime, LastLoginTime, WeChatOpenID, MerchantID
+            SELECT UserID, Username, Password, RealName, Phone, Email, IsActive,
+                   CreateTime, UpdateTime, LastLoginTime, WeChatOpenID, MerchantID, UserType
             FROM [User]
             WHERE UserID = ?
         """
@@ -103,6 +115,14 @@ class AuthService:
         
         if not result:
             return None
+        
+        # 获取商户名称（如果是商户用户）
+        merchant_name = None
+        if result.MerchantID:
+            m_query = "SELECT MerchantName FROM Merchant WHERE MerchantID = ?"
+            m_result = execute_query(m_query, (result.MerchantID,), fetch_type='one')
+            if m_result:
+                merchant_name = m_result.MerchantName
         
         user = User(
             user_id=result.UserID,
@@ -116,7 +136,9 @@ class AuthService:
             update_time=result.UpdateTime,
             last_login_time=result.LastLoginTime,
             wechat_openid=result.WeChatOpenID,
-            merchant_id=result.MerchantID
+            merchant_id=result.MerchantID,
+            merchant_name=merchant_name,
+            user_type=getattr(result, 'UserType', 'Admin') or 'Admin'
         )
         
         # 获取用户角色

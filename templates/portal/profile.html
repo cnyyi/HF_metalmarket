@@ -1,0 +1,56 @@
+{% extends "merchant_base.html" %}
+
+{% block title %}商户信息{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-building"></i> 商户信息
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">基本信息</h5>
+    </div>
+    <div class="card-body" id="profileContent">
+        <p class="text-muted">加载中...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $.ajax({
+        url: '{{ url_for("portal.api_dashboard") }}',
+        type: 'GET',
+        success: function(resp) {
+            if (resp.success) {
+                var merchantName = '{{ current_user.merchant_name or "" }}';
+                var realName = '{{ current_user.real_name or "" }}';
+                var phone = '{{ current_user.phone or "" }}';
+
+                var html = '<div class="row">';
+                html += '<div class="col-md-6 mb-3">';
+                html += '<label class="form-label text-muted">商户名称</label>';
+                html += '<h5>' + escapeHtml(merchantName) + '</h5>';
+                html += '</div>';
+                html += '<div class="col-md-6 mb-3">';
+                html += '<label class="form-label text-muted">联系人</label>';
+                html += '<h5>' + escapeHtml(realName) + '</h5>';
+                html += '</div>';
+                html += '<div class="col-md-6 mb-3">';
+                html += '<label class="form-label text-muted">联系电话</label>';
+                html += '<h5>' + escapeHtml(phone) + '</h5>';
+                html += '</div>';
+                html += '</div>';
+
+                html += '<hr>';
+                html += '<p class="text-muted"><i class="fa fa-info-circle"></i> 如需修改商户信息，请联系市场管理方。</p>';
+
+                $('#profileContent').html(html);
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

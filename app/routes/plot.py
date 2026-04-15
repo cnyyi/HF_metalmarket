@@ -2,14 +2,17 @@
 """
 地块管理相关路由
 """
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
+import logging
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
-import pyodbc
 import os
 import uuid
 from datetime import datetime
-from config import Config
+from utils.database import DBConnection
+from config.base import Config
+
+logger = logging.getLogger(__name__)
 
 plot_bp = Blueprint('plot', __name__)
 
@@ -20,10 +23,6 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def get_connection():
-    return pyodbc.connect(Config.ODBC_CONNECTION_STRING)
-
-
 def calculate_rent(area, unit_price):
     monthly_rent = area * unit_price
     yearly_rent = monthly_rent * 12
@@ -31,37 +30,37 @@ def calculate_rent(area, unit_price):
 
 
 def get_plot_types():
-    conn = get_connection()
-    cursor = conn.cursor()
+    with DBConnection() as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT DictName, UnitPrice
+            FROM Sys_Dictionary
+            WHERE DictType = N'plot_type'
+            ORDER BY SortOrder
+        """)
+        
+        types = [(r.DictName, r.DictName, float(r.UnitPrice) if r.UnitPrice else 0) for r in cursor.fetchall()]
     
-    cursor.execute("""
-        SELECT DictName, UnitPrice
-        FROM Sys_Dictionary
-        WHERE DictType = N'plot_type'
-        ORDER BY SortOrder
-    """)
-    
-    types = [(r.DictName, r.DictName, float(r.UnitPrice) if r.UnitPrice else 0) for r in cursor.fetchall()]
-    conn.close()
     return types
 
 
 def get_plot_types_json():
-    conn = get_connection()
-    cursor = conn.cursor()
+    with DBConnection() as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT DictName, UnitPrice
+            FROM Sys_Dictionary
+            WHERE DictType = N'plot_type'
+            ORDER BY SortOrder
+        """)
+        
+        types = [{
+            'dict_name': r.DictName,
+            'unit_price': float(r.UnitPrice) if r.UnitPrice else 0
+        } for r in cursor.fetchall()]
     
-    cursor.execute("""
-        SELECT DictName, UnitPrice
-        FROM Sys_Dictionary
-        WHERE DictType = N'plot_type'
-        ORDER BY SortOrder
-    """)
-    
-    types = [{
-        'dict_name': r.DictName,
-        'unit_price': float(r.UnitPrice) if r.UnitPrice else 0
-    } for r in cursor.fetchall()]
-    conn.close()
     return types
 
 
@@ -84,6 +83,39 @@ def save_uploaded_file(file):
     return relative_path
 
 
+def _safe_delete_image(image_path_relative):
+    """
+    安全删除上传的图片（带路径遍历防护）
+    
+    Args:
+        image_path_relative: 相对路径，如 /uploads/plot/xxx.png
+    """
+    if not image_path_relative:
+        return
+    
+    # 安全校验：确保路径在 uploads 目录内，防止路径遍历攻击
+    # 只允许 uploads/ 目录下的文件被删除
+    safe_prefix = '/uploads/'
+    if not image_path_relative.startswith(safe_prefix):
+        logger.warning(f"尝试删除非uploads目录的文件: {image_path_relative}")
+        return
+
+    full_path = os.path.join(Config.UPLOAD_FOLDER, image_path_relative[len(safe_prefix):])
+
+    # 二次验证：规范化后仍在 uploads 目录内
+    resolved_path = os.path.realpath(full_path)
+    upload_real = os.path.realpath(Config.UPLOAD_FOLDER)
+    if not resolved_path.startswith(upload_real):
+        logger.warning(f"路径遍历尝试被拦截: {image_path_relative} -> {resolved_path}")
+        return
+
+    if os.path.exists(resolved_path):
+        try:
+            os.remove(resolved_path)
+        except OSError as e:
+            logger.warning(f"删除图片失败: {e}")
+
+
 @plot_bp.route('/list')
 @login_required
 def plot_list():
@@ -98,7 +130,8 @@ def types():
         types = get_plot_types_json()
         return jsonify({'success': True, 'data': types})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取地块类型失败: {str(e)}'})
+        logger.error(f"获取地块类型失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': '获取地块类型失败，请稍后重试'})
 
 
 @plot_bp.route('/add', methods=['GET', 'POST'])
@@ -160,31 +193,30 @@ def add():
         if file and file.filename != '':
             image_path = save_uploaded_file(file)
         
-        conn = get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT COUNT(*) FROM Plot WHERE PlotNumber = ?", (plot_number,))
-        if cursor.fetchone()[0] > 0:
-            conn.close()
-            flash('地块编号已存在', 'danger')
-            plot_types = get_plot_types()
-            return render_template('plot/add.html', plot_types=plot_types)
-        
-        cursor.execute("""
-            INSERT INTO Plot (PlotNumber, PlotName, PlotType, Area, UnitPrice, TotalPrice, MonthlyRent, YearlyRent, Location, Status, Description, ImagePath, CreateTime)
-            OUTPUT INSERTED.PlotID
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE())
-        """, (plot_number, plot_name, plot_type, area, unit_price, total_price, monthly_rent, yearly_rent, location, status, description, image_path))
-        
-        plot_id = cursor.fetchone()[0]
-        conn.commit()
-        conn.close()
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT COUNT(*) FROM Plot WHERE PlotNumber = ?", (plot_number,))
+            if cursor.fetchone()[0] > 0:
+                flash('地块编号已存在', 'danger')
+                plot_types = get_plot_types()
+                return render_template('plot/add.html', plot_types=plot_types)
+            
+            cursor.execute("""
+                INSERT INTO Plot (PlotNumber, PlotName, PlotType, Area, UnitPrice, TotalPrice, MonthlyRent, YearlyRent, Location, Status, Description, ImagePath, CreateTime)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE())
+            """, (plot_number, plot_name, plot_type, area, unit_price, total_price, monthly_rent, yearly_rent, location, status, description, image_path))
+
+            cursor.execute("SELECT CAST(SCOPE_IDENTITY() AS INT)")
+            plot_id = cursor.fetchone()[0]
+            conn.commit()
         
         flash('地块添加成功', 'success')
         return redirect(url_for('plot.plot_list'))
         
     except Exception as e:
-        flash(f'添加失败: {str(e)}', 'danger')
+        logger.error(f"添加地块失败: {e}", exc_info=True)
+        flash('添加失败，请稍后重试', 'danger')
         plot_types = get_plot_types()
         return render_template('plot/add.html', plot_types=plot_types)
 
@@ -224,29 +256,28 @@ def edit(plot_id):
         unit_price = float(unit_price)
         monthly_rent, yearly_rent = calculate_rent(area, unit_price)
         
-        conn = get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT COUNT(*) FROM Plot WHERE PlotNumber = ? AND PlotID != ?", (plot_number, plot_id))
-        if cursor.fetchone()[0] > 0:
-            conn.close()
-            return jsonify({'success': False, 'message': '地块编号已被其他地块使用'})
-        
-        cursor.execute("""
-            UPDATE Plot SET 
-                PlotNumber = ?, PlotName = ?, PlotType = ?, Area = ?, UnitPrice = ?, 
-                MonthlyRent = ?, YearlyRent = ?, Location = ?, 
-                Status = ?, Description = ?, ImagePath = ?, UpdateTime = GETDATE()
-            WHERE PlotID = ?
-        """, (plot_number, plot_name, plot_type, area, unit_price, monthly_rent, yearly_rent, location, status, description, image_path, plot_id))
-        
-        conn.commit()
-        conn.close()
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT COUNT(*) FROM Plot WHERE PlotNumber = ? AND PlotID != ?", (plot_number, plot_id))
+            if cursor.fetchone()[0] > 0:
+                return jsonify({'success': False, 'message': '地块编号已被其他地块使用'})
+            
+            cursor.execute("""
+                UPDATE Plot SET 
+                    PlotNumber = ?, PlotName = ?, PlotType = ?, Area = ?, UnitPrice = ?, 
+                    MonthlyRent = ?, YearlyRent = ?, Location = ?, 
+                    Status = ?, Description = ?, ImagePath = ?, UpdateTime = GETDATE()
+                WHERE PlotID = ?
+            """, (plot_number, plot_name, plot_type, area, unit_price, monthly_rent, yearly_rent, location, status, description, image_path, plot_id))
+            
+            conn.commit()
         
         return jsonify({'success': True, 'message': '更新成功'})
         
     except Exception as e:
-        return jsonify({'success': False, 'message': f'更新失败: {str(e)}'})
+        logger.error(f"更新地块失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': '更新失败，请稍后重试'})
 
 
 @plot_bp.route('/upload_image/<int:plot_id>', methods=['POST'])
@@ -261,99 +292,94 @@ def upload_image(plot_id):
         if not image_path:
             return jsonify({'success': False, 'message': '图片上传失败'})
         
-        conn = get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT ImagePath FROM Plot WHERE PlotID = ?", (plot_id,))
-        row = cursor.fetchone()
-        if row and row.ImagePath:
-            old_path = os.path.join(os.getcwd(), row.ImagePath.lstrip('/'))
-            if os.path.exists(old_path):
-                os.remove(old_path)
-        
-        cursor.execute("UPDATE Plot SET ImagePath = ?, UpdateTime = GETDATE() WHERE PlotID = ?", (image_path, plot_id))
-        conn.commit()
-        conn.close()
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT ImagePath FROM Plot WHERE PlotID = ?", (plot_id,))
+            row = cursor.fetchone()
+            if row and row.ImagePath:
+                _safe_delete_image(row.ImagePath)
+            
+            cursor.execute("UPDATE Plot SET ImagePath = ?, UpdateTime = GETDATE() WHERE PlotID = ?", (image_path, plot_id))
+            conn.commit()
         
         return jsonify({'success': True, 'message': '图片上传成功', 'image_path': image_path})
         
     except Exception as e:
-        return jsonify({'success': False, 'message': f'上传失败: {str(e)}'})
+        logger.error(f"上传图片失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': '上传失败，请稍后重试'})
 
 
 @plot_bp.route('/delete/<int:plot_id>', methods=['POST'])
 @login_required
 def delete(plot_id):
     try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT ImagePath FROM Plot WHERE PlotID = ?", (plot_id,))
-        row = cursor.fetchone()
-        
-        if row and row.ImagePath:
-            full_path = os.path.join(os.getcwd(), row.ImagePath.lstrip('/'))
-            if os.path.exists(full_path):
-                os.remove(full_path)
-        
-        cursor.execute("DELETE FROM Plot WHERE PlotID = ?", (plot_id,))
-        
-        conn.commit()
-        conn.close()
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT ImagePath FROM Plot WHERE PlotID = ?", (plot_id,))
+            row = cursor.fetchone()
+            
+            if row and row.ImagePath:
+                _safe_delete_image(row.ImagePath)
+            
+            cursor.execute("DELETE FROM Plot WHERE PlotID = ?", (plot_id,))
+            
+            conn.commit()
         
         return jsonify({'success': True, 'message': '删除成功'})
         
     except Exception as e:
-        return jsonify({'success': False, 'message': f'删除失败: {str(e)}'})
+        logger.error(f"删除地块失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': '删除失败，请稍后重试'})
 
 
 @plot_bp.route('/detail/<int:plot_id>', methods=['GET'])
 @login_required
 def detail(plot_id):
     try:
-        conn = get_connection()
-        cursor = conn.cursor()
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT PlotID, PlotNumber, PlotName, PlotType, Area, UnitPrice, MonthlyRent, YearlyRent, Location, Status, Description, ImagePath, CreateTime, UpdateTime
+                FROM Plot WHERE PlotID = ?
+            """, (plot_id,))
+            
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({'success': False, 'message': '地块不存在'})
+            
+            plot = {
+                'plot_id': row.PlotID,
+                'plot_code': row.PlotNumber,
+                'plot_name': row.PlotName,
+                'plot_type': row.PlotType,
+                'area': float(row.Area) if row.Area else 0,
+                'price': float(row.UnitPrice) if row.UnitPrice else 0,
+                'monthly_rent': float(row.MonthlyRent) if row.MonthlyRent else 0,
+                'yearly_rent': float(row.YearlyRent) if row.YearlyRent else 0,
+                'location': row.Location,
+                'status': row.Status,
+                'description': row.Description,
+                'image_path': row.ImagePath,
+                'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M:%S') if row.CreateTime else None,
+                'update_time': row.UpdateTime.strftime('%Y-%m-%d %H:%M:%S') if row.UpdateTime else None
+            }
+            
+            images = []
+            if row.ImagePath:
+                images.append({
+                    'file_path': row.ImagePath,
+                    'original_name': row.ImagePath.split('/')[-1]
+                })
+            plot['images'] = images
         
-        cursor.execute("""
-            SELECT PlotID, PlotNumber, PlotName, PlotType, Area, UnitPrice, MonthlyRent, YearlyRent, Location, Status, Description, ImagePath, CreateTime, UpdateTime
-            FROM Plot WHERE PlotID = ?
-        """, (plot_id,))
-        
-        row = cursor.fetchone()
-        if not row:
-            conn.close()
-            return jsonify({'success': False, 'message': '地块不存在'})
-        
-        plot = {
-            'plot_id': row.PlotID,
-            'plot_code': row.PlotNumber,
-            'plot_name': row.PlotName,
-            'plot_type': row.PlotType,
-            'area': float(row.Area) if row.Area else 0,
-            'price': float(row.UnitPrice) if row.UnitPrice else 0,
-            'monthly_rent': float(row.MonthlyRent) if row.MonthlyRent else 0,
-            'yearly_rent': float(row.YearlyRent) if row.YearlyRent else 0,
-            'location': row.Location,
-            'status': row.Status,
-            'description': row.Description,
-            'image_path': row.ImagePath,
-            'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M:%S') if row.CreateTime else None,
-            'update_time': row.UpdateTime.strftime('%Y-%m-%d %H:%M:%S') if row.UpdateTime else None
-        }
-        
-        images = []
-        if row.ImagePath:
-            images.append({
-                'file_path': row.ImagePath,
-                'original_name': row.ImagePath.split('/')[-1]
-            })
-        plot['images'] = images
-        
-        conn.close()
         return jsonify({'success': True, 'data': plot})
         
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取失败: {str(e)}'})
+        logger.error(f"获取地块详情失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': '获取失败，请稍后重试'})
 
 
 @plot_bp.route('/list_data', methods=['GET'])
@@ -368,51 +394,49 @@ def list_data():
         
         offset = (page - 1) * per_page
         
-        conn = get_connection()
-        cursor = conn.cursor()
-        
-        where_clause = "WHERE 1=1"
-        params = []
-        
-        if search:
-            where_clause += " AND (PlotNumber LIKE ? OR PlotName LIKE ? OR Location LIKE ?)"
-            search_param = f"%{search}%"
-            params.extend([search_param, search_param, search_param])
-        
-        if status:
-            where_clause += " AND Status = ?"
-            params.append(status)
-        
-        if plot_type:
-            where_clause += " AND PlotType = ?"
-            params.append(plot_type)
-        
-        cursor.execute(f"SELECT COUNT(*) FROM Plot {where_clause}", params)
-        total = cursor.fetchone()[0]
-        
-        cursor.execute(f"""
-            SELECT PlotID, PlotNumber, PlotName, PlotType, Area, UnitPrice, MonthlyRent, YearlyRent, Location, Status, ImagePath, CreateTime
-            FROM Plot {where_clause}
-            ORDER BY CreateTime DESC
-            OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
-        """, params + [offset, per_page])
-        
-        plots = [{
-            'plot_id': r.PlotID,
-            'plot_code': r.PlotNumber,
-            'plot_name': r.PlotName,
-            'plot_type': r.PlotType,
-            'area': float(r.Area) if r.Area else 0,
-            'price': float(r.UnitPrice) if r.UnitPrice else 0,
-            'monthly_rent': float(r.MonthlyRent) if r.MonthlyRent else 0,
-            'yearly_rent': float(r.YearlyRent) if r.YearlyRent else 0,
-            'location': r.Location,
-            'status': r.Status,
-            'image_path': r.ImagePath,
-            'create_time': r.CreateTime.strftime('%Y-%m-%d %H:%M:%S') if r.CreateTime else None
-        } for r in cursor.fetchall()]
-        
-        conn.close()
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            
+            where_clause = "WHERE 1=1"
+            params = []
+            
+            if search:
+                where_clause += " AND (PlotNumber LIKE ? OR PlotName LIKE ? OR Location LIKE ?)"
+                search_param = f"%{search}%"
+                params.extend([search_param, search_param, search_param])
+            
+            if status:
+                where_clause += " AND Status = ?"
+                params.append(status)
+            
+            if plot_type:
+                where_clause += " AND PlotType = ?"
+                params.append(plot_type)
+            
+            cursor.execute(f"SELECT COUNT(*) FROM Plot {where_clause}", params)
+            total = cursor.fetchone()[0]
+            
+            cursor.execute(f"""
+                SELECT PlotID, PlotNumber, PlotName, PlotType, Area, UnitPrice, MonthlyRent, YearlyRent, Location, Status, ImagePath, CreateTime
+                FROM Plot {where_clause}
+                ORDER BY CreateTime DESC
+                OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
+            """, params + [offset, per_page])
+            
+            plots = [{
+                'plot_id': r.PlotID,
+                'plot_code': r.PlotNumber,
+                'plot_name': r.PlotName,
+                'plot_type': r.PlotType,
+                'area': float(r.Area) if r.Area else 0,
+                'price': float(r.UnitPrice) if r.UnitPrice else 0,
+                'monthly_rent': float(r.MonthlyRent) if r.MonthlyRent else 0,
+                'yearly_rent': float(r.YearlyRent) if r.YearlyRent else 0,
+                'location': r.Location,
+                'status': r.Status,
+                'image_path': r.ImagePath,
+                'create_time': r.CreateTime.strftime('%Y-%m-%d %H:%M:%S') if r.CreateTime else None
+            } for r in cursor.fetchall()]
         
         return jsonify({
             'success': True,
@@ -426,4 +450,5 @@ def list_data():
         })
         
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取失败: {str(e)}'})
+        logger.error(f"获取地块列表失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': '获取失败，请稍后重试'})

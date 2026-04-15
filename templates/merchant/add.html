@@ -6,6 +6,12 @@
     <i class="fa fa-building"></i> 添加商户
 {% endblock %}
 
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('merchant.merchant_list') }}">商户管理</a></li>
+<li class="breadcrumb-item active">添加商户</li>
+{% endblock %}
+
 {% block content %}
 <div class="card">
     <div class="card-body">

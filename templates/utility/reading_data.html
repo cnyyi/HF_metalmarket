@@ -1,0 +1,312 @@
+{% extends "admin_base.html" %}
+
+{% block title %}抄表数据{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-table"></i> 抄表数据
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('utility.utility_list') }}">水电计费</a></li>
+<li class="breadcrumb-item active">抄表数据</li>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-3">
+                <label class="form-label fw-bold"><i class="fa fa-calendar-check"></i> 所属月份</label>
+                <select class="form-select" id="belongMonth">
+                    {% for opt in month_options %}
+                    <option value="{{ opt.value }}" {% if opt.value == default_belong_month %}selected{% endif %}>{{ opt.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold"><i class="fa fa-filter"></i> 表类型</label>
+                <select class="form-select" id="meterTypeFilter">
+                    <option value="">全部</option>
+                    <option value="electricity">电表</option>
+                    <option value="water">水表</option>
+                </select>
+            </div>
+        </div>
+
+        <ul class="nav nav-tabs mb-3" id="meterTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="electricity-tab" data-bs-toggle="tab" data-bs-target="#electricityPane" type="button" role="tab">
+                    <i class="fa fa-bolt"></i> 电表
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="water-tab" data-bs-toggle="tab" data-bs-target="#waterPane" type="button" role="tab">
+                    <i class="fa fa-tint"></i> 水表
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="meterTabContent">
+            <div class="tab-pane fade show active" id="electricityPane" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th class="text-center" style="width: 50px;">序号</th>
+                                <th class="text-center">公司名（关联商户）</th>
+                                <th class="text-center" style="width: 100px;">电表编号</th>
+                                <th class="text-center" style="width: 100px;">上月表底</th>
+                                <th class="text-center" style="width: 120px;">本月表底</th>
+                                <th class="text-center" style="width: 80px;">倍率</th>
+                                <th class="text-center" style="width: 100px;">用电量</th>
+                                <th class="text-center" style="width: 80px;">单价</th>
+                                <th class="text-center" style="width: 100px; background-color: #e8f4f8;">小计</th>
+                                <th class="text-center" style="width: 100px; background-color: #fff3cd;">合计</th>
+                            </tr>
+                        </thead>
+                        <tbody id="electricityTableBody">
+                            <tr>
+                                <td colspan="10" class="text-center text-muted">加载中...</td>
+                            </tr>
+                        </tbody>
+                        <tfoot id="electricityTableFoot" style="display: none;">
+                            <tr style="background-color: #f8f9fa; font-weight: bold; border-top: 3px double #dee2e6;">
+                                <td colspan="7" class="text-center align-middle">合计（共 <span id="electricityCount">0</span> 个电表）</td>
+                                <td class="text-center align-middle">-</td>
+                                <td class="text-center align-middle" style="background-color: #e8f4f8;" id="electricitySubtotal">¥0.00</td>
+                                <td class="text-center align-middle" style="background-color: #fff3cd;" id="electricityTotal">¥0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="waterPane" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th class="text-center" style="width: 50px;">序号</th>
+                                <th class="text-center">公司名（关联商户）</th>
+                                <th class="text-center" style="width: 100px;">水表编号</th>
+                                <th class="text-center" style="width: 100px;">上月表底</th>
+                                <th class="text-center" style="width: 120px;">本月表底</th>
+                                <th class="text-center" style="width: 80px;">倍率</th>
+                                <th class="text-center" style="width: 100px;">用水量</th>
+                                <th class="text-center" style="width: 80px;">单价</th>
+                                <th class="text-center" style="width: 100px; background-color: #e8f4f8;">小计</th>
+                                <th class="text-center" style="width: 100px; background-color: #fff3cd;">合计</th>
+                            </tr>
+                        </thead>
+                        <tbody id="waterTableBody">
+                            <tr>
+                                <td colspan="10" class="text-center text-muted">加载中...</td>
+                            </tr>
+                        </tbody>
+                        <tfoot id="waterTableFoot" style="display: none;">
+                            <tr style="background-color: #f8f9fa; font-weight: bold; border-top: 3px double #dee2e6;">
+                                <td colspan="7" class="text-center align-middle">合计（共 <span id="waterCount">0</span> 个水表）</td>
+                                <td class="text-center align-middle">-</td>
+                                <td class="text-center align-middle" style="background-color: #e8f4f8;" id="waterSubtotal">¥0.00</td>
+                                <td class="text-center align-middle" style="background-color: #fff3cd;" id="waterTotal">¥0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function loadReadingData() {
+    var belongMonth = $('#belongMonth').val();
+    var meterType = $('#meterTypeFilter').val();
+
+    if (!belongMonth) return;
+
+    $.ajax({
+        url: '/utility/reading_data_list',
+        type: 'GET',
+        data: { belong_month: belongMonth, meter_type: meterType },
+        success: function(resp) {
+            if (resp.success) {
+                renderElectricityTable(resp.data.electricity || []);
+                renderWaterTable(resp.data.water || []);
+            } else {
+                $('#electricityTableBody').html('<tr><td colspan="10" class="text-center text-danger">' + (resp.message || '加载失败') + '</td></tr>');
+                $('#waterTableBody').html('<tr><td colspan="10" class="text-center text-danger">' + (resp.message || '加载失败') + '</td></tr>');
+            }
+        },
+        error: function() {
+            $('#electricityTableBody').html('<tr><td colspan="10" class="text-center text-danger">网络错误，请稍后重试</td></tr>');
+            $('#waterTableBody').html('<tr><td colspan="10" class="text-center text-danger">网络错误，请稍后重试</td></tr>');
+        }
+    });
+}
+
+function renderElectricityTable(items) {
+    var tbody = $('#electricityTableBody');
+
+    if (!items || items.length === 0) {
+        tbody.html('<tr><td colspan="10" class="text-center text-muted">暂无数据</td></tr>');
+        $('#electricityTableFoot').hide();
+        return;
+    }
+
+    var merchantGroups = {};
+    items.forEach(function(item, index) {
+        var key = item.merchant_name;
+        if (!merchantGroups[key]) {
+            merchantGroups[key] = { startIndex: index, count: 0, globalIndex: Object.keys(merchantGroups).length + 1 };
+        }
+        merchantGroups[key].count++;
+    });
+
+    var contractGroups = {};
+    items.forEach(function(item, index) {
+        var key = item.contract_id || ('no_contract_' + index);
+        if (!contractGroups[key]) {
+            contractGroups[key] = { startIndex: index, count: 0 };
+        }
+        contractGroups[key].count++;
+    });
+
+    var html = '';
+    items.forEach(function(item, index) {
+        var mg = merchantGroups[item.merchant_name];
+        var cg = contractGroups[item.contract_id || ('no_contract_' + index)];
+        var isFirstMerchant = (index === mg.startIndex);
+        var isFirstContract = (index === cg.startIndex);
+
+        html += '<tr>';
+
+        if (isFirstMerchant) {
+            html += '<td class="text-center align-middle" rowspan="' + mg.count + '">' + mg.globalIndex + '</td>';
+            html += '<td class="align-middle" rowspan="' + mg.count + '">' + escapeHtml(item.merchant_name) + '</td>';
+        }
+
+        html += '<td class="text-center align-middle">' + escapeHtml(item.meter_number) + '</td>';
+        html += '<td class="text-center align-middle">' + item.last_reading.toFixed(2) + '</td>';
+        html += '<td class="text-center align-middle">' + item.current_reading.toFixed(2) + '</td>';
+        html += '<td class="text-center align-middle">' + (item.meter_multiplier || 1) + '</td>';
+        html += '<td class="text-center align-middle">' + item.usage.toFixed(2) + '</td>';
+        html += '<td class="text-center align-middle">' + item.unit_price.toFixed(2) + '</td>';
+        html += '<td class="text-center align-middle" style="background-color: #e8f4f8;">¥' + item.total_amount.toFixed(2) + '</td>';
+
+        if (isFirstContract) {
+            html += '<td class="text-center align-middle" rowspan="' + cg.count + '" style="background-color: #fff3cd;">¥' + item.contract_total.toFixed(2) + '</td>';
+        }
+
+        html += '</tr>';
+    });
+
+    tbody.html(html);
+
+    var totalCount = items.length;
+    var totalUsage = 0, totalAmount = 0;
+    items.forEach(function(item) {
+        totalUsage += item.usage;
+        totalAmount += item.total_amount;
+    });
+
+    $('#electricityCount').text(totalCount);
+    $('#electricitySubtotal').text('¥' + totalAmount.toFixed(2));
+    $('#electricityTotal').text('¥' + totalAmount.toFixed(2));
+    $('#electricityTableFoot').show();
+}
+
+function renderWaterTable(items) {
+    var tbody = $('#waterTableBody');
+
+    if (!items || items.length === 0) {
+        tbody.html('<tr><td colspan="10" class="text-center text-muted">暂无数据</td></tr>');
+        $('#waterTableFoot').hide();
+        return;
+    }
+
+    var merchantGroups = {};
+    items.forEach(function(item, index) {
+        var key = item.merchant_name;
+        if (!merchantGroups[key]) {
+            merchantGroups[key] = { startIndex: index, count: 0, globalIndex: Object.keys(merchantGroups).length + 1 };
+        }
+        merchantGroups[key].count++;
+    });
+
+    var contractGroups = {};
+    items.forEach(function(item, index) {
+        var key = item.contract_id || ('no_contract_' + index);
+        if (!contractGroups[key]) {
+            contractGroups[key] = { startIndex: index, count: 0 };
+        }
+        contractGroups[key].count++;
+    });
+
+    var html = '';
+    items.forEach(function(item, index) {
+        var mg = merchantGroups[item.merchant_name];
+        var cg = contractGroups[item.contract_id || ('no_contract_' + index)];
+        var isFirstMerchant = (index === mg.startIndex);
+        var isFirstContract = (index === cg.startIndex);
+
+        html += '<tr>';
+
+        if (isFirstMerchant) {
+            html += '<td class="text-center align-middle" rowspan="' + mg.count + '">' + mg.globalIndex + '</td>';
+            html += '<td class="align-middle" rowspan="' + mg.count + '">' + escapeHtml(item.merchant_name) + '</td>';
+        }
+
+        html += '<td class="text-center align-middle">' + escapeHtml(item.meter_number) + '</td>';
+        html += '<td class="text-center align-middle">' + item.last_reading.toFixed(2) + '</td>';
+        html += '<td class="text-center align-middle">' + item.current_reading.toFixed(2) + '</td>';
+        html += '<td class="text-center align-middle">' + (item.meter_multiplier || 1) + '</td>';
+        html += '<td class="text-center align-middle">' + item.usage.toFixed(2) + '</td>';
+        html += '<td class="text-center align-middle">' + item.unit_price.toFixed(2) + '</td>';
+        html += '<td class="text-center align-middle" style="background-color: #e8f4f8;">¥' + item.total_amount.toFixed(2) + '</td>';
+
+        if (isFirstContract) {
+            html += '<td class="text-center align-middle" rowspan="' + cg.count + '" style="background-color: #fff3cd;">¥' + item.contract_total.toFixed(2) + '</td>';
+        }
+
+        html += '</tr>';
+    });
+
+    tbody.html(html);
+
+    var totalCount = items.length;
+    var totalUsage = 0, totalAmount = 0;
+    items.forEach(function(item) {
+        totalUsage += item.usage;
+        totalAmount += item.total_amount;
+    });
+
+    $('#waterCount').text(totalCount);
+    $('#waterSubtotal').text('¥' + totalAmount.toFixed(2));
+    $('#waterTotal').text('¥' + totalAmount.toFixed(2));
+    $('#waterTableFoot').show();
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+}
+
+$(document).ready(function() {
+    loadReadingData();
+
+    $('#belongMonth').on('change', function() {
+        loadReadingData();
+    });
+
+    $('#meterTypeFilter').on('change', function() {
+        loadReadingData();
+    });
+});
+</script>
+{% endblock %}

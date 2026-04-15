@@ -1,0 +1,822 @@
+{% extends "admin_base.html" %}
+
+{% block title %}工作台{% endblock %}
+
+{% block page_header %}<i class="fa fa-tachometer-alt"></i> 工作台{% endblock %}
+{% block page_header_text %}工作台{% endblock %}
+
+{% block breadcrumb %}
+<span class="separator">/</span>
+<span class="current">工作台</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 仪表盘统计卡片 */
+    @keyframes fadeSlideUp {
+        from { opacity: 0; transform: translateY(16px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .stat-card {
+        border: none;
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-sm);
+        transition: transform var(--transition-spring), box-shadow var(--transition-spring);
+        overflow: hidden;
+        position: relative;
+    }
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-md);
+    }
+    .stat-card .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: var(--radius-lg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        color: #fff;
+        flex-shrink: 0;
+    }
+    .stat-card .stat-body {
+        padding: var(--space-4) var(--space-4);
+        display: flex;
+        align-items: center;
+        gap: var(--space-4);
+    }
+    .stat-card .stat-value {
+        font-family: var(--font-mono);
+        font-size: var(--font-size-2xl);
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+    }
+    .stat-card .stat-label {
+        font-size: var(--font-size-sm);
+        color: var(--color-text-muted);
+        margin-bottom: 2px;
+    }
+    .stat-card .stat-sub {
+        font-size: var(--font-size-xs);
+        color: var(--color-text-light);
+        margin-top: 2px;
+    }
+    .stat-card .stat-accent-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+    }
+
+    /* 图标颜色 */
+    .stat-icon-receivable { background: linear-gradient(135deg, #C87533, #DA9255); }
+    .stat-icon-payable { background: linear-gradient(135deg, #E74C3C, #F87171); }
+    .stat-icon-today { background: linear-gradient(135deg, #2ECC71, #34D399); }
+    .stat-icon-merchant { background: linear-gradient(135deg, #2C3E6B, #4A7BF7); }
+
+    /* 图表容器 */
+    .chart-container {
+        position: relative;
+        height: 280px;
+    }
+
+    /* 活动时间线 */
+    .activity-item {
+        display: flex;
+        gap: var(--space-3);
+        padding: var(--space-3) 0;
+        border-bottom: 1px solid var(--color-border-light);
+        align-items: flex-start;
+    }
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+    .activity-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-top: 6px;
+        flex-shrink: 0;
+    }
+    .activity-dot.income { background-color: var(--color-success); }
+    .activity-dot.expense { background-color: var(--color-danger); }
+    .activity-content {
+        flex: 1;
+        min-width: 0;
+    }
+    .activity-text {
+        font-size: var(--font-size-sm);
+        color: var(--color-text);
+        line-height: 1.4;
+    }
+    .activity-text .amount {
+        font-family: var(--font-mono);
+        font-weight: 600;
+    }
+    .activity-text .amount.income { color: var(--color-success); }
+    .activity-text .amount.expense { color: var(--color-danger); }
+    .activity-time {
+        font-size: var(--font-size-xs);
+        color: var(--color-text-light);
+        margin-top: 2px;
+    }
+
+    /* 预警项 */
+    .alert-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--space-2) 0;
+        border-bottom: 1px solid var(--color-border-light);
+        font-size: var(--font-size-sm);
+    }
+    .alert-item:last-child { border-bottom: none; }
+    .alert-item .alert-amount {
+        font-family: var(--font-mono);
+        font-weight: 600;
+        color: var(--color-danger);
+    }
+    .alert-item .alert-date {
+        font-size: var(--font-size-xs);
+        color: var(--color-text-light);
+    }
+
+    /* 合同到期项 */
+    .contract-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--space-2) 0;
+        border-bottom: 1px solid var(--color-border-light);
+        font-size: var(--font-size-sm);
+    }
+    .contract-item:last-child { border-bottom: none; }
+    .contract-item .contract-merchant {
+        font-weight: 500;
+    }
+    .contract-item .contract-date {
+        font-size: var(--font-size-xs);
+        color: var(--color-warning);
+        font-weight: 500;
+    }
+
+    /* 空状态小版 */
+    .empty-mini {
+        text-align: center;
+        padding: var(--space-6) var(--space-4);
+        color: var(--color-text-light);
+        font-size: var(--font-size-sm);
+    }
+
+    /* ===== 地块统计 ===== */
+    .plot-overview-card {
+        background: linear-gradient(145deg, 
+            rgba(var(--color-accent-rgb), 0.03) 0%, 
+            transparent 60%);
+    }
+    [data-theme="dark"] .plot-overview-card {
+        background: linear-gradient(145deg, 
+            rgba(var(--color-accent-rgb), 0.06) 0%, 
+            transparent 60%);
+    }
+
+    .plot-stats-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        margin-bottom: 16px;
+    }
+    .plot-stat-item {
+        flex: 1;
+        text-align: center;
+        position: relative;
+        padding: 8px 0;
+    }
+    .plot-stat-value {
+        font-family: var(--font-mono);
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: var(--color-text);
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+    }
+    .plot-stat-label {
+        font-size: 0.72rem;
+        color: var(--color-text-muted);
+        margin-top: 2px;
+        letter-spacing: 0.04em;
+    }
+    .plot-stat-dot {
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        margin: 6px auto 0;
+        opacity: 0.7;
+    }
+    .plot-stat-divider {
+        width: 1px;
+        height: 36px;
+        background: var(--color-border-light);
+        flex-shrink: 0;
+    }
+
+    /* 弧形仪表 */
+    .plot-gauge-wrap {
+        position: relative;
+        width: 140px;
+        height: 70px;
+        margin: 0 auto;
+    }
+    .plot-gauge {
+        width: 100%;
+        height: 100%;
+    }
+    .plot-gauge-label {
+        position: absolute;
+        bottom: 2px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: baseline;
+        gap: 1px;
+        color: var(--color-text);
+    }
+
+    /* 地块类型卡片 */
+    .plot-type-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+    }
+    .plot-type-card {
+        border-radius: 12px;
+        padding: 16px;
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--color-border-light);
+        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+        background: var(--color-bg);
+    }
+    .plot-type-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+    [data-theme="dark"] .plot-type-card:hover {
+        box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+    .plot-type-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+    }
+    .plot-type-card.type-cement::before { background: linear-gradient(90deg, #8B92A5, #A0A8B8); }
+    .plot-type-card.type-steel::before { background: linear-gradient(90deg, #4A7BF7, #6C93FF); }
+    .plot-type-card.type-brick::before { background: linear-gradient(90deg, #C87533, #DA9255); }
+    .plot-type-card.type-other::before { background: linear-gradient(90deg, #6B7280, #9CA3AF); }
+
+    .plot-type-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    .plot-type-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.9rem;
+        color: #fff;
+        flex-shrink: 0;
+    }
+    .type-cement .plot-type-icon { background: linear-gradient(135deg, #8B92A5, #6B7280); }
+    .type-steel .plot-type-icon { background: linear-gradient(135deg, #4A7BF7, #2C3E6B); }
+    .type-brick .plot-type-icon { background: linear-gradient(135deg, #C87533, #A8612A); }
+    .type-other .plot-type-icon { background: linear-gradient(135deg, #6B7280, #4B5563); }
+
+    .plot-type-name {
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--color-text);
+    }
+
+    .plot-type-metrics {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .plot-metric-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.78rem;
+    }
+    .plot-metric-label {
+        color: var(--color-text-muted);
+    }
+    .plot-metric-value {
+        font-family: var(--font-mono);
+        font-weight: 600;
+        color: var(--color-text);
+    }
+    .plot-metric-value.rented { color: #2ECC71; }
+    .plot-metric-value.available { color: #C87533; }
+
+    .plot-type-bar {
+        height: 6px;
+        border-radius: 3px;
+        background: var(--color-border-light);
+        overflow: hidden;
+        margin-top: 8px;
+    }
+    .plot-type-bar-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .type-cement .plot-type-bar-fill { background: linear-gradient(90deg, #8B92A5, #A0A8B8); }
+    .type-steel .plot-type-bar-fill { background: linear-gradient(90deg, #4A7BF7, #6C93FF); }
+    .type-brick .plot-type-bar-fill { background: linear-gradient(90deg, #C87533, #DA9255); }
+    .type-other .plot-type-bar-fill { background: linear-gradient(90deg, #6B7280, #9CA3AF); }
+
+    .plot-type-rate {
+        text-align: right;
+        font-size: 0.7rem;
+        color: var(--color-text-muted);
+        margin-top: 4px;
+        font-family: var(--font-mono);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ===== 统计卡片 ===== -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card">
+            <div class="stat-body">
+                <div class="stat-icon stat-icon-receivable"><i class="fa fa-arrow-circle-down"></i></div>
+                <div>
+                    <div class="stat-label">待收金额</div>
+                    <div class="stat-value" id="statReceivable">¥0</div>
+                    <div class="stat-sub" id="statReceivableSub"></div>
+                </div>
+            </div>
+            <div class="stat-accent-bar" style="background: linear-gradient(90deg, #C87533, #DA9255);"></div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card">
+            <div class="stat-body">
+                <div class="stat-icon stat-icon-payable"><i class="fa fa-arrow-circle-up"></i></div>
+                <div>
+                    <div class="stat-label">待付金额</div>
+                    <div class="stat-value" id="statPayable">¥0</div>
+                    <div class="stat-sub" id="statPayableSub"></div>
+                </div>
+            </div>
+            <div class="stat-accent-bar" style="background: linear-gradient(90deg, #E74C3C, #F87171);"></div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card">
+            <div class="stat-body">
+                <div class="stat-icon stat-icon-today"><i class="fa fa-calendar-day"></i></div>
+                <div>
+                    <div class="stat-label">今日净收</div>
+                    <div class="stat-value" id="statToday">¥0</div>
+                    <div class="stat-sub" id="statTodaySub"></div>
+                </div>
+            </div>
+            <div class="stat-accent-bar" style="background: linear-gradient(90deg, #2ECC71, #34D399);"></div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card">
+            <div class="stat-body">
+                <div class="stat-icon stat-icon-merchant"><i class="fa fa-building"></i></div>
+                <div>
+                    <div class="stat-label">在租商户</div>
+                    <div class="stat-value" id="statMerchant">0</div>
+                    <div class="stat-sub" id="statMerchantSub"></div>
+                </div>
+            </div>
+            <div class="stat-accent-bar" style="background: linear-gradient(90deg, #2C3E6B, #4A7BF7);"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 地块数据 ===== -->
+<div class="row g-4 mb-4">
+    <!-- 地块总览 -->
+    <div class="col-lg-4">
+        <div class="card h-100 plot-overview-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0" style="font-family: var(--font-display); font-weight: 600;">
+                    <i class="fa fa-map" style="color: var(--color-accent);"></i> 地块总览
+                </h6>
+                <a href="{{ url_for('plot.plot_list') }}" class="text-muted" style="font-size: var(--font-size-xs);">管理地块 →</a>
+            </div>
+            <div class="card-body d-flex flex-column justify-content-center">
+                <!-- 三大数字 -->
+                <div class="plot-stats-row">
+                    <div class="plot-stat-item">
+                        <div class="plot-stat-value" id="plotTotal">0</div>
+                        <div class="plot-stat-label">总地块</div>
+                        <div class="plot-stat-dot" style="background: var(--color-accent);"></div>
+                    </div>
+                    <div class="plot-stat-divider"></div>
+                    <div class="plot-stat-item">
+                        <div class="plot-stat-value" id="plotRented" style="color: #2ECC71;">0</div>
+                        <div class="plot-stat-label">已租赁</div>
+                        <div class="plot-stat-dot" style="background: #2ECC71;"></div>
+                    </div>
+                    <div class="plot-stat-divider"></div>
+                    <div class="plot-stat-item">
+                        <div class="plot-stat-value" id="plotAvailable" style="color: #C87533;">0</div>
+                        <div class="plot-stat-label">未租赁</div>
+                        <div class="plot-stat-dot" style="background: #C87533;"></div>
+                    </div>
+                </div>
+                <!-- 出租率弧形 -->
+                <div class="plot-gauge-wrap">
+                    <svg class="plot-gauge" viewBox="0 0 120 70">
+                        <path d="M10 65 A50 50 0 0 1 110 65" fill="none" stroke="var(--color-border-light)" stroke-width="8" stroke-linecap="round"/>
+                        <path id="plotGaugeArc" d="M10 65 A50 50 0 0 1 110 65" fill="none" stroke="url(#gaugeGrad)" stroke-width="8" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="157" style="transition: stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1);"/>
+                        <defs>
+                            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#2ECC71"/>
+                                <stop offset="100%" style="stop-color:#C87533"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                    <div class="plot-gauge-label">
+                        <span id="plotRentRate" style="font-family: var(--font-mono); font-weight: 700; font-size: 1.4rem;">0</span>
+                        <span style="font-size: 0.7rem; color: var(--color-text-muted);">%</span>
+                    </div>
+                </div>
+                <div class="text-center" style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-top: -4px;">出租率</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 各类型面积明细 -->
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0" style="font-family: var(--font-display); font-weight: 600;">
+                    <i class="fa fa-th-large" style="color: var(--color-accent);"></i> 地块面积明细
+                </h6>
+            </div>
+            <div class="card-body">
+                <div id="plotTypeCards" class="plot-type-cards">
+                    <div class="text-center text-muted py-4">加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 图表 + 动态 ===== -->
+<div class="row g-4 mb-4">
+    <!-- 月度收支柱形图 -->
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0" style="font-family: var(--font-display); font-weight: 600;">
+                    <i class="fa fa-bar-chart" style="color: var(--color-accent);"></i> 月度收支趋势
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="monthlyChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 最近动态 -->
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0" style="font-family: var(--font-display); font-weight: 600;">
+                    <i class="fa fa-clock-o" style="color: var(--color-accent);"></i> 最近动态
+                </h6>
+                <a href="{{ url_for('finance.cash_flow') }}" class="text-muted" style="font-size: var(--font-size-xs);">查看全部 →</a>
+            </div>
+            <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                <div id="recentActivities">
+                    <div class="empty-mini">加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 预警区 ===== -->
+<div class="row g-4">
+    <!-- 逾期应收 -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0" style="font-family: var(--font-display); font-weight: 600;">
+                    <i class="fa fa-exclamation-triangle" style="color: var(--color-danger);"></i> 逾期应收
+                </h6>
+                <a href="{{ url_for('finance.receivable') }}" class="text-muted" style="font-size: var(--font-size-xs);">查看全部 →</a>
+            </div>
+            <div class="card-body" style="max-height: 250px; overflow-y: auto;">
+                <div id="overdueItems">
+                    <div class="empty-mini">加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 合同到期预警 -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0" style="font-family: var(--font-display); font-weight: 600;">
+                    <i class="fa fa-clock" style="color: var(--color-warning);"></i> 合同到期预警
+                </h6>
+                <a href="{{ url_for('contract.contract_list') }}" class="text-muted" style="font-size: var(--font-size-xs);">查看全部 →</a>
+            </div>
+            <div class="card-body" style="max-height: 250px; overflow-y: auto;">
+                <div id="expiringContracts">
+                    <div class="empty-mini">加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+$(function() {
+    // 加载仪表盘数据
+    $.get('{{ url_for("admin.dashboard_stats") }}', function(res) {
+        if (!res.success) return;
+        var d = res.data;
+
+        // 统计卡片
+        animateValue($('#statReceivable')[0], d.receivable.unpaid + d.receivable.partial, 800);
+        var recvSub = [];
+        if (d.receivable.unpaid_count > 0) recvSub.push('未收' + d.receivable.unpaid_count + '笔');
+        if (d.receivable.partial_count > 0) recvSub.push('部分收' + d.receivable.partial_count + '笔');
+        $('#statReceivableSub').text(recvSub.join(' | ') || '无待收');
+
+        animateValue($('#statPayable')[0], d.payable.unpaid, 800);
+        $('#statPayableSub').text(d.payable.unpaid > 0 ? '待付款项' : '无待付');
+
+        animateValue($('#statToday')[0], d.today.net, 800);
+        var todaySub = '收' + formatNumber(d.today.income) + ' / 支' + formatNumber(d.today.expense);
+        $('#statTodaySub').text(todaySub);
+
+        $('#statMerchant').text(d.merchant.active_count);
+        $('#statMerchantSub').text('地块' + d.merchant.rented_plots + '/' + d.merchant.total_plots + ' 空置率' + d.merchant.vacancy_rate + '%');
+
+        // 月度收支柱形图
+        renderChart(d.chart);
+
+        // 最近动态
+        renderActivities(d.recent_activities);
+
+        // 逾期应收
+        renderOverdue(d.overdue_items);
+
+        // 合同到期
+        renderContracts(d.expiring_contracts);
+
+        // 地块数据
+        renderPlotData(d.plot);
+    });
+
+    function renderChart(chartData) {
+        var ctx = document.getElementById('monthlyChart');
+        if (!ctx) return;
+
+        var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        var gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+        var textColor = isDark ? '#8B92A5' : '#6B7280';
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chartData.months,
+                datasets: [
+                    {
+                        label: '收入',
+                        data: chartData.income,
+                        backgroundColor: 'rgba(46, 204, 113, 0.7)',
+                        borderColor: '#2ECC71',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        barPercentage: 0.7
+                    },
+                    {
+                        label: '支出',
+                        data: chartData.expense,
+                        backgroundColor: 'rgba(231, 76, 60, 0.7)',
+                        borderColor: '#E74C3C',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        barPercentage: 0.7
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            color: textColor,
+                            usePointStyle: true,
+                            pointStyle: 'rectRounded',
+                            font: { size: 12, family: "'DM Sans', sans-serif" }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: isDark ? '#2A3040' : '#fff',
+                        titleColor: isDark ? '#E8EAF0' : '#1A1F2E',
+                        bodyColor: isDark ? '#8B92A5' : '#6B7280',
+                        borderColor: isDark ? '#3A4255' : '#E2E5EB',
+                        borderWidth: 1,
+                        cornerRadius: 8,
+                        padding: 12,
+                        callbacks: {
+                            label: function(ctx) {
+                                return ctx.dataset.label + ': ¥' + formatNumber(ctx.raw);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: textColor, font: { size: 11 } }
+                    },
+                    y: {
+                        grid: { color: gridColor },
+                        ticks: {
+                            color: textColor,
+                            font: { size: 11 },
+                            callback: function(v) {
+                                if (v >= 10000) return '¥' + (v / 10000).toFixed(0) + '万';
+                                return '¥' + v;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderActivities(items) {
+        var $container = $('#recentActivities');
+        if (!items || items.length === 0) {
+            $container.html('<div class="empty-mini">暂无动态</div>');
+            return;
+        }
+        var html = '';
+        items.forEach(function(item) {
+            var dirClass = item.direction === '收入' ? 'income' : 'expense';
+            var sign = item.direction === '收入' ? '+' : '-';
+            html += '<div class="activity-item">' +
+                '<div class="activity-dot ' + dirClass + '"></div>' +
+                '<div class="activity-content">' +
+                    '<div class="activity-text">' +
+                        item.item + ' <span class="amount ' + dirClass + '">' + sign + '¥' + formatNumber(item.amount) + '</span>' +
+                        (item.desc ? ' · ' + escapeHtml(item.desc) : '') +
+                    '</div>' +
+                    '<div class="activity-time">' + item.date + '</div>' +
+                '</div>' +
+            '</div>';
+        });
+        $container.html(html);
+    }
+
+    function renderOverdue(items) {
+        var $container = $('#overdueItems');
+        if (!items || items.length === 0) {
+            $container.html('<div class="empty-mini"><i class="fa fa-check-circle" style="color: var(--color-success);"></i> 无逾期应收</div>');
+            return;
+        }
+        var html = '';
+        items.forEach(function(item) {
+            html += '<div class="alert-item">' +
+                '<div>' +
+                    '<div style="font-weight: 500;">' + escapeHtml(item.customer || item.desc) + '</div>' +
+                    '<div class="alert-date">到期: ' + item.due_date + '</div>' +
+                '</div>' +
+                '<div class="alert-amount">¥' + formatNumber(item.remaining) + '</div>' +
+            '</div>';
+        });
+        $container.html(html);
+    }
+
+    function renderContracts(items) {
+        var $container = $('#expiringContracts');
+        if (!items || items.length === 0) {
+            $container.html('<div class="empty-mini"><i class="fa fa-check-circle" style="color: var(--color-success);"></i> 无即将到期合同</div>');
+            return;
+        }
+        var html = '';
+        items.forEach(function(item) {
+            html += '<div class="contract-item">' +
+                '<div>' +
+                    '<div class="contract-merchant">' + escapeHtml(item.merchant) + '</div>' +
+                    '<div style="font-size: var(--font-size-xs); color: var(--color-text-light);">' + item.number + '</div>' +
+                '</div>' +
+                '<div class="contract-date"><i class="fa fa-clock"></i> ' + item.end_date + '</div>' +
+            '</div>';
+        });
+        $container.html(html);
+    }
+
+    function renderPlotData(plot) {
+        if (!plot) return;
+        // 总览
+        $('#plotTotal').text(plot.total);
+        $('#plotRented').text(plot.rented);
+        $('#plotAvailable').text(plot.available);
+        var rentRate = plot.total > 0 ? (plot.rented / plot.total * 100).toFixed(1) : 0;
+        $('#plotRentRate').text(rentRate);
+
+        // 弧形仪表盘动画
+        var arcLength = 157; // 半圆弧长
+        var offset = arcLength - (arcLength * rentRate / 100);
+        setTimeout(function() {
+            $('#plotGaugeArc').css('stroke-dashoffset', offset);
+        }, 200);
+
+        // 类型卡片
+        var $container = $('#plotTypeCards');
+        if (!plot.types || plot.types.length === 0) {
+            $container.html('<div class="text-center text-muted py-4">暂无地块数据</div>');
+            return;
+        }
+
+        var typeIcons = {
+            'cement': 'fa-road',
+            'steel': 'fa-industry',
+            'brick': 'fa-building',
+            'other': 'fa-map-marker'
+        };
+
+        var html = '';
+        plot.types.forEach(function(t, idx) {
+            var rate = t.total_area > 0 ? (t.rented_area / t.total_area * 100).toFixed(1) : 0;
+            var typeClass = 'type-' + (t.key || 'other');
+            html += '<div class="plot-type-card ' + typeClass + '" style="animation: fadeSlideUp 0.5s ease ' + (idx * 0.1) + 's both;">' +
+                '<div class="plot-type-header">' +
+                    '<div class="plot-type-icon"><i class="fa ' + (typeIcons[t.key] || typeIcons['other']) + '"></i></div>' +
+                    '<div class="plot-type-name">' + escapeHtml(t.name) + '</div>' +
+                '</div>' +
+                '<div class="plot-type-metrics">' +
+                    '<div class="plot-metric-row">' +
+                        '<span class="plot-metric-label">总面积</span>' +
+                        '<span class="plot-metric-value">' + formatNumber(t.total_area) + ' ㎡</span>' +
+                    '</div>' +
+                    '<div class="plot-metric-row">' +
+                        '<span class="plot-metric-label">已租赁</span>' +
+                        '<span class="plot-metric-value rented">' + formatNumber(t.rented_area) + ' ㎡</span>' +
+                    '</div>' +
+                    '<div class="plot-metric-row">' +
+                        '<span class="plot-metric-label">剩余</span>' +
+                        '<span class="plot-metric-value available">' + formatNumber(t.available_area) + ' ㎡</span>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="plot-type-bar">' +
+                    '<div class="plot-type-bar-fill" style="width: 0%;" data-target="' + rate + '"></div>' +
+                '</div>' +
+                '<div class="plot-type-rate">出租率 ' + rate + '%</div>' +
+            '</div>';
+        });
+        $container.html(html);
+
+        // 进度条延迟动画
+        setTimeout(function() {
+            $('.plot-type-bar-fill').each(function() {
+                $(this).css('width', $(this).data('target') + '%');
+            });
+        }, 300);
+    }
+});
+</script>
+{% endblock %}

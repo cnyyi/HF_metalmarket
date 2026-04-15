@@ -12,13 +12,10 @@ from docxtpl import DocxTemplate
 from docx import Document
 from docx.shared import Inches, Cm
 from flask import current_app
+from utils.database import DBConnection
 
 
-def get_connection():
-    """获取数据库连接"""
-    import pyodbc
-    from config import Config
-    return pyodbc.connect(Config.ODBC_CONNECTION_STRING)
+
 
 
 def amount_to_chinese(amount):
@@ -285,45 +282,43 @@ class ContractDocService:
             dict: 合同数据字典
         """
         # 使用原生 SQL 查询，避免模型依赖
-        conn = get_connection()
-        cursor = conn.cursor()
-        
-        # 获取合同信息
-        cursor.execute("""
-            SELECT c.ContractID, c.ContractNumber, c.ContractName, c.MerchantID,
-                   c.ContractPeriod, c.StartDate, c.EndDate, c.ContractAmount,
-                   c.AmountReduction, c.ActualAmount, c.PaymentMethod, c.Status,
-                   c.Description
-            FROM Contract c
-            WHERE c.ContractID = ?
-        """, (contract_id,))
-        
-        contract_row = cursor.fetchone()
-        if not contract_row:
-            conn.close()
-            return None
-        
-        # 获取商户信息
-        cursor.execute("""
-            SELECT MerchantName, LegalPerson, ContactPerson, Phone, Address
-            FROM Merchant
-            WHERE MerchantID = ?
-        """, (contract_row.MerchantID,))
-        
-        merchant_row = cursor.fetchone()
-        
-        # 获取地块信息（包含图片路径）
-        cursor.execute("""
-            SELECT p.PlotID, p.PlotNumber, p.PlotName, p.Area, p.UnitPrice,
-                   cp.MonthlyPrice, p.YearlyRent, p.ImagePath
-            FROM Plot p
-            INNER JOIN ContractPlot cp ON p.PlotID = cp.PlotID
-            WHERE cp.ContractID = ?
-            ORDER BY p.PlotNumber
-        """, (contract_id,))
-        
-        plot_rows = cursor.fetchall()
-        conn.close()
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            
+            # 获取合同信息
+            cursor.execute("""
+                SELECT c.ContractID, c.ContractNumber, c.ContractName, c.MerchantID,
+                       c.ContractPeriod, c.StartDate, c.EndDate, c.ContractAmount,
+                       c.AmountReduction, c.ActualAmount, c.PaymentMethod, c.Status,
+                       c.Description
+                FROM Contract c
+                WHERE c.ContractID = ?
+            """, (contract_id,))
+            
+            contract_row = cursor.fetchone()
+            if not contract_row:
+                return None
+            
+            # 获取商户信息
+            cursor.execute("""
+                SELECT MerchantName, LegalPerson, ContactPerson, Phone, Address
+                FROM Merchant
+                WHERE MerchantID = ?
+            """, (contract_row.MerchantID,))
+            
+            merchant_row = cursor.fetchone()
+            
+            # 获取地块信息（包含图片路径）
+            cursor.execute("""
+                SELECT p.PlotID, p.PlotNumber, p.PlotName, p.Area, p.UnitPrice,
+                       cp.MonthlyPrice, p.YearlyRent, p.ImagePath
+                FROM Plot p
+                INNER JOIN ContractPlot cp ON p.PlotID = cp.PlotID
+                WHERE cp.ContractID = ?
+                ORDER BY p.PlotNumber
+            """, (contract_id,))
+            
+            plot_rows = cursor.fetchall()
         
         # 构建地块列表（包含图片路径）
         plots_data = []

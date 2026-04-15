@@ -1,0 +1,128 @@
+{% extends "merchant_base.html" %}
+
+{% block title %}缴费记录{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-money"></i> 缴费记录
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col-md-3">
+                <select class="form-select" id="statusFilter">
+                    <option value="">全部状态</option>
+                    <option value="未付款">未付款</option>
+                    <option value="部分付款">部分付款</option>
+                    <option value="已付款">已付款</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>费用类型</th>
+                        <th>应付金额</th>
+                        <th>已付金额</th>
+                        <th>剩余金额</th>
+                        <th>到期日期</th>
+                        <th>状态</th>
+                        <th>描述</th>
+                    </tr>
+                </thead>
+                <tbody id="receivablesTableBody">
+                    <tr><td colspan="7" class="text-center text-muted">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <nav aria-label="Page navigation" id="paginationNav" style="display:none;">
+            <ul class="pagination justify-content-center" id="paginationList"></ul>
+        </nav>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var currentPage = 1;
+var perPage = 10;
+
+function getStatusClass(status) {
+    var map = { '未付款': 'bg-danger', '部分付款': 'bg-warning', '已付款': 'bg-success' };
+    return map[status] || 'bg-secondary';
+}
+
+function loadReceivables(page) {
+    if (!page) page = 1;
+    currentPage = page;
+    var status = $('#statusFilter').val();
+    $.ajax({
+        url: '{{ url_for("portal.api_receivables") }}',
+        type: 'GET',
+        data: { page: page, per_page: perPage, status: status },
+        success: function(resp) {
+            if (resp.success) {
+                renderTable(resp.data);
+            } else {
+                $('#receivablesTableBody').html('<tr><td colspan="7" class="text-center text-danger">' + (resp.message || '获取数据失败') + '</td></tr>');
+            }
+        }
+    });
+}
+
+function renderTable(data) {
+    var items = data.items;
+    var tbody = $('#receivablesTableBody');
+    if (!items || items.length === 0) {
+        tbody.html('<tr><td colspan="7" class="text-center text-muted">暂无缴费记录</td></tr>');
+        $('#paginationNav').hide();
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        html += '<tr>';
+        html += '<td>' + escapeHtml(item.expense_type_name) + '</td>';
+        html += '<td class="text-end">¥' + formatNumber(item.amount) + '</td>';
+        html += '<td class="text-end text-success">¥' + formatNumber(item.paid_amount) + '</td>';
+        html += '<td class="text-end text-danger">¥' + formatNumber(item.remaining_amount) + '</td>';
+        html += '<td>' + item.due_date + '</td>';
+        html += '<td><span class="badge ' + getStatusClass(item.status) + '">' + escapeHtml(item.status) + '</span></td>';
+        html += '<td><small class="text-muted">' + escapeHtml(item.description) + '</small></td>';
+        html += '</tr>';
+    }
+    tbody.html(html);
+    renderPagination(data);
+}
+
+function renderPagination(data) {
+    var totalPages = data.total_pages;
+    var currentPage = data.current_page;
+    if (totalPages <= 1) { $('#paginationNav').hide(); return; }
+    var html = '<li class="page-item ' + (currentPage === 1 ? 'disabled' : '') + '">';
+    html += '<a class="page-link" href="#" data-page="' + (currentPage - 1) + '">上一页</a></li>';
+    for (var i = 1; i <= totalPages; i++) {
+        html += '<li class="page-item ' + (i === currentPage ? 'active' : '') + '">';
+        html += '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
+    }
+    html += '<li class="page-item ' + (currentPage === totalPages ? 'disabled' : '') + '">';
+    html += '<a class="page-link" href="#" data-page="' + (currentPage + 1) + '">下一页</a></li>';
+    $('#paginationList').html(html);
+    $('#paginationNav').show();
+}
+
+$(document).ready(function() {
+    loadReceivables(1);
+    $('#statusFilter').on('change', function() { loadReceivables(1); });
+    $(document).on('click', '#paginationList .page-link', function(e) {
+        e.preventDefault();
+        var page = $(this).data('page');
+        if (page && page >= 1) loadReceivables(page);
+    });
+});
+</script>
+{% endblock %}

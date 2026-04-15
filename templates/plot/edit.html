@@ -1,15 +1,20 @@
 {% extends "admin_base.html" %}
 
-{% block title %}编辑地块 - 宏发金属交易市场管理系统{% endblock %}
+{% block title %}编辑地块{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-edit"></i> 编辑地块
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('plot.plot_list') }}">地块管理</a></li>
+<li class="breadcrumb-item active">编辑地块</li>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <h2 class="mb-4"><i class="fa fa-edit"></i> 编辑地块</h2>
-            
-            <div class="card">
-                <div class="card-body">
+<div class="card">
+    <div class="card-body">
                     <form id="plotForm">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" id="image_path" name="image_path" value="">
@@ -98,8 +103,6 @@
                     </form>
                 </div>
             </div>
-        </div>
-    </div>
 </div>
 {% endblock %}
 
@@ -165,11 +168,11 @@ function loadPlotData() {
                     $('#previewContainer').show();
                 }
             } else {
-                alert('加载地块数据失败: ' + response.message);
+                showToast('error', '加载地块数据失败: ' + response.message);
             }
         },
         error: function() {
-            alert('加载地块数据失败');
+            showToast('error', '加载地块数据失败');
         }
     });
 }
@@ -199,14 +202,14 @@ $('#plotForm').submit(function(e) {
         data: JSON.stringify(formData),
         success: function(response) {
             if (response.success) {
-                alert('更新成功');
+                showToast('success', '更新成功');
                 window.location.href = '/plot/list';
             } else {
-                alert('更新失败: ' + response.message);
+                showToast('error', '更新失败: ' + response.message);
             }
         },
         error: function() {
-            alert('更新失败');
+            showToast('error', '更新失败');
         }
     });
 });
@@ -252,11 +255,11 @@ document.getElementById('imageInput').addEventListener('change', function(e) {
             if (data.success) {
                 $('#image_path').val(data.image_path);
             } else {
-                alert('图片上传失败: ' + data.message);
+                showToast('error', '图片上传失败: ' + data.message);
             }
         })
         .catch(error => {
-            alert('图片上传失败');
+            showToast('error', '图片上传失败');
         });
     } else {
         container.style.display = 'none';

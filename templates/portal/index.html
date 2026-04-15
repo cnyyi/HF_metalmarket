@@ -1,0 +1,167 @@
+{% extends "merchant_base.html" %}
+
+{% block title %}数据概览{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-tachometer"></i> 数据概览
+{% endblock %}
+
+{% block content %}
+<div id="merchantName" class="mb-3" style="display:none;">
+    <h4 class="text-success"><i class="fa fa-building"></i> <span id="merchantNameText"></span></h4>
+</div>
+
+<!-- 统计卡片 -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-success mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">有效合同</h6>
+                        <h2 class="mb-0" id="statContracts">-</h2>
+                    </div>
+                    <i class="fa fa-file-text fa-2x opacity-50"></i>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent border-0">
+                <a href="{{ url_for('portal.contracts') }}" class="text-white-50 small">查看详情 →</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-danger mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">待缴金额</h6>
+                        <h2 class="mb-0">¥<span id="statPending">-</span></h2>
+                    </div>
+                    <i class="fa fa-money fa-2x opacity-50"></i>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent border-0">
+                <a href="{{ url_for('portal.receivables') }}" class="text-white-50 small">查看详情 →</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">本月水电</h6>
+                        <h2 class="mb-0">¥<span id="statUtility">-</span></h2>
+                    </div>
+                    <i class="fa fa-tint fa-2x opacity-50"></i>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent border-0">
+                <a href="{{ url_for('portal.utility_readings') }}" class="text-white-50 small">查看详情 →</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">本月过磅</h6>
+                        <h2 class="mb-0"><span id="statScale">-</span> 次</h2>
+                    </div>
+                    <i class="fa fa-balance-scale fa-2x opacity-50"></i>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent border-0">
+                <a href="{{ url_for('portal.scale_records') }}" class="text-white-50 small">查看详情 →</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 提醒区域 -->
+<div class="row">
+    <!-- 即将到期合同 -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-white">
+                <i class="fa fa-exclamation-triangle"></i> 即将到期合同
+            </div>
+            <div class="card-body" id="expiringContracts">
+                <p class="text-muted">加载中...</p>
+            </div>
+        </div>
+    </div>
+    <!-- 逾期未缴 -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-danger text-white">
+                <i class="fa fa-clock-o"></i> 逾期未缴账单
+            </div>
+            <div class="card-body" id="overdueReceivables">
+                <p class="text-muted">加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // 显示商户名称
+    var merchantName = '{{ current_user.merchant_name or "" }}';
+    if (merchantName) {
+        $('#merchantNameText').text(merchantName);
+        $('#merchantName').show();
+    }
+
+    // 加载统计数据
+    $.ajax({
+        url: '{{ url_for("portal.api_dashboard") }}',
+        type: 'GET',
+        success: function(resp) {
+            if (resp.success) {
+                var d = resp.data;
+                $('#statContracts').text(d.active_contracts);
+                $('#statPending').text(formatNumber(d.pending_amount));
+                $('#statUtility').text(formatNumber(d.monthly_utility));
+                $('#statScale').text(d.monthly_scale_count);
+
+                // 即将到期合同
+                if (d.expiring_contracts && d.expiring_contracts.length > 0) {
+                    var html = '<ul class="list-group list-group-flush">';
+                    for (var i = 0; i < d.expiring_contracts.length; i++) {
+                        var c = d.expiring_contracts[i];
+                        html += '<li class="list-group-item d-flex justify-content-between align-items-center">';
+                        html += escapeHtml(c.contract_name);
+                        html += '<span class="badge bg-warning rounded-pill">' + c.end_date + ' 到期</span>';
+                        html += '</li>';
+                    }
+                    html += '</ul>';
+                    $('#expiringContracts').html(html);
+                } else {
+                    $('#expiringContracts').html('<p class="text-muted mb-0">暂无即将到期合同</p>');
+                }
+
+                // 逾期未缴
+                if (d.overdue_receivables && d.overdue_receivables.length > 0) {
+                    var html = '<ul class="list-group list-group-flush">';
+                    for (var i = 0; i < d.overdue_receivables.length; i++) {
+                        var r = d.overdue_receivables[i];
+                        html += '<li class="list-group-item d-flex justify-content-between align-items-center">';
+                        html += '<span>' + escapeHtml(r.expense_type_name) + ' <small class="text-muted">到期 ' + r.due_date + '</small></span>';
+                        html += '<span class="text-danger fw-bold">¥' + formatNumber(r.remaining_amount) + '</span>';
+                        html += '</li>';
+                    }
+                    html += '</ul>';
+                    $('#overdueReceivables').html(html);
+                } else {
+                    $('#overdueReceivables').html('<p class="text-muted mb-0">暂无逾期账单</p>');
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

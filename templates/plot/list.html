@@ -6,6 +6,11 @@
     <i class="fa fa-map-marker"></i> 地块管理
 {% endblock %}
 
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
+<li class="breadcrumb-item active">地块管理</li>
+{% endblock %}
+
 {% block content %}
 <div class="card">
     <div class="card-header">
@@ -193,8 +198,8 @@ function loadPlots(page) {
                             '<td>' + plot.monthly_rent.toFixed(2) + '</td>' +
                             '<td>' + plot.yearly_rent.toFixed(2) + '</td>' +
                             '<td>' +
-                                '<a href="/plot/edit/' + plot.plot_id + '" class="btn btn-sm btn-outline-primary me-1"><i class="fa fa-edit"></i></a>' +
-                                '<button type="button" class="btn btn-sm btn-outline-danger delete-btn" data-id="' + plot.plot_id + '"><i class="fa fa-trash"></i></button>' +
+                                '<a href="/plot/edit/' + plot.plot_id + '" class="btn btn-sm btn-outline-primary me-1"><i class="fa fa-edit"></i> 编辑</a>' +
+                                '<button type="button" class="btn btn-sm btn-outline-danger delete-btn" data-id="' + plot.plot_id + '"><i class="fa fa-trash"></i> 删除</button>' +
                             '</td>' +
                         '</tr>';
                         tbody.append(row);
@@ -253,13 +258,13 @@ $('#confirmDelete').click(function() {
                 if (response.success) {
                     $('#deleteModal').modal('hide');
                     loadPlots(currentPage);
-                    alert('删除成功');
+                    showToast('success', '删除成功');
                 } else {
-                    alert('删除失败: ' + response.message);
+                    showToast('error', '删除失败: ' + response.message);
                 }
             },
             error: function(xhr) {
-                alert('删除失败: ' + (xhr.responseJSON ? xhr.responseJSON.message : '请求失败'));
+                showToast('error', '删除失败: ' + (xhr.responseJSON ? xhr.responseJSON.message : '请求失败'));
             }
         });
     }

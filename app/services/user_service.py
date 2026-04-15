@@ -27,8 +27,9 @@ class UserService:
         """
         # 构建查询语句
         base_query = """
-            SELECT u.UserID, u.Username, u.RealName, u.Phone, u.Email, u.IsActive, u.CreateTime, u.UpdateTime, u.LastLoginTime, u.WeChatOpenID, u.MerchantID
+            SELECT u.UserID, u.Username, u.RealName, u.Phone, u.Email, u.IsActive, u.CreateTime, u.UpdateTime, u.LastLoginTime, u.WeChatOpenID, u.MerchantID, m.MerchantName
             FROM [User] u
+            LEFT JOIN Merchant m ON u.MerchantID = m.MerchantID
         """
         
         count_query = """
@@ -67,7 +68,8 @@ class UserService:
                 update_time=result.UpdateTime,
                 last_login_time=result.LastLoginTime,
                 wechat_openid=result.WeChatOpenID,
-                merchant_id=result.MerchantID
+                merchant_id=result.MerchantID,
+                merchant_name=result.MerchantName if hasattr(result, 'MerchantName') and result.MerchantName else None
             )
             
             # 获取用户角色

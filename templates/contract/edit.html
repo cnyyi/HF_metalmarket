@@ -1,15 +1,20 @@
 {% extends "admin_base.html" %}
 
-{% block title %}编辑合同 - 宏发金属交易市场管理系统{% endblock %}
+{% block title %}编辑合同{% endblock %}
+
+{% block page_header %}
+    <i class="fa fa-edit"></i> 编辑合同
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('contract.contract_list') }}">合同管理</a></li>
+<li class="breadcrumb-item active">编辑合同</li>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <h2 class="mb-4"><i class="fa fa-edit"></i> 编辑合同</h2>
-            
-            <div class="card">
-                <div class="card-body">
+<div class="card">
+    <div class="card-body">
                     <form id="contractForm">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" id="contract_id" value="{{ contract_id }}">
@@ -145,8 +150,6 @@
                     </form>
                 </div>
             </div>
-        </div>
-    </div>
 </div>
 {% endblock %}
 
@@ -184,11 +187,11 @@ function loadContractData() {
                 
                 loadAvailablePlots();
             } else {
-                alert('加载合同数据失败: ' + response.message);
+                showToast('error', '加载合同数据失败: ' + response.message);
             }
         },
         error: function() {
-            alert('请求失败，请稍后重试');
+            showToast('error', '请求失败，请稍后重试');
         }
     });
 }
@@ -321,7 +324,7 @@ function renderSelectedPlots() {
             '<td>' + plot.unit_price.toFixed(2) + '</td>' +
             '<td>' + plot.monthly_rent.toFixed(2) + '</td>' +
             '<td>' + plot.yearly_rent.toFixed(2) + '</td>' +
-            '<td><button type="button" class="btn btn-sm btn-outline-danger remove-plot" data-id="' + plot.plot_id + '"><i class="fa fa-times"></i></button></td>' +
+            '<td><button type="button" class="btn btn-sm btn-outline-danger remove-plot" data-id="' + plot.plot_id + '"><i class="fa fa-times"></i> 移除</button></td>' +
         '</tr>';
         
         tbody.append(row);
@@ -370,7 +373,7 @@ $('#start_date, #end_date').change(function() {
     var endDate = $('#end_date').val();
     
     if (startDate && endDate && endDate <= startDate) {
-        alert('结束日期必须晚于开始日期');
+        showToast('warning', '结束日期必须晚于开始日期');
         if ($(this).attr('id') === 'end_date') {
             $(this).val('');
         }
@@ -387,19 +390,19 @@ $('#contractForm').submit(function(e) {
     var description = $('#description').val();
     
     if (!startDate) {
-        alert('请选择开始日期');
+        showToast('warning', '请选择开始日期');
         return;
     }
     if (!endDate) {
-        alert('请选择结束日期');
+        showToast('warning', '请选择结束日期');
         return;
     }
     if (endDate <= startDate) {
-        alert('结束日期必须晚于开始日期');
+        showToast('warning', '结束日期必须晚于开始日期');
         return;
     }
     if (selectedPlots.length === 0) {
-        alert('请选择至少一个地块');
+        showToast('warning', '请选择至少一个地块');
         return;
     }
     
@@ -426,15 +429,15 @@ $('#contractForm').submit(function(e) {
         data: JSON.stringify(formData),
         success: function(response) {
             if (response.success) {
-                alert('合同更新成功！');
+                showToast('success', '合同更新成功！');
                 window.location.href = '/contract/list';
             } else {
-                alert('更新失败：' + response.message);
+                showToast('error', '更新失败：' + response.message);
                 $('#submitBtn').prop('disabled', false).html('<i class="fa fa-save"></i> 保存');
             }
         },
         error: function() {
-            alert('提交失败，请稍后重试');
+            showToast('error', '提交失败，请稍后重试');
             $('#submitBtn').prop('disabled', false).html('<i class="fa fa-save"></i> 保存');
         }
     });

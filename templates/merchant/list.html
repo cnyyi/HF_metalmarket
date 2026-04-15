@@ -6,6 +6,11 @@
     <i class="fa fa-building"></i> 商户管理
 {% endblock %}
 
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
+<li class="breadcrumb-item active">商户管理</li>
+{% endblock %}
+
 {% block content %}
 <div class="card">
     <div class="card-header">
@@ -73,6 +78,10 @@
                             <a href="{{ url_for('merchant.edit', merchant_id=merchant.merchant_id) }}" class="btn btn-sm btn-warning" title="编辑">
                                 <i class="fa fa-edit"></i>
                             </a>
+                            <button class="btn btn-sm btn-outline-success btn-portal" title="门户管理"
+                                    data-id="{{ merchant.merchant_id }}" data-name="{{ merchant.merchant_name }}">
+                                <i class="fa fa-globe"></i>
+                            </button>
                             <a href="#" class="btn btn-sm btn-danger" title="删除" onclick="return confirm('确定要删除这个商户吗？');">
                                 <i class="fa fa-trash"></i>
                             </a>
@@ -107,4 +116,120 @@
         {% endif %}
     </div>
 </div>
+
+<!-- 门户管理弹窗 -->
+<div class="modal fade" id="portalModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fa fa-globe"></i> 门户管理</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="portalModalBody">
+                <p class="text-muted">加载中...</p>
+            </div>
+            <div class="modal-footer" id="portalModalFooter">
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).on('click', '.btn-portal', function() {
+    var id = $(this).data('id');
+    var name = $(this).data('name');
+    $('#portalModalBody').html('<p class="text-muted">查询中...</p>');
+    $('#portalModalFooter').html('');
+
+    $.ajax({
+        url: '/merchant/api/portal_status/' + id,
+        type: 'GET',
+        success: function(resp) {
+            if (!resp.success) return;
+            var d = resp.data;
+            var html = '<h5>' + escapeHtml(name) + '</h5><hr>';
+
+            if (d.enabled) {
+                html += '<div class="mb-2"><span class="badge bg-success">已开通</span></div>';
+                html += '<p><strong>用户名：</strong>' + escapeHtml(d.username) + '</p>';
+                html += '<p><strong>最后登录：</strong>' + (d.last_login || '从未登录') + '</p>';
+
+                $('#portalModalFooter').html(
+                    '<button type="button" class="btn btn-warning" id="btnResetPwd" data-id="' + id + '"><i class="fa fa-key"></i> 重置密码</button>' +
+                    '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>'
+                );
+            } else {
+                html += '<div class="mb-2"><span class="badge bg-secondary">未开通</span></div>';
+                html += '<p class="text-muted">开通后商户可登录查看合同、缴费、过磅等数据</p>';
+                html += '<div class="mb-3"><label class="form-label">自定义用户名（可选）</label>';
+                html += '<input type="text" class="form-control" id="portalUsername" placeholder="默认: m_' + id + '"></div>';
+
+                $('#portalModalFooter').html(
+                    '<button type="button" class="btn btn-success" id="btnOpenPortal" data-id="' + id + '"><i class="fa fa-check"></i> 开通门户</button>' +
+                    '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>'
+                );
+            }
+            $('#portalModalBody').html(html);
+        }
+    });
+
+    new bootstrap.Modal(document.getElementById('portalModal')).show();
+});
+
+$(document).on('click', '#btnOpenPortal', function() {
+    var id = $(this).data('id');
+    var username = $('#portalUsername').val().trim();
+    var btn = $(this);
+    btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 开通中...');
+
+    $.ajax({
+        url: '/merchant/api/open_portal/' + id,
+        type: 'POST',
+        contentType: 'application/json',
+        headers: { 'X-CSRFToken': getCSRFToken() },
+        data: JSON.stringify({ username: username || null }),
+        success: function(resp) {
+            if (resp.success) {
+                var html = '<div class="alert alert-success"><i class="fa fa-check-circle"></i> 开通成功！</div>';
+                html += '<p><strong>用户名：</strong><code>' + escapeHtml(resp.username) + '</code></p>';
+                html += '<p><strong>初始密码：</strong><code>' + escapeHtml(resp.password) + '</code></p>';
+                html += '<p class="text-muted"><small>请将账号信息告知商户，首次登录后建议修改密码</small></p>';
+                $('#portalModalBody').html(html);
+                $('#portalModalFooter').html('<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>');
+            } else {
+                alert(resp.message);
+                btn.prop('disabled', false).html('<i class="fa fa-check"></i> 开通门户');
+            }
+        }
+    });
+});
+
+$(document).on('click', '#btnResetPwd', function() {
+    var id = $(this).data('id');
+    if (!confirm('确定要重置该商户的门户密码吗？')) return;
+    var btn = $(this);
+    btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 重置中...');
+
+    $.ajax({
+        url: '/merchant/api/reset_portal_password/' + id,
+        type: 'POST',
+        contentType: 'application/json',
+        headers: { 'X-CSRFToken': getCSRFToken() },
+        success: function(resp) {
+            if (resp.success) {
+                var html = '<div class="alert alert-success"><i class="fa fa-check-circle"></i> 密码重置成功！</div>';
+                html += '<p><strong>新密码：</strong><code>' + escapeHtml(resp.password) + '</code></p>';
+                html += '<p class="text-muted"><small>请将新密码告知商户</small></p>';
+                $('#portalModalBody').html(html);
+                $('#portalModalFooter').html('<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>');
+            } else {
+                alert(resp.message);
+                btn.prop('disabled', false).html('<i class="fa fa-key"></i> 重置密码');
+            }
+        }
+    });
+});
+</script>
 {% endblock %}
