@@ -2,22 +2,11 @@
 
 {% block title %}合同详情{% endblock %}
 
-{% block page_header %}
-    <i class="fa fa-file-text"></i> 合同详情
-    <div class="float-end">
-        <a href="/contract/list" class="btn btn-secondary btn-sm">
-            <i class="fa fa-arrow-left"></i> 返回列表
-        </a>
-        <a href="/contract/edit/{{ contract_id }}" class="btn btn-primary btn-sm">
-            <i class="fa fa-edit"></i> 编辑
-        </a>
-    </div>
-{% endblock %}
-
 {% block breadcrumb %}
-<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
-<li class="breadcrumb-item"><a href="{{ url_for('contract.contract_list') }}">合同管理</a></li>
-<li class="breadcrumb-item active">合同详情</li>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<a href="{{ url_for('contract.contract_list') }}" class="breadcrumb-chip">合同管理</a>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">合同详情</span>
 {% endblock %}
 
 {% block content %}

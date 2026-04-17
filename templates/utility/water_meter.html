@@ -2,14 +2,11 @@
 
 {% block title %}水表抄表 - 宏发金属交易市场管理系统{% endblock %}
 
-{% block page_header %}
-    <i class="fa fa-tint"></i> 水表抄表
-{% endblock %}
-
 {% block breadcrumb %}
-<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
-<li class="breadcrumb-item"><a href="{{ url_for('utility.utility_list') }}">水电计费</a></li>
-<li class="breadcrumb-item active">水表抄表</li>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<a href="{{ url_for('utility.utility_list') }}" class="breadcrumb-chip">水电计费</a>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">水表抄表</span>
 {% endblock %}
 
 {% block content %}

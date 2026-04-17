@@ -2,13 +2,23 @@
 
 {% block title %}地块列表{% endblock %}
 
-{% block page_header %}
-    <i class="fa fa-map-marker"></i> 地块管理
+{% block breadcrumb %}
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<a href="{{ url_for('plot.plot_list') }}" class="breadcrumb-chip">地块管理</a>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">地块列表</span>
 {% endblock %}
 
-{% block breadcrumb %}
-<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
-<li class="breadcrumb-item active">地块管理</li>
+{% block extra_css %}
+<style>
+    .sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+    .sortable:hover { color: var(--color-primary, #165DFF); }
+    .sortable .sort-icon { margin-left: 4px; font-size: 0.7em; opacity: 0.4; }
+    .sortable.asc .sort-icon, .sortable.desc .sort-icon { opacity: 1; color: var(--color-primary, #165DFF); }
+    .sortable.asc .sort-icon::after { content: ' \25B2'; }
+    .sortable.desc .sort-icon::after { content: ' \25BC'; }
+    .sortable:not(.asc):not(.desc) .sort-icon::after { content: ' \25B2'; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -28,6 +38,13 @@
     <div class="card-body">
         <div class="row mb-3">
             <div class="col-md-3">
+                <select class="form-select" id="filterRentStatus">
+                    <option value="">全部租赁状态</option>
+                    <option value="租赁中">租赁中</option>
+                    <option value="空闲">空闲</option>
+                </select>
+            </div>
+            <div class="col-md-3">
                 <select class="form-select" id="filterPlotType">
                     <option value="">全部类型</option>
                     {% for dict_name, label, unit_price in plot_types %}
@@ -35,7 +52,7 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <select class="form-select" id="filterStatus">
                     <option value="">全部状态</option>
                     <option value="空闲">空闲</option>
@@ -43,14 +60,14 @@
                     <option value="维修中">维修中</option>
                 </select>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="input-group">
                     <span class="input-group-text"><i class="fa fa-search"></i></span>
                     <input type="text" class="form-control" id="searchInput" placeholder="搜索地块编号或名称">
                 </div>
             </div>
-            <div class="col-md-2">
-                <button type="button" class="btn btn-primary w-100" id="searchBtn">搜索</button>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-primary w-100" id="searchBtn"><i class="fa fa-search"></i> 搜索</button>
             </div>
         </div>
         
@@ -59,10 +76,11 @@
                 <thead>
                     <tr>
                         <th>序号</th>
-                        <th>地块编号</th>
-                        <th>地块类型</th>
+                        <th class="sortable" data-sort="plot_code">地块编号<span class="sort-icon"></span></th>
+                        <th class="sortable" data-sort="plot_type">地块类型<span class="sort-icon"></span></th>
+                        <th class="sortable" data-sort="rent_status">租赁状态<span class="sort-icon"></span></th>
                         <th>图示</th>
-                        <th>面积(㎡)</th>
+                        <th class="sortable" data-sort="area">面积(㎡)<span class="sort-icon"></span></th>
                         <th>单价(元/㎡/月)</th>
                         <th>月租金(元)</th>
                         <th>年租金(元)</th>
@@ -161,12 +179,15 @@
 var currentPage = 1;
 var perPage = 10;
 var deletePlotId = null;
+var currentSortBy = '';
+var currentSortDir = 'asc';
 
 function loadPlots(page) {
     currentPage = page;
     var search = $('#searchInput').val();
     var status = $('#filterStatus').val();
     var plotType = $('#filterPlotType').val();
+    var rentStatus = $('#filterRentStatus').val();
     
     $.ajax({
         url: '/plot/list_data',
@@ -176,7 +197,10 @@ function loadPlots(page) {
             per_page: perPage,
             search: search,
             status: status,
-            plot_type: plotType
+            plot_type: plotType,
+            rent_status: rentStatus,
+            sort_by: currentSortBy,
+            sort_dir: currentSortDir
         },
         success: function(response) {
             if (response.success) {
@@ -184,14 +208,18 @@ function loadPlots(page) {
                 tbody.empty();
                 
                 if (response.data.plots.length === 0) {
-                    tbody.append('<tr><td colspan="9" class="text-center text-muted">暂无数据</td></tr>');
+                    tbody.append('<tr><td colspan="10" class="text-center text-muted">暂无数据</td></tr>');
                 } else {
                     var startNum = (currentPage - 1) * perPage + 1;
                     response.data.plots.forEach(function(plot, index) {
+                        var rentStatusHtml = plot.rent_status === '租赁中' 
+                            ? '<span class="badge bg-success"><i class="fa fa-check-circle"></i> 租赁中</span>' 
+                            : '<span class="badge bg-secondary"><i class="fa fa-circle-o"></i> 空闲</span>';
                         var row = '<tr>' +
                             '<td>' + (startNum + index) + '</td>' +
                             '<td><a href="javascript:void(0)" class="text-primary plot-code-link" data-id="' + plot.plot_id + '">' + plot.plot_code + '</a></td>' +
                             '<td>' + (plot.plot_type || '-') + '</td>' +
+                            '<td>' + rentStatusHtml + '</td>' +
                             '<td><a href="javascript:void(0)" class="text-primary image-link" data-id="' + plot.plot_id + '" data-name="' + plot.plot_name + '"><i class="fa fa-image"></i> [图示]</a></td>' +
                             '<td>' + plot.area.toFixed(2) + '</td>' +
                             '<td>' + plot.price.toFixed(2) + '</td>' +
@@ -364,7 +392,20 @@ $('#searchInput').keypress(function(e) {
     }
 });
 
-$('#filterStatus, #filterPlotType').change(function() {
+$('#filterStatus, #filterPlotType, #filterRentStatus').change(function() {
+    loadPlots(1);
+});
+
+$(document).on('click', '.sortable', function() {
+    var sortBy = $(this).data('sort');
+    if (currentSortBy === sortBy) {
+        currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSortBy = sortBy;
+        currentSortDir = 'asc';
+    }
+    $('.sortable').removeClass('asc desc');
+    $(this).addClass(currentSortDir);
     loadPlots(1);
 });
 

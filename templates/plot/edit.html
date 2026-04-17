@@ -2,14 +2,11 @@
 
 {% block title %}编辑地块{% endblock %}
 
-{% block page_header %}
-    <i class="fa fa-edit"></i> 编辑地块
-{% endblock %}
-
 {% block breadcrumb %}
-<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
-<li class="breadcrumb-item"><a href="{{ url_for('plot.plot_list') }}">地块管理</a></li>
-<li class="breadcrumb-item active">编辑地块</li>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<a href="{{ url_for('plot.plot_list') }}" class="breadcrumb-chip">地块管理</a>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">编辑地块</span>
 {% endblock %}
 
 {% block content %}

@@ -2,200 +2,348 @@
 
 {% block title %}工作台{% endblock %}
 
-{% block page_header %}<i class="fa fa-tachometer-alt"></i> 工作台{% endblock %}
-{% block page_header_text %}工作台{% endblock %}
-
-{% block breadcrumb %}
-<span class="separator">/</span>
-<span class="current">工作台</span>
-{% endblock %}
+{% block breadcrumb %}{% endblock %}
 
 {% block extra_css %}
 <style>
-    /* 仪表盘统计卡片 */
+    /* ===== 仪表盘全局 ===== */
+    .dashboard-grid {
+        display: grid;
+        gap: 20px;
+    }
+
+    /* ===== 动画关键帧 ===== */
     @keyframes fadeSlideUp {
-        from { opacity: 0; transform: translateY(16px); }
+        from { opacity: 0; transform: translateY(20px); }
         to { opacity: 1; transform: translateY(0); }
     }
-    .stat-card {
-        border: none;
-        border-radius: var(--radius-xl);
-        box-shadow: var(--shadow-sm);
-        transition: transform var(--transition-spring), box-shadow var(--transition-spring);
-        overflow: hidden;
+    @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+    @keyframes pulse-glow {
+        0%, 100% { opacity: 0.6; }
+        50% { opacity: 1; }
+    }
+    @keyframes countUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ===== KPI 卡片 ===== */
+    .kpi-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+    }
+    .kpi-card {
+        background: var(--color-bg-card);
+        border-radius: 12px;
+        padding: 24px;
         position: relative;
+        overflow: hidden;
+        border: 1px solid var(--color-border-light);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease;
+        animation: fadeSlideUp 0.5s ease both;
     }
-    .stat-card:hover {
+    .kpi-card:hover {
         transform: translateY(-4px);
-        box-shadow: var(--shadow-md);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.12);
     }
-    .stat-card .stat-icon {
-        width: 48px;
-        height: 48px;
-        border-radius: var(--radius-lg);
+    [data-theme="dark"] .kpi-card {
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    [data-theme="dark"] .kpi-card:hover {
+        box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    }
+    /* 顶部渐变条 */
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+    }
+    .kpi-card.receivable::before { background: linear-gradient(90deg, #6366F1, #818CF8); }
+    .kpi-card.payable::before { background: linear-gradient(90deg, #EF4444, #F87171); }
+    .kpi-card.today::before { background: linear-gradient(90deg, #06B6D4, #34D399); }
+    .kpi-card.merchant::before { background: linear-gradient(90deg, #165DFF, #4E9AF1); }
+    .kpi-card.plot::before { background: linear-gradient(90deg, #C87533, #DA9255); }
+    .kpi-card.scale::before { background: linear-gradient(90deg, #6366F1, #818CF8); }
+
+    /* 渐变光晕装饰 */
+    .kpi-card::after {
+        content: '';
+        position: absolute;
+        top: -40px; right: -40px;
+        width: 120px; height: 120px;
+        border-radius: 50%;
+        opacity: 0.06;
+        pointer-events: none;
+    }
+    .kpi-card.receivable::after { background: radial-gradient(circle, #6366F1, transparent); }
+    .kpi-card.payable::after { background: radial-gradient(circle, #EF4444, transparent); }
+    .kpi-card.today::after { background: radial-gradient(circle, #06B6D4, transparent); }
+    .kpi-card.merchant::after { background: radial-gradient(circle, #165DFF, transparent); }
+    .kpi-card.plot::after { background: radial-gradient(circle, #C87533, transparent); }
+    .kpi-card.scale::after { background: radial-gradient(circle, #6366F1, transparent); }
+
+    .kpi-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+    }
+    .kpi-icon {
+        width: 44px; height: 44px;
+        border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.2rem;
+        font-size: 1.1rem;
         color: #fff;
-        flex-shrink: 0;
     }
-    .stat-card .stat-body {
-        padding: var(--space-4) var(--space-4);
+    .kpi-icon.receivable { background: linear-gradient(135deg, #6366F1, #818CF8); }
+    .kpi-icon.payable { background: linear-gradient(135deg, #EF4444, #F87171); }
+    .kpi-icon.today { background: linear-gradient(135deg, #06B6D4, #34D399); }
+    .kpi-icon.merchant { background: linear-gradient(135deg, #165DFF, #4E9AF1); }
+    .kpi-icon.plot { background: linear-gradient(135deg, #C87533, #DA9255); }
+    .kpi-icon.scale { background: linear-gradient(135deg, #6366F1, #818CF8); }
+
+    .kpi-trend {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 20px;
+    }
+    .kpi-trend.up { color: #10B981; background: rgba(16, 185, 129, 0.1); }
+    .kpi-trend.down { color: #EF4444; background: rgba(239, 68, 68, 0.1); }
+    .kpi-trend.neutral { color: var(--color-text-muted); background: rgba(107, 114, 128, 0.1); }
+
+    .kpi-value {
+        font-family: var(--font-mono);
+        font-size: 1.75rem;
+        font-weight: 700;
+        line-height: 1.2;
+        letter-spacing: -0.03em;
+        color: var(--color-text);
+    }
+    .kpi-label {
+        font-size: 0.82rem;
+        color: var(--color-text-muted);
+        margin-top: 4px;
+        font-weight: 500;
+    }
+    .kpi-sub {
+        font-size: 0.72rem;
+        color: var(--color-text-light);
+        margin-top: 8px;
         display: flex;
         align-items: center;
-        gap: var(--space-4);
+        gap: 6px;
     }
-    .stat-card .stat-value {
-        font-family: var(--font-mono);
-        font-size: var(--font-size-2xl);
-        font-weight: 700;
-        font-variant-numeric: tabular-nums;
-        letter-spacing: -0.02em;
-        line-height: 1.2;
+    .kpi-sub-dot {
+        width: 4px; height: 4px;
+        border-radius: 50%;
+        background: var(--color-text-light);
     }
-    .stat-card .stat-label {
-        font-size: var(--font-size-sm);
-        color: var(--color-text-muted);
-        margin-bottom: 2px;
+
+    /* ===== 饼状图（环形）+ 过磅数据 ===== */
+    .pie-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
     }
-    .stat-card .stat-sub {
-        font-size: var(--font-size-xs);
-        color: var(--color-text-light);
-        margin-top: 2px;
+    .pie-card {
+        background: var(--color-bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--color-border-light);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        overflow: hidden;
+        transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease;
+        animation: fadeSlideUp 0.5s ease both;
     }
-    .stat-card .stat-accent-bar {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
+    .pie-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.12);
+    }
+    [data-theme="dark"] .pie-card {
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    [data-theme="dark"] .pie-card:hover {
+        box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    }
+    .pie-card::before {
+        content: '';
+        display: block;
         height: 3px;
     }
-
-    /* 图标颜色 */
-    .stat-icon-receivable { background: linear-gradient(135deg, #C87533, #DA9255); }
-    .stat-icon-payable { background: linear-gradient(135deg, #E74C3C, #F87171); }
-    .stat-icon-today { background: linear-gradient(135deg, #2ECC71, #34D399); }
-    .stat-icon-merchant { background: linear-gradient(135deg, #2C3E6B, #4A7BF7); }
-
-    /* 图表容器 */
-    .chart-container {
-        position: relative;
-        height: 280px;
-    }
-
-    /* 活动时间线 */
-    .activity-item {
+    .pie-card.receivable-pie::before { background: linear-gradient(90deg, #6366F1, #818CF8); }
+    .pie-card.payable-pie::before { background: linear-gradient(90deg, #EF4444, #F87171); }
+    .pie-card.scale-pie::before { background: linear-gradient(90deg, #6366F1, #06B6D4); }
+    .pie-card-inner {
+        padding: 20px;
         display: flex;
-        gap: var(--space-3);
-        padding: var(--space-3) 0;
-        border-bottom: 1px solid var(--color-border-light);
-        align-items: flex-start;
+        align-items: center;
+        gap: 24px;
     }
-    .activity-item:last-child {
-        border-bottom: none;
-    }
-    .activity-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        margin-top: 6px;
+    .pie-chart-wrap {
+        position: relative;
+        width: 160px;
+        height: 160px;
         flex-shrink: 0;
     }
-    .activity-dot.income { background-color: var(--color-success); }
-    .activity-dot.expense { background-color: var(--color-danger); }
-    .activity-content {
+    .pie-center-label {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        pointer-events: none;
+    }
+    .pie-center-value {
+        font-family: var(--font-mono);
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--color-text);
+        line-height: 1.2;
+    }
+    .pie-center-text {
+        font-size: 0.7rem;
+        color: var(--color-text-muted);
+        margin-top: 2px;
+    }
+    .pie-legend {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
         flex: 1;
         min-width: 0;
     }
-    .activity-text {
-        font-size: var(--font-size-sm);
+    .pie-legend-title {
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-size: 0.92rem;
         color: var(--color-text);
-        line-height: 1.4;
-    }
-    .activity-text .amount {
-        font-family: var(--font-mono);
-        font-weight: 600;
-    }
-    .activity-text .amount.income { color: var(--color-success); }
-    .activity-text .amount.expense { color: var(--color-danger); }
-    .activity-time {
-        font-size: var(--font-size-xs);
-        color: var(--color-text-light);
-        margin-top: 2px;
-    }
-
-    /* 预警项 */
-    .alert-item {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        padding: var(--space-2) 0;
-        border-bottom: 1px solid var(--color-border-light);
-        font-size: var(--font-size-sm);
+        gap: 6px;
     }
-    .alert-item:last-child { border-bottom: none; }
-    .alert-item .alert-amount {
-        font-family: var(--font-mono);
-        font-weight: 600;
-        color: var(--color-danger);
-    }
-    .alert-item .alert-date {
-        font-size: var(--font-size-xs);
-        color: var(--color-text-light);
-    }
-
-    /* 合同到期项 */
-    .contract-item {
+    .pie-legend-item {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        padding: var(--space-2) 0;
+        justify-content: space-between;
+        gap: 8px;
+    }
+    .pie-legend-dot {
+        width: 10px; height: 10px;
+        border-radius: 3px;
+        flex-shrink: 0;
+    }
+    .pie-legend-label {
+        font-size: 0.82rem;
+        color: var(--color-text-muted);
+        flex: 1;
+    }
+    .pie-legend-value {
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--color-text);
+    }
+    .pie-legend-rate {
+        font-size: 0.72rem;
+        font-weight: 500;
+        padding: 1px 6px;
+        border-radius: 10px;
+        margin-left: 4px;
+    }
+    .pie-legend-rate.good { color: #06B6D4; background: rgba(6, 182, 212, 0.1); }
+    .pie-legend-rate.warn { color: #F59E0B; background: rgba(245, 158, 11, 0.1); }
+
+    /* ===== 通用面板卡片 ===== */
+    .panel-card {
+        background: var(--color-bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--color-border-light);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        overflow: hidden;
+        transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease;
+    }
+    .panel-card:hover {
+        box-shadow: 0 8px 28px rgba(0,0,0,0.1);
+    }
+    [data-theme="dark"] .panel-card {
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    [data-theme="dark"] .panel-card:hover {
+        box-shadow: 0 8px 28px rgba(0,0,0,0.3);
+    }
+    .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 20px;
         border-bottom: 1px solid var(--color-border-light);
-        font-size: var(--font-size-sm);
     }
-    .contract-item:last-child { border-bottom: none; }
-    .contract-item .contract-merchant {
-        font-weight: 500;
+    .panel-title {
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--color-text);
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
-    .contract-item .contract-date {
-        font-size: var(--font-size-xs);
-        color: var(--color-warning);
-        font-weight: 500;
+    .panel-title i {
+        font-size: 0.9rem;
+    }
+    .panel-link {
+        font-size: 0.72rem;
+        color: var(--color-text-muted);
+        text-decoration: none;
+        transition: color 0.2s;
+    }
+    .panel-link:hover { color: var(--color-primary); }
+    .panel-body {
+        padding: 20px;
     }
 
-    /* 空状态小版 */
-    .empty-mini {
-        text-align: center;
-        padding: var(--space-6) var(--space-4);
-        color: var(--color-text-light);
-        font-size: var(--font-size-sm);
+    /* ===== 仪表盘区块网格 ===== */
+    .section-grid {
+        display: grid;
+        gap: 20px;
     }
+    .section-grid-3-7 { grid-template-columns: 3fr 7fr; }
+    .section-grid-4-8 { grid-template-columns: 4fr 8fr; }
+    .section-grid-7-5 { grid-template-columns: 7fr 5fr; }
+    .section-grid-6-6 { grid-template-columns: 1fr 1fr; }
+    .section-grid-12 { grid-template-columns: 1fr; }
 
-    /* ===== 地块统计 ===== */
+    /* ===== 地块总览 ===== */
     .plot-overview-card {
-        background: linear-gradient(145deg, 
-            rgba(var(--color-accent-rgb), 0.03) 0%, 
+        background: linear-gradient(145deg,
+            rgba(22, 93, 255, 0.03) 0%,
             transparent 60%);
     }
     [data-theme="dark"] .plot-overview-card {
-        background: linear-gradient(145deg, 
-            rgba(var(--color-accent-rgb), 0.06) 0%, 
+        background: linear-gradient(145deg,
+            rgba(99, 102, 241, 0.06) 0%,
             transparent 60%);
     }
-
     .plot-stats-row {
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 0;
-        margin-bottom: 16px;
+        margin-bottom: 20px;
     }
     .plot-stat-item {
         flex: 1;
         text-align: center;
-        position: relative;
-        padding: 8px 0;
+        padding: 10px 0;
     }
     .plot-stat-value {
         font-family: var(--font-mono);
@@ -208,19 +356,17 @@
     .plot-stat-label {
         font-size: 0.72rem;
         color: var(--color-text-muted);
-        margin-top: 2px;
+        margin-top: 4px;
         letter-spacing: 0.04em;
     }
     .plot-stat-dot {
-        width: 4px;
-        height: 4px;
+        width: 4px; height: 4px;
         border-radius: 50%;
         margin: 6px auto 0;
         opacity: 0.7;
     }
     .plot-stat-divider {
-        width: 1px;
-        height: 36px;
+        width: 1px; height: 36px;
         background: var(--color-border-light);
         flex-shrink: 0;
     }
@@ -228,18 +374,13 @@
     /* 弧形仪表 */
     .plot-gauge-wrap {
         position: relative;
-        width: 140px;
-        height: 70px;
+        width: 140px; height: 70px;
         margin: 0 auto;
     }
-    .plot-gauge {
-        width: 100%;
-        height: 100%;
-    }
+    .plot-gauge { width: 100%; height: 100%; }
     .plot-gauge-label {
         position: absolute;
-        bottom: 2px;
-        left: 50%;
+        bottom: 2px; left: 50%;
         transform: translateX(-50%);
         display: flex;
         align-items: baseline;
@@ -247,7 +388,7 @@
         color: var(--color-text);
     }
 
-    /* 地块类型卡片 */
+    /* ===== 地块类型卡片 ===== */
     .plot-type-cards {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -259,7 +400,7 @@
         position: relative;
         overflow: hidden;
         border: 1px solid var(--color-border-light);
-        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+        transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease;
         background: var(--color-bg);
     }
     .plot-type-card:hover {
@@ -272,216 +413,432 @@
     .plot-type-card::before {
         content: '';
         position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
+        top: 0; left: 0; right: 0;
         height: 3px;
     }
     .plot-type-card.type-cement::before { background: linear-gradient(90deg, #8B92A5, #A0A8B8); }
-    .plot-type-card.type-steel::before { background: linear-gradient(90deg, #4A7BF7, #6C93FF); }
+    .plot-type-card.type-steel::before { background: linear-gradient(90deg, #165DFF, #4E9AF1); }
     .plot-type-card.type-brick::before { background: linear-gradient(90deg, #C87533, #DA9255); }
     .plot-type-card.type-other::before { background: linear-gradient(90deg, #6B7280, #9CA3AF); }
 
-    .plot-type-header {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 12px;
-    }
+    .plot-type-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
     .plot-type-icon {
-        width: 36px;
-        height: 36px;
+        width: 36px; height: 36px;
         border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.9rem;
-        color: #fff;
-        flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.9rem; color: #fff; flex-shrink: 0;
     }
     .type-cement .plot-type-icon { background: linear-gradient(135deg, #8B92A5, #6B7280); }
-    .type-steel .plot-type-icon { background: linear-gradient(135deg, #4A7BF7, #2C3E6B); }
+    .type-steel .plot-type-icon { background: linear-gradient(135deg, #165DFF, #2C3E6B); }
     .type-brick .plot-type-icon { background: linear-gradient(135deg, #C87533, #A8612A); }
     .type-other .plot-type-icon { background: linear-gradient(135deg, #6B7280, #4B5563); }
 
     .plot-type-name {
         font-family: var(--font-display);
-        font-weight: 600;
-        font-size: 0.9rem;
+        font-weight: 600; font-size: 0.9rem;
         color: var(--color-text);
     }
-
-    .plot-type-metrics {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-    .plot-metric-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 0.78rem;
-    }
-    .plot-metric-label {
-        color: var(--color-text-muted);
-    }
-    .plot-metric-value {
-        font-family: var(--font-mono);
-        font-weight: 600;
-        color: var(--color-text);
-    }
-    .plot-metric-value.rented { color: #2ECC71; }
+    .plot-type-metrics { display: flex; flex-direction: column; gap: 6px; }
+    .plot-metric-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; }
+    .plot-metric-label { color: var(--color-text-muted); }
+    .plot-metric-value { font-family: var(--font-mono); font-weight: 600; color: var(--color-text); }
+    .plot-metric-value.rented { color: #06B6D4; }
     .plot-metric-value.available { color: #C87533; }
 
     .plot-type-bar {
-        height: 6px;
-        border-radius: 3px;
+        height: 6px; border-radius: 3px;
         background: var(--color-border-light);
-        overflow: hidden;
-        margin-top: 8px;
+        overflow: hidden; margin-top: 8px;
     }
     .plot-type-bar-fill {
-        height: 100%;
-        border-radius: 3px;
+        height: 100%; border-radius: 3px;
         transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .type-cement .plot-type-bar-fill { background: linear-gradient(90deg, #8B92A5, #A0A8B8); }
-    .type-steel .plot-type-bar-fill { background: linear-gradient(90deg, #4A7BF7, #6C93FF); }
+    .type-steel .plot-type-bar-fill { background: linear-gradient(90deg, #165DFF, #4E9AF1); }
     .type-brick .plot-type-bar-fill { background: linear-gradient(90deg, #C87533, #DA9255); }
     .type-other .plot-type-bar-fill { background: linear-gradient(90deg, #6B7280, #9CA3AF); }
 
     .plot-type-rate {
-        text-align: right;
-        font-size: 0.7rem;
+        text-align: right; font-size: 0.7rem;
+        color: var(--color-text-muted);
+        margin-top: 4px; font-family: var(--font-mono);
+    }
+
+    /* ===== 过磅数据 ===== */
+    .scale-overview-card {
+        background: linear-gradient(145deg,
+            rgba(6, 182, 212, 0.03) 0%,
+            transparent 60%);
+    }
+    [data-theme="dark"] .scale-overview-card {
+        background: linear-gradient(145deg,
+            rgba(6, 182, 212, 0.06) 0%,
+            transparent 60%);
+    }
+    .scale-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+    }
+    .scale-stat-box {
+        text-align: center;
+        padding: 16px 8px;
+        border-radius: 10px;
+        background: var(--color-bg);
+        border: 1px solid var(--color-border-light);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .scale-stat-box:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+    .scale-stat-icon {
+        width: 40px; height: 40px;
+        border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 10px; font-size: 1rem; color: #fff;
+    }
+    .scale-stat-icon.inbound { background: linear-gradient(135deg, #165DFF, #4E9AF1); }
+    .scale-stat-icon.outbound { background: linear-gradient(135deg, #F59E0B, #FBBF24); }
+    .scale-stat-icon.fee { background: linear-gradient(135deg, #06B6D4, #34D399); }
+    .scale-stat-value {
+        font-family: var(--font-mono);
+        font-size: 1.6rem;
+        font-weight: 700;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+    }
+    .scale-stat-label {
+        font-size: 0.72rem;
         color: var(--color-text-muted);
         margin-top: 4px;
+        letter-spacing: 0.04em;
+    }
+    .scale-stat-unit {
+        font-size: 0.8rem;
+        font-weight: 400;
+        color: var(--color-text-muted);
+        margin-left: 2px;
+    }
+    .scale-chart-container {
+        position: relative;
+        height: 220px;
+    }
+
+    /* ===== 图表容器 ===== */
+    .chart-container {
+        position: relative;
+        height: 280px;
+    }
+
+    /* ===== 活动时间线 ===== */
+    .activity-item {
+        display: flex;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--color-border-light);
+        align-items: flex-start;
+        transition: background 0.2s;
+    }
+    .activity-item:hover { background: rgba(99, 102, 241, 0.03); margin: 0 -8px; padding: 10px 8px; border-radius: 8px; }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-dot {
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        margin-top: 6px;
+        flex-shrink: 0;
+    }
+    .activity-dot.income { background-color: #06B6D4; }
+    .activity-dot.expense { background-color: #EF4444; }
+    .activity-content { flex: 1; min-width: 0; }
+    .activity-text {
+        font-size: 0.85rem;
+        color: var(--color-text);
+        line-height: 1.5;
+    }
+    .activity-text .amount {
         font-family: var(--font-mono);
+        font-weight: 600;
+    }
+    .activity-text .amount.income { color: #06B6D4; }
+    .activity-text .amount.expense { color: #EF4444; }
+    .activity-time {
+        font-size: 0.72rem;
+        color: var(--color-text-light);
+        margin-top: 2px;
+    }
+
+    /* ===== 预警项 ===== */
+    .alert-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--color-border-light);
+        font-size: 0.85rem;
+        transition: background 0.2s;
+    }
+    .alert-item:hover { background: rgba(239, 68, 68, 0.03); margin: 0 -8px; padding: 10px 8px; border-radius: 8px; }
+    .alert-item:last-child { border-bottom: none; }
+    .alert-item .alert-amount {
+        font-family: var(--font-mono);
+        font-weight: 600;
+        color: #EF4444;
+    }
+    .alert-item .alert-date {
+        font-size: 0.72rem;
+        color: var(--color-text-light);
+    }
+
+    /* ===== 合同到期项 ===== */
+    .contract-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--color-border-light);
+        font-size: 0.85rem;
+        transition: background 0.2s;
+    }
+    .contract-item:hover { background: rgba(245, 158, 11, 0.03); margin: 0 -8px; padding: 10px 8px; border-radius: 8px; }
+    .contract-item:last-child { border-bottom: none; }
+    .contract-item .contract-merchant { font-weight: 500; }
+    .contract-item .contract-date {
+        font-size: 0.72rem;
+        color: #F59E0B;
+        font-weight: 500;
+    }
+
+    /* ===== 空状态小版 ===== */
+    .empty-mini {
+        text-align: center;
+        padding: 24px 16px;
+        color: var(--color-text-light);
+        font-size: 0.85rem;
+    }
+
+    /* ===== 刷新按钮 ===== */
+    .panel-action-btn {
+        background: none;
+        border: 1px solid var(--color-border-light);
+        border-radius: 8px;
+        padding: 4px 10px;
+        font-size: 0.72rem;
+        color: var(--color-text-muted);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .panel-action-btn:hover {
+        color: var(--color-primary);
+        border-color: var(--color-primary);
+        background: rgba(22, 93, 255, 0.04);
+    }
+    .panel-action-btn i.spinning {
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    /* ===== 数据加载骨架 ===== */
+    .skeleton-line {
+        height: 16px;
+        border-radius: 4px;
+        background: linear-gradient(90deg, var(--color-border-light) 25%, var(--color-bg) 50%, var(--color-border-light) 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        margin-bottom: 8px;
+    }
+    .skeleton-line.w60 { width: 60%; }
+    .skeleton-line.w40 { width: 40%; }
+    .skeleton-line.w80 { width: 80%; }
+
+    /* ===== 响应式 ===== */
+    @media (max-width: 1199.98px) {
+        .kpi-row { grid-template-columns: repeat(2, 1fr); }
+        .pie-row { grid-template-columns: repeat(2, 1fr); }
+        .section-grid-3-7,
+        .section-grid-4-8,
+        .section-grid-7-5,
+        .section-grid-6-6,
+        .section-grid-12 { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 767.98px) {
+        .kpi-row { grid-template-columns: 1fr; }
+        .pie-row { grid-template-columns: 1fr; }
+        .kpi-value { font-size: 1.5rem; }
+        .pie-card-inner { flex-direction: column; text-align: center; }
+        .pie-legend { align-items: center; }
+        .pie-legend { align-items: center; }
+        .scale-stats-grid { grid-template-columns: 1fr; }
+        .plot-type-cards { grid-template-columns: 1fr; }
+        .chart-container { height: 200px; }
+        .scale-chart-container { height: 180px; }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- ===== 统计卡片 ===== -->
-<div class="row g-3 mb-4">
-    <div class="col-xl-3 col-md-6">
-        <div class="card stat-card">
-            <div class="stat-body">
-                <div class="stat-icon stat-icon-receivable"><i class="fa fa-arrow-circle-down"></i></div>
-                <div>
-                    <div class="stat-label">待收金额</div>
-                    <div class="stat-value" id="statReceivable">¥0</div>
-                    <div class="stat-sub" id="statReceivableSub"></div>
-                </div>
-            </div>
-            <div class="stat-accent-bar" style="background: linear-gradient(90deg, #C87533, #DA9255);"></div>
+<!-- ===== KPI 核心指标 ===== -->
+<div class="kpi-row mb-4">
+    <div class="kpi-card plot" style="animation-delay: 0s;">
+        <div class="kpi-header">
+            <div class="kpi-icon plot"><i class="fa fa-map"></i></div>
+            <span class="kpi-trend neutral" id="plotTrend">--</span>
+        </div>
+        <div class="kpi-value"><span id="plotRentRateKpi">0</span><span style="font-size: 0.9rem; font-weight: 400; color: var(--color-text-muted);">%</span></div>
+        <div class="kpi-label">地块总览</div>
+        <div class="kpi-sub" id="plotKpiSub">
+            <span class="kpi-sub-dot"></span>
+            <span>加载中...</span>
         </div>
     </div>
-    <div class="col-xl-3 col-md-6">
-        <div class="card stat-card">
-            <div class="stat-body">
-                <div class="stat-icon stat-icon-payable"><i class="fa fa-arrow-circle-up"></i></div>
-                <div>
-                    <div class="stat-label">待付金额</div>
-                    <div class="stat-value" id="statPayable">¥0</div>
-                    <div class="stat-sub" id="statPayableSub"></div>
-                </div>
-            </div>
-            <div class="stat-accent-bar" style="background: linear-gradient(90deg, #E74C3C, #F87171);"></div>
+    <div class="kpi-card merchant" style="animation-delay: 0.06s;">
+        <div class="kpi-header">
+            <div class="kpi-icon merchant"><i class="fa fa-building"></i></div>
+            <span class="kpi-trend neutral" id="merchantTrend">--</span>
+        </div>
+        <div class="kpi-value" id="statMerchant">0</div>
+        <div class="kpi-label">在租商户</div>
+        <div class="kpi-sub" id="statMerchantSub">
+            <span class="kpi-sub-dot"></span>
+            <span>加载中...</span>
         </div>
     </div>
-    <div class="col-xl-3 col-md-6">
-        <div class="card stat-card">
-            <div class="stat-body">
-                <div class="stat-icon stat-icon-today"><i class="fa fa-calendar-day"></i></div>
-                <div>
-                    <div class="stat-label">今日净收</div>
-                    <div class="stat-value" id="statToday">¥0</div>
-                    <div class="stat-sub" id="statTodaySub"></div>
-                </div>
-            </div>
-            <div class="stat-accent-bar" style="background: linear-gradient(90deg, #2ECC71, #34D399);"></div>
+    <div class="kpi-card scale" style="animation-delay: 0.12s;">
+        <div class="kpi-header">
+            <div class="kpi-icon scale"><i class="fa fa-bolt"></i></div>
+            <span class="kpi-trend neutral" id="scaleTrend">--</span>
+        </div>
+        <div class="kpi-value" id="scaleInboundKpi">0</div>
+        <div class="kpi-label">最近电费</div>
+        <div class="kpi-sub" id="scaleKpiSub">
+            <span class="kpi-sub-dot"></span>
+            <span>加载中...</span>
         </div>
     </div>
-    <div class="col-xl-3 col-md-6">
-        <div class="card stat-card">
-            <div class="stat-body">
-                <div class="stat-icon stat-icon-merchant"><i class="fa fa-building"></i></div>
-                <div>
-                    <div class="stat-label">在租商户</div>
-                    <div class="stat-value" id="statMerchant">0</div>
-                    <div class="stat-sub" id="statMerchantSub"></div>
-                </div>
-            </div>
-            <div class="stat-accent-bar" style="background: linear-gradient(90deg, #2C3E6B, #4A7BF7);"></div>
+    <div class="kpi-card today" style="animation-delay: 0.18s;">
+        <div class="kpi-header">
+            <div class="kpi-icon today"><i class="fa fa-calendar-day"></i></div>
+            <span class="kpi-trend neutral" id="todayTrend">--</span>
+        </div>
+        <div class="kpi-value" id="statToday">¥0</div>
+        <div class="kpi-label">今日净收</div>
+        <div class="kpi-sub" id="statTodaySub">
+            <span class="kpi-sub-dot"></span>
+            <span>加载中...</span>
         </div>
     </div>
 </div>
 
-<!-- ===== 地块数据 ===== -->
-<div class="row g-4 mb-4">
-    <!-- 地块总览 -->
-    <div class="col-lg-4">
-        <div class="card h-100 plot-overview-card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0" style="font-family: var(--font-display); font-weight: 600;">
-                    <i class="fa fa-map" style="color: var(--color-accent);"></i> 地块总览
-                </h6>
-                <a href="{{ url_for('plot.plot_list') }}" class="text-muted" style="font-size: var(--font-size-xs);">管理地块 →</a>
+<!-- ===== 应收应付环形图 ===== -->
+<div class="pie-row mb-4">
+    <!-- 应收账款 -->
+    <div class="pie-card receivable-pie" style="animation-delay: 0.1s;">
+        <div class="pie-card-inner">
+            <div class="pie-chart-wrap">
+                <canvas id="receivablePieChart"></canvas>
+                <div class="pie-center-label">
+                    <div class="pie-center-value" id="recvPieCenter">--</div>
+                    <div class="pie-center-text">回款率</div>
+                </div>
             </div>
-            <div class="card-body d-flex flex-column justify-content-center">
-                <!-- 三大数字 -->
-                <div class="plot-stats-row">
-                    <div class="plot-stat-item">
-                        <div class="plot-stat-value" id="plotTotal">0</div>
-                        <div class="plot-stat-label">总地块</div>
-                        <div class="plot-stat-dot" style="background: var(--color-accent);"></div>
-                    </div>
-                    <div class="plot-stat-divider"></div>
-                    <div class="plot-stat-item">
-                        <div class="plot-stat-value" id="plotRented" style="color: #2ECC71;">0</div>
-                        <div class="plot-stat-label">已租赁</div>
-                        <div class="plot-stat-dot" style="background: #2ECC71;"></div>
-                    </div>
-                    <div class="plot-stat-divider"></div>
-                    <div class="plot-stat-item">
-                        <div class="plot-stat-value" id="plotAvailable" style="color: #C87533;">0</div>
-                        <div class="plot-stat-label">未租赁</div>
-                        <div class="plot-stat-dot" style="background: #C87533;"></div>
-                    </div>
+            <div class="pie-legend">
+                <div class="pie-legend-title">
+                    <i class="fa fa-arrow-circle-down" style="color: #6366F1;"></i> 应收账款
                 </div>
-                <!-- 出租率弧形 -->
-                <div class="plot-gauge-wrap">
-                    <svg class="plot-gauge" viewBox="0 0 120 70">
-                        <path d="M10 65 A50 50 0 0 1 110 65" fill="none" stroke="var(--color-border-light)" stroke-width="8" stroke-linecap="round"/>
-                        <path id="plotGaugeArc" d="M10 65 A50 50 0 0 1 110 65" fill="none" stroke="url(#gaugeGrad)" stroke-width="8" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="157" style="transition: stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1);"/>
-                        <defs>
-                            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" style="stop-color:#2ECC71"/>
-                                <stop offset="100%" style="stop-color:#C87533"/>
-                            </linearGradient>
-                        </defs>
-                    </svg>
-                    <div class="plot-gauge-label">
-                        <span id="plotRentRate" style="font-family: var(--font-mono); font-weight: 700; font-size: 1.4rem;">0</span>
-                        <span style="font-size: 0.7rem; color: var(--color-text-muted);">%</span>
-                    </div>
+                <div class="pie-legend-item">
+                    <span class="pie-legend-dot" style="background: #6366F1;"></span>
+                    <span class="pie-legend-label">待收</span>
+                    <span class="pie-legend-value" id="recvPieUnpaid">¥0</span>
+                    <span class="pie-legend-rate warn" id="recvPieUnpaidRate">0%</span>
                 </div>
-                <div class="text-center" style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-top: -4px;">出租率</div>
+                <div class="pie-legend-item">
+                    <span class="pie-legend-dot" style="background: #06B6D4;"></span>
+                    <span class="pie-legend-label">已收</span>
+                    <span class="pie-legend-value" id="recvPieCollected">¥0</span>
+                    <span class="pie-legend-rate good" id="recvPieCollectedRate">0%</span>
+                </div>
             </div>
         </div>
     </div>
-
-    <!-- 各类型面积明细 -->
-    <div class="col-lg-8">
-        <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0" style="font-family: var(--font-display); font-weight: 600;">
-                    <i class="fa fa-th-large" style="color: var(--color-accent);"></i> 地块面积明细
-                </h6>
+    <!-- 应付账款 -->
+    <div class="pie-card payable-pie" style="animation-delay: 0.18s;">
+        <div class="pie-card-inner">
+            <div class="pie-chart-wrap">
+                <canvas id="payablePieChart"></canvas>
+                <div class="pie-center-label">
+                    <div class="pie-center-value" id="payPieCenter">--</div>
+                    <div class="pie-center-text">支付率</div>
+                </div>
             </div>
-            <div class="card-body">
-                <div id="plotTypeCards" class="plot-type-cards">
-                    <div class="text-center text-muted py-4">加载中...</div>
+            <div class="pie-legend">
+                <div class="pie-legend-title">
+                    <i class="fa fa-arrow-circle-up" style="color: #EF4444;"></i> 应付账款
+                </div>
+                <div class="pie-legend-item">
+                    <span class="pie-legend-dot" style="background: #EF4444;"></span>
+                    <span class="pie-legend-label">待付</span>
+                    <span class="pie-legend-value" id="payPieUnpaid">¥0</span>
+                    <span class="pie-legend-rate warn" id="payPieUnpaidRate">0%</span>
+                </div>
+                <div class="pie-legend-item">
+                    <span class="pie-legend-dot" style="background: #34D399;"></span>
+                    <span class="pie-legend-label">已付</span>
+                    <span class="pie-legend-value" id="payPiePaid">¥0</span>
+                    <span class="pie-legend-rate good" id="payPiePaidRate">0%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 过磅数据 -->
+    <div class="pie-card scale-pie" style="animation-delay: 0.26s;">
+        <div class="pie-card-inner" style="flex-direction: column; align-items: stretch; gap: 16px;">
+            <div class="pie-legend-title" style="margin-bottom: 0;">
+                <i class="fa fa-truck" style="color: #6366F1;"></i> 过磅数据
+                <span style="font-size: 0.7rem; color: var(--color-text-light); font-weight: 400; margin-left: auto;" id="scaleDateLabel">今日</span>
+            </div>
+            <div class="scale-stats-grid">
+                <div class="scale-stat-box">
+                    <div class="scale-stat-icon inbound"><i class="fa fa-car"></i></div>
+                    <div class="scale-stat-value" style="color: #165DFF;" id="scaleVehicles">0</div>
+                    <div class="scale-stat-label">总车数<span class="scale-stat-unit">辆</span></div>
+                </div>
+                <div class="scale-stat-box">
+                    <div class="scale-stat-icon outbound"><i class="fa fa-weight-hanging"></i></div>
+                    <div class="scale-stat-value" style="color: #F59E0B;" id="scaleWeight">0</div>
+                    <div class="scale-stat-label">总重量<span class="scale-stat-unit">吨</span></div>
+                </div>
+                <div class="scale-stat-box">
+                    <div class="scale-stat-icon fee"><i class="fa fa-jpy"></i></div>
+                    <div class="scale-stat-value" style="color: #06B6D4;" id="scaleFee">0</div>
+                    <div class="scale-stat-label">总磅费<span class="scale-stat-unit">元</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 地块面积明细 ===== -->
+<div class="section-grid section-grid-12 mb-4">
+    <div class="panel-card">
+        <div class="panel-header">
+            <div class="panel-title">
+                <i class="fa fa-th-large" style="color: #165DFF;"></i> 地块面积明细
+            </div>
+            <a href="{{ url_for('plot.plot_list') }}" class="panel-link">管理地块 →</a>
+        </div>
+        <div class="panel-body">
+            <div id="plotTypeCards" class="plot-type-cards">
+                <div class="text-center text-muted py-4">
+                    <div class="skeleton-line w80"></div>
+                    <div class="skeleton-line w60"></div>
+                    <div class="skeleton-line w40"></div>
                 </div>
             </div>
         </div>
@@ -489,35 +846,36 @@
 </div>
 
 <!-- ===== 图表 + 动态 ===== -->
-<div class="row g-4 mb-4">
+<div class="section-grid section-grid-7-5 mb-4">
     <!-- 月度收支柱形图 -->
-    <div class="col-lg-7">
-        <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0" style="font-family: var(--font-display); font-weight: 600;">
-                    <i class="fa fa-bar-chart" style="color: var(--color-accent);"></i> 月度收支趋势
-                </h6>
+    <div class="panel-card">
+        <div class="panel-header">
+            <div class="panel-title">
+                <i class="fa fa-bar-chart" style="color: #6366F1;"></i> 月度收支趋势
             </div>
-            <div class="card-body">
-                <div class="chart-container">
-                    <canvas id="monthlyChart"></canvas>
-                </div>
+            <button class="panel-action-btn" id="refreshChart" title="刷新数据"><i class="fa fa-refresh"></i> 刷新</button>
+        </div>
+        <div class="panel-body">
+            <div class="chart-container">
+                <canvas id="monthlyChart"></canvas>
             </div>
         </div>
     </div>
 
     <!-- 最近动态 -->
-    <div class="col-lg-5">
-        <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0" style="font-family: var(--font-display); font-weight: 600;">
-                    <i class="fa fa-clock-o" style="color: var(--color-accent);"></i> 最近动态
-                </h6>
-                <a href="{{ url_for('finance.cash_flow') }}" class="text-muted" style="font-size: var(--font-size-xs);">查看全部 →</a>
+    <div class="panel-card">
+        <div class="panel-header">
+            <div class="panel-title">
+                <i class="fa fa-clock-o" style="color: #6366F1;"></i> 最近动态
             </div>
-            <div class="card-body" style="max-height: 300px; overflow-y: auto;">
-                <div id="recentActivities">
-                    <div class="empty-mini">加载中...</div>
+            <a href="{{ url_for('finance.cash_flow') }}" class="panel-link">查看全部 →</a>
+        </div>
+        <div class="panel-body" style="max-height: 300px; overflow-y: auto;">
+            <div id="recentActivities">
+                <div class="empty-mini">
+                    <div class="skeleton-line w80"></div>
+                    <div class="skeleton-line w60"></div>
+                    <div class="skeleton-line w40"></div>
                 </div>
             </div>
         </div>
@@ -525,36 +883,38 @@
 </div>
 
 <!-- ===== 预警区 ===== -->
-<div class="row g-4">
+<div class="section-grid section-grid-6-6">
     <!-- 逾期应收 -->
-    <div class="col-lg-6">
-        <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0" style="font-family: var(--font-display); font-weight: 600;">
-                    <i class="fa fa-exclamation-triangle" style="color: var(--color-danger);"></i> 逾期应收
-                </h6>
-                <a href="{{ url_for('finance.receivable') }}" class="text-muted" style="font-size: var(--font-size-xs);">查看全部 →</a>
+    <div class="panel-card">
+        <div class="panel-header">
+            <div class="panel-title">
+                <i class="fa fa-exclamation-triangle" style="color: #EF4444;"></i> 逾期应收
             </div>
-            <div class="card-body" style="max-height: 250px; overflow-y: auto;">
-                <div id="overdueItems">
-                    <div class="empty-mini">加载中...</div>
+            <a href="{{ url_for('finance.receivable') }}" class="panel-link">查看全部 →</a>
+        </div>
+        <div class="panel-body" style="max-height: 250px; overflow-y: auto;">
+            <div id="overdueItems">
+                <div class="empty-mini">
+                    <div class="skeleton-line w60"></div>
+                    <div class="skeleton-line w80"></div>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- 合同到期预警 -->
-    <div class="col-lg-6">
-        <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0" style="font-family: var(--font-display); font-weight: 600;">
-                    <i class="fa fa-clock" style="color: var(--color-warning);"></i> 合同到期预警
-                </h6>
-                <a href="{{ url_for('contract.contract_list') }}" class="text-muted" style="font-size: var(--font-size-xs);">查看全部 →</a>
+    <div class="panel-card">
+        <div class="panel-header">
+            <div class="panel-title">
+                <i class="fa fa-clock" style="color: #F59E0B;"></i> 合同到期预警
             </div>
-            <div class="card-body" style="max-height: 250px; overflow-y: auto;">
-                <div id="expiringContracts">
-                    <div class="empty-mini">加载中...</div>
+            <a href="{{ url_for('contract.contract_list') }}" class="panel-link">查看全部 →</a>
+        </div>
+        <div class="panel-body" style="max-height: 250px; overflow-y: auto;">
+            <div id="expiringContracts">
+                <div class="empty-mini">
+                    <div class="skeleton-line w60"></div>
+                    <div class="skeleton-line w80"></div>
                 </div>
             </div>
         </div>
@@ -567,53 +927,227 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 $(function() {
+    var monthlyChartInstance = null;
+    var receivablePieInstance = null;
+    var payablePieInstance = null;
+
     // 加载仪表盘数据
-    $.get('{{ url_for("admin.dashboard_stats") }}', function(res) {
-        if (!res.success) return;
-        var d = res.data;
+    loadDashboard();
 
-        // 统计卡片
-        animateValue($('#statReceivable')[0], d.receivable.unpaid + d.receivable.partial, 800);
-        var recvSub = [];
-        if (d.receivable.unpaid_count > 0) recvSub.push('未收' + d.receivable.unpaid_count + '笔');
-        if (d.receivable.partial_count > 0) recvSub.push('部分收' + d.receivable.partial_count + '笔');
-        $('#statReceivableSub').text(recvSub.join(' | ') || '无待收');
+    function loadDashboard() {
+        $.get('{{ url_for("admin.dashboard_stats") }}')
+        .done(function(res) {
+            if (!res.success) {
+                console.error('dashboard_stats API返回失败:', res);
+                showError('数据加载失败');
+                return;
+            }
+            var d = res.data;
+            renderKPICards(d);
+            renderPieCharts(d);
+            renderChart(d.chart);
+            renderActivities(d.recent_activities);
+            renderOverdue(d.overdue_items);
+            renderContracts(d.expiring_contracts);
+            try { renderPlotData(d.plot); } catch(e) {
+                console.error('renderPlotData error:', e);
+                $('#plotTypeCards').html('<div class="text-center text-danger py-4">地块数据渲染失败</div>');
+            }
+            try { renderElectricityData(d.electricity); } catch(e) {
+                console.error('renderElectricityData error:', e);
+            }
+            try { renderScaleToday(d.scale); } catch(e) {
+                console.error('renderScaleToday error:', e);
+            }
+        })
+        .fail(function(xhr) {
+            console.error('dashboard_stats API请求失败:', xhr.status);
+            var errMsg = '数据加载失败';
+            if (xhr.status === 500) errMsg = '服务器内部错误(500)';
+            else if (xhr.status === 0) errMsg = '网络连接失败';
+            showError(errMsg);
+        });
+    }
 
-        animateValue($('#statPayable')[0], d.payable.unpaid, 800);
-        $('#statPayableSub').text(d.payable.unpaid > 0 ? '待付款项' : '无待付');
+    function showError(msg) {
+        $('#recentActivities').html('<div class="empty-mini text-danger">' + msg + '</div>');
+        $('#overdueItems').html('<div class="empty-mini text-danger">' + msg + '</div>');
+        $('#expiringContracts').html('<div class="empty-mini text-danger">' + msg + '</div>');
+        $('#plotTypeCards').html('<div class="text-center text-danger py-4">' + msg + '</div>');
+    }
 
-        animateValue($('#statToday')[0], d.today.net, 800);
-        var todaySub = '收' + formatNumber(d.today.income) + ' / 支' + formatNumber(d.today.expense);
-        $('#statTodaySub').text(todaySub);
+    // ===== KPI 卡片渲染 =====
+    function renderKPICards(d) {
+        // 地块总览
+        animateValue($('#plotRentRateKpi')[0], d.merchant.rented_plots > 0 ? parseFloat(d.merchant.rented_plots) / parseFloat(d.merchant.total_plots) * 100 : 0, 800, false);
+        var plotRate = d.merchant.total_plots > 0 ? (d.merchant.rented_plots / d.merchant.total_plots * 100).toFixed(1) : 0;
+        $('#plotRentRateKpi').text(plotRate);
+        $('#plotKpiSub').html('<span class="kpi-sub-dot"></span><span>已租 ' + d.merchant.rented_plots + ' / 空闲 ' + (d.merchant.total_plots - d.merchant.rented_plots) + '</span>');
+        if (parseFloat(plotRate) >= 80) {
+            $('#plotTrend').removeClass('neutral down').addClass('up').html('<i class="fa fa-arrow-up"></i> 高租');
+        } else if (parseFloat(plotRate) < 50) {
+            $('#plotTrend').removeClass('neutral up').addClass('down').html('<i class="fa fa-arrow-down"></i> 低租');
+        } else {
+            $('#plotTrend').removeClass('up down').addClass('neutral').html(plotRate + '%');
+        }
 
-        $('#statMerchant').text(d.merchant.active_count);
-        $('#statMerchantSub').text('地块' + d.merchant.rented_plots + '/' + d.merchant.total_plots + ' 空置率' + d.merchant.vacancy_rate + '%');
+        // 在租商户
+        animateValue($('#statMerchant')[0], d.merchant.active_count, 800, false);
+        $('#statMerchantSub').html('<span class="kpi-sub-dot"></span><span>地块 ' + d.merchant.rented_plots + '/' + d.merchant.total_plots + ' · 空置率 ' + d.merchant.vacancy_rate + '%</span>');
+        if (d.merchant.vacancy_rate < 20) {
+            $('#merchantTrend').removeClass('neutral down').addClass('up').html('<i class="fa fa-arrow-up"></i> 高租');
+        } else {
+            $('#merchantTrend').removeClass('up down').addClass('neutral').html(d.merchant.vacancy_rate + '%空置');
+        }
 
-        // 月度收支柱形图
-        renderChart(d.chart);
+        // 最近电费
+        var elecMonth = d.electricity ? (d.electricity.latest_month || '') : '';
+        var elecUsage = d.electricity ? (d.electricity.total_usage || 0) : 0;
+        var elecAmount = d.electricity ? (d.electricity.total_amount || 0) : 0;
+        animateValue($('#scaleInboundKpi')[0], Math.round(elecAmount), 800, true);
+        $('#scaleKpiSub').html('<span class="kpi-sub-dot"></span><span>' + (elecMonth || '暂无') + ' · 用电 ' + formatNumber(elecUsage) + ' kWh</span>');
+        if (elecAmount > 0) {
+            $('#scaleTrend').removeClass('neutral down').addClass('up').html('<i class="fa fa-bolt"></i> ' + elecMonth);
+        } else {
+            $('#scaleTrend').removeClass('up down').addClass('neutral').html('暂无');
+        }
 
-        // 最近动态
-        renderActivities(d.recent_activities);
+        // 今日净收
+        animateValue($('#statToday')[0], d.today.net, 800, true);
+        var todaySub = '收 ' + formatNumber(d.today.income) + ' / 支 ' + formatNumber(d.today.expense);
+        $('#statTodaySub').html('<span class="kpi-sub-dot"></span><span>' + todaySub + '</span>');
+        if (d.today.net > 0) {
+            $('#todayTrend').removeClass('neutral down').addClass('up').html('<i class="fa fa-arrow-up"></i> 盈余');
+        } else if (d.today.net < 0) {
+            $('#todayTrend').removeClass('neutral up').addClass('down').html('<i class="fa fa-arrow-down"></i> 支出');
+        } else {
+            $('#todayTrend').removeClass('up down').addClass('neutral').html('--');
+        }
+    }
 
-        // 逾期应收
-        renderOverdue(d.overdue_items);
+    // ===== 环形饼状图 =====
+    function renderPieCharts(d) {
+        var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
 
-        // 合同到期
-        renderContracts(d.expiring_contracts);
+        // 应收账款
+        var recvUnpaid = d.receivable.unpaid + d.receivable.partial;
+        var recvCollected = d.receivable.collected;
+        var recvTotal = recvUnpaid + recvCollected;
+        var recvRate = recvTotal > 0 ? (recvCollected / recvTotal * 100).toFixed(1) : 0;
 
-        // 地块数据
-        renderPlotData(d.plot);
-    });
+        $('#recvPieUnpaid').text('¥' + formatNumber(recvUnpaid));
+        $('#recvPieCollected').text('¥' + formatNumber(recvCollected));
+        $('#recvPieUnpaidRate').text((recvTotal > 0 ? (recvUnpaid / recvTotal * 100).toFixed(1) : 0) + '%');
+        $('#recvPieCollectedRate').text(recvRate + '%');
+        $('#recvPieCenter').text(recvRate + '%');
 
+        if (receivablePieInstance) receivablePieInstance.destroy();
+        var recvCtx = document.getElementById('receivablePieChart');
+        if (recvCtx) {
+            receivablePieInstance = new Chart(recvCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['待收', '已收'],
+                    datasets: [{
+                        data: [Math.max(recvUnpaid, 0), Math.max(recvCollected, 0)],
+                        backgroundColor: ['#6366F1', '#06B6D4'],
+                        hoverBackgroundColor: ['#818CF8', '#22D3EE'],
+                        borderWidth: 0,
+                        spacing: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    cutout: '68%',
+                    animation: { duration: 1200, easing: 'easeOutQuart', animateRotate: true },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: isDark ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)',
+                            titleColor: isDark ? '#E2E8F0' : '#1A1F2E',
+                            bodyColor: isDark ? '#8B92A5' : '#6B7280',
+                            borderColor: isDark ? '#374151' : '#E2E5EB',
+                            borderWidth: 1,
+                            cornerRadius: 10,
+                            padding: 12,
+                            callbacks: {
+                                label: function(ctx) {
+                                    return ctx.label + ': ¥' + formatNumber(ctx.raw);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 应付账款
+        var payUnpaid = d.payable.unpaid;
+        var payPaid = d.payable.paid;
+        var payTotal = payUnpaid + payPaid;
+        var payRate = payTotal > 0 ? (payPaid / payTotal * 100).toFixed(1) : 0;
+
+        $('#payPieUnpaid').text('¥' + formatNumber(payUnpaid));
+        $('#payPiePaid').text('¥' + formatNumber(payPaid));
+        $('#payPieUnpaidRate').text((payTotal > 0 ? (payUnpaid / payTotal * 100).toFixed(1) : 0) + '%');
+        $('#payPiePaidRate').text(payRate + '%');
+        $('#payPieCenter').text(payRate + '%');
+
+        if (payablePieInstance) payablePieInstance.destroy();
+        var payCtx = document.getElementById('payablePieChart');
+        if (payCtx) {
+            payablePieInstance = new Chart(payCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['待付', '已付'],
+                    datasets: [{
+                        data: [Math.max(payUnpaid, 0), Math.max(payPaid, 0)],
+                        backgroundColor: ['#EF4444', '#34D399'],
+                        hoverBackgroundColor: ['#F87171', '#6EE7B7'],
+                        borderWidth: 0,
+                        spacing: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    cutout: '68%',
+                    animation: { duration: 1200, easing: 'easeOutQuart', animateRotate: true },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: isDark ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)',
+                            titleColor: isDark ? '#E2E8F0' : '#1A1F2E',
+                            bodyColor: isDark ? '#8B92A5' : '#6B7280',
+                            borderColor: isDark ? '#374151' : '#E2E5EB',
+                            borderWidth: 1,
+                            cornerRadius: 10,
+                            padding: 12,
+                            callbacks: {
+                                label: function(ctx) {
+                                    return ctx.label + ': ¥' + formatNumber(ctx.raw);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    // ===== 月度收支柱形图 =====
     function renderChart(chartData) {
         var ctx = document.getElementById('monthlyChart');
         if (!ctx) return;
 
+        if (monthlyChartInstance) monthlyChartInstance.destroy();
+
         var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        var gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+        var gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
         var textColor = isDark ? '#8B92A5' : '#6B7280';
 
-        new Chart(ctx, {
+        monthlyChartInstance = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: chartData.months,
@@ -621,44 +1155,69 @@ $(function() {
                     {
                         label: '收入',
                         data: chartData.income,
-                        backgroundColor: 'rgba(46, 204, 113, 0.7)',
-                        borderColor: '#2ECC71',
-                        borderWidth: 1,
-                        borderRadius: 4,
-                        barPercentage: 0.7
+                        backgroundColor: function(context) {
+                            var chart = context.chart;
+                            var ctx2 = chart.ctx;
+                            var area = chart.chartArea;
+                            if (!area) return 'rgba(6, 182, 212, 0.6)';
+                            var gradient = ctx2.createLinearGradient(0, area.bottom, 0, area.top);
+                            gradient.addColorStop(0, 'rgba(6, 182, 212, 0.3)');
+                            gradient.addColorStop(1, 'rgba(6, 182, 212, 0.8)');
+                            return gradient;
+                        },
+                        borderColor: '#06B6D4',
+                        borderWidth: 0,
+                        borderRadius: 6,
+                        barPercentage: 0.6
                     },
                     {
                         label: '支出',
                         data: chartData.expense,
-                        backgroundColor: 'rgba(231, 76, 60, 0.7)',
-                        borderColor: '#E74C3C',
-                        borderWidth: 1,
-                        borderRadius: 4,
-                        barPercentage: 0.7
+                        backgroundColor: function(context) {
+                            var chart = context.chart;
+                            var ctx2 = chart.ctx;
+                            var area = chart.chartArea;
+                            if (!area) return 'rgba(239, 68, 68, 0.6)';
+                            var gradient = ctx2.createLinearGradient(0, area.bottom, 0, area.top);
+                            gradient.addColorStop(0, 'rgba(239, 68, 68, 0.2)');
+                            gradient.addColorStop(1, 'rgba(239, 68, 68, 0.7)');
+                            return gradient;
+                        },
+                        borderColor: '#EF4444',
+                        borderWidth: 0,
+                        borderRadius: 6,
+                        barPercentage: 0.6
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                animation: {
+                    duration: 1000,
+                    easing: 'easeOutQuart'
+                },
                 plugins: {
                     legend: {
                         position: 'top',
+                        align: 'end',
                         labels: {
                             color: textColor,
                             usePointStyle: true,
                             pointStyle: 'rectRounded',
-                            font: { size: 12, family: "'DM Sans', sans-serif" }
+                            font: { size: 12, family: "'DM Sans', sans-serif" },
+                            padding: 16
                         }
                     },
                     tooltip: {
-                        backgroundColor: isDark ? '#2A3040' : '#fff',
-                        titleColor: isDark ? '#E8EAF0' : '#1A1F2E',
+                        backgroundColor: isDark ? 'rgba(30, 30, 46, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                        titleColor: isDark ? '#E2E8F0' : '#1A1F2E',
                         bodyColor: isDark ? '#8B92A5' : '#6B7280',
-                        borderColor: isDark ? '#3A4255' : '#E2E5EB',
+                        borderColor: isDark ? '#374151' : '#E2E5EB',
                         borderWidth: 1,
-                        cornerRadius: 8,
-                        padding: 12,
+                        cornerRadius: 10,
+                        padding: 14,
+                        titleFont: { weight: '600' },
                         callbacks: {
                             label: function(ctx) {
                                 return ctx.dataset.label + ': ¥' + formatNumber(ctx.raw);
@@ -669,16 +1228,20 @@ $(function() {
                 scales: {
                     x: {
                         grid: { display: false },
-                        ticks: { color: textColor, font: { size: 11 } }
+                        border: { display: false },
+                        ticks: { color: textColor, font: { size: 12 } }
                     },
                     y: {
-                        grid: { color: gridColor },
+                        grid: { color: gridColor, drawBorder: false },
+                        border: { display: false },
                         ticks: {
                             color: textColor,
                             font: { size: 11 },
+                            padding: 8,
                             callback: function(v) {
-                                if (v >= 10000) return '¥' + (v / 10000).toFixed(0) + '万';
-                                return '¥' + v;
+                                if (v >= 10000) return (v / 10000).toFixed(0) + '万';
+                                if (v >= 1000) return (v / 1000).toFixed(0) + 'k';
+                                return v;
                             }
                         }
                     }
@@ -687,17 +1250,18 @@ $(function() {
         });
     }
 
+    // ===== 最近动态 =====
     function renderActivities(items) {
         var $container = $('#recentActivities');
         if (!items || items.length === 0) {
-            $container.html('<div class="empty-mini">暂无动态</div>');
+            $container.html('<div class="empty-mini"><i class="fa fa-check-circle" style="color: #06B6D4;"></i> 暂无动态</div>');
             return;
         }
         var html = '';
-        items.forEach(function(item) {
+        items.forEach(function(item, idx) {
             var dirClass = item.direction === '收入' ? 'income' : 'expense';
             var sign = item.direction === '收入' ? '+' : '-';
-            html += '<div class="activity-item">' +
+            html += '<div class="activity-item" style="animation: fadeSlideUp 0.4s ease ' + (idx * 0.06) + 's both;">' +
                 '<div class="activity-dot ' + dirClass + '"></div>' +
                 '<div class="activity-content">' +
                     '<div class="activity-text">' +
@@ -711,15 +1275,16 @@ $(function() {
         $container.html(html);
     }
 
+    // ===== 逾期应收 =====
     function renderOverdue(items) {
         var $container = $('#overdueItems');
         if (!items || items.length === 0) {
-            $container.html('<div class="empty-mini"><i class="fa fa-check-circle" style="color: var(--color-success);"></i> 无逾期应收</div>');
+            $container.html('<div class="empty-mini"><i class="fa fa-check-circle" style="color: #06B6D4;"></i> 无逾期应收</div>');
             return;
         }
         var html = '';
-        items.forEach(function(item) {
-            html += '<div class="alert-item">' +
+        items.forEach(function(item, idx) {
+            html += '<div class="alert-item" style="animation: fadeSlideUp 0.4s ease ' + (idx * 0.06) + 's both;">' +
                 '<div>' +
                     '<div style="font-weight: 500;">' + escapeHtml(item.customer || item.desc) + '</div>' +
                     '<div class="alert-date">到期: ' + item.due_date + '</div>' +
@@ -730,18 +1295,19 @@ $(function() {
         $container.html(html);
     }
 
+    // ===== 合同到期预警 =====
     function renderContracts(items) {
         var $container = $('#expiringContracts');
         if (!items || items.length === 0) {
-            $container.html('<div class="empty-mini"><i class="fa fa-check-circle" style="color: var(--color-success);"></i> 无即将到期合同</div>');
+            $container.html('<div class="empty-mini"><i class="fa fa-check-circle" style="color: #06B6D4;"></i> 无即将到期合同</div>');
             return;
         }
         var html = '';
-        items.forEach(function(item) {
-            html += '<div class="contract-item">' +
+        items.forEach(function(item, idx) {
+            html += '<div class="contract-item" style="animation: fadeSlideUp 0.4s ease ' + (idx * 0.06) + 's both;">' +
                 '<div>' +
                     '<div class="contract-merchant">' + escapeHtml(item.merchant) + '</div>' +
-                    '<div style="font-size: var(--font-size-xs); color: var(--color-text-light);">' + item.number + '</div>' +
+                    '<div style="font-size: 0.72rem; color: var(--color-text-light);">' + item.number + '</div>' +
                 '</div>' +
                 '<div class="contract-date"><i class="fa fa-clock"></i> ' + item.end_date + '</div>' +
             '</div>';
@@ -749,21 +1315,9 @@ $(function() {
         $container.html(html);
     }
 
+    // ===== 地块数据 =====
     function renderPlotData(plot) {
         if (!plot) return;
-        // 总览
-        $('#plotTotal').text(plot.total);
-        $('#plotRented').text(plot.rented);
-        $('#plotAvailable').text(plot.available);
-        var rentRate = plot.total > 0 ? (plot.rented / plot.total * 100).toFixed(1) : 0;
-        $('#plotRentRate').text(rentRate);
-
-        // 弧形仪表盘动画
-        var arcLength = 157; // 半圆弧长
-        var offset = arcLength - (arcLength * rentRate / 100);
-        setTimeout(function() {
-            $('#plotGaugeArc').css('stroke-dashoffset', offset);
-        }, 200);
 
         // 类型卡片
         var $container = $('#plotTypeCards');
@@ -772,13 +1326,7 @@ $(function() {
             return;
         }
 
-        var typeIcons = {
-            'cement': 'fa-road',
-            'steel': 'fa-industry',
-            'brick': 'fa-building',
-            'other': 'fa-map-marker'
-        };
-
+        var typeIcons = { 'cement': 'fa-road', 'steel': 'fa-industry', 'brick': 'fa-building', 'other': 'fa-map-marker' };
         var html = '';
         plot.types.forEach(function(t, idx) {
             var rate = t.total_area > 0 ? (t.rented_area / t.total_area * 100).toFixed(1) : 0;
@@ -810,13 +1358,83 @@ $(function() {
         });
         $container.html(html);
 
-        // 进度条延迟动画
         setTimeout(function() {
             $('.plot-type-bar-fill').each(function() {
                 $(this).css('width', $(this).data('target') + '%');
             });
         }, 300);
     }
+
+    // ===== 最近电费数据 =====
+    function renderElectricityData(elec) {
+        if (!elec) {
+            $('#electricityDetail').html('<div class="text-center text-muted py-3">暂无电费数据</div>');
+            $('#elecMonthLabel').text('');
+            return;
+        }
+
+        var month = elec.latest_month || '暂无';
+        var usage = elec.total_usage || 0;
+        var amount = elec.total_amount || 0;
+
+        $('#elecMonthLabel').text(month ? month + ' 月' : '');
+
+        if (!month) {
+            $('#electricityDetail').html('<div class="text-center text-muted py-3"><i class="fa fa-bolt fa-2x mb-2" style="opacity:0.3;"></i><p>暂无抄表数据</p></div>');
+            return;
+        }
+
+        var html = '<div class="row justify-content-center" style="gap: 40px;">' +
+            '<div class="text-center" style="min-width: 180px;">' +
+                '<div style="font-size: 13px; color: var(--bs-secondary-color); margin-bottom: 4px;">所属月份</div>' +
+                '<div style="font-size: 28px; font-weight: 700; font-family: var(--font-mono); color: #165DFF;">' + escapeHtml(month) + '</div>' +
+            '</div>' +
+            '<div class="text-center" style="min-width: 180px;">' +
+                '<div style="font-size: 13px; color: var(--bs-secondary-color); margin-bottom: 4px;">用电总量</div>' +
+                '<div style="font-size: 28px; font-weight: 700; font-family: var(--font-mono); color: #06B6D4;">' + formatNumber(usage) + ' <span style="font-size: 14px; font-weight: 400;">kWh</span></div>' +
+            '</div>' +
+            '<div class="text-center" style="min-width: 180px;">' +
+                '<div style="font-size: 13px; color: var(--bs-secondary-color); margin-bottom: 4px;">总电费</div>' +
+                '<div style="font-size: 28px; font-weight: 700; font-family: var(--font-mono); color: #F59E0B;">¥' + formatNumber(amount) + '</div>' +
+            '</div>' +
+        '</div>';
+        $('#electricityDetail').html(html);
+    }
+
+    // ===== 当日过磅数据 =====
+    function renderScaleToday(scale) {
+        if (!scale) {
+            $('#scaleVehicles').text('0');
+            $('#scaleWeight').text('0');
+            $('#scaleFee').text('0');
+            return;
+        }
+        // 总车数（整数跳动）
+        animateValue($('#scaleVehicles')[0], scale.vehicles || 0, 800, false);
+        // 总重量（NetWeight单位是公斤，转吨显示）
+        var weightTon = (scale.weight || 0) / 1000;
+        $('#scaleWeight').text(formatNumber(weightTon));
+        // 总磅费（金额跳动）
+        animateValue($('#scaleFee')[0], scale.fee || 0, 800, true);
+    }
+
+    // ===== 刷新按钮交互 =====
+    $('#refreshChart, #refreshScale').on('click', function() {
+        var $icon = $(this).find('i');
+        $icon.addClass('spinning');
+        loadDashboard();
+        setTimeout(function() { $icon.removeClass('spinning'); }, 1500);
+    });
+
+    // ===== 主题变化时重建图表 =====
+    var observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(m) {
+            if (m.attributeName === 'data-theme') {
+                loadDashboard();
+            }
+        });
+    });
+    observer.observe(document.documentElement, { attributes: true });
 });
 </script>
 {% endblock %}

@@ -2,14 +2,11 @@
 
 {% block title %}添加水电表{% endblock %}
 
-{% block page_header %}
-    <i class="fa fa-plus"></i> 添加水电表
-{% endblock %}
-
 {% block breadcrumb %}
-<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
-<li class="breadcrumb-item"><a href="{{ url_for('utility.utility_list') }}">水电计费</a></li>
-<li class="breadcrumb-item active">添加水电表</li>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<a href="{{ url_for('utility.utility_list') }}" class="breadcrumb-chip">水电计费</a>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">添加水电表</span>
 {% endblock %}
 
 {% block content %}

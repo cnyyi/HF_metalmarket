@@ -175,7 +175,7 @@ class MerchantService:
         # 使用 SCOPE_IDENTITY() 获取新创建的商户 ID，避免 ODBC 驱动对 OUTPUT 语法的兼容性问题
         insert_query = """
             INSERT INTO Merchant (MerchantName, LegalPerson, ContactPerson, Phone, MerchantType, BusinessLicense, TaxRegistration, Address, Description, Status, CreateTime, BusinessType)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '正常', ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, N'正常', ?, ?)
         """
 
         from utils.database import execute_update, DBConnection

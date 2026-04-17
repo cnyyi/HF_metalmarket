@@ -307,7 +307,7 @@ class FinanceService:
                        p.Amount, p.PaidAmount,
                        p.RemainingAmount, p.DueDate, p.Status,
                        p.Description, p.CreateTime, p.UpdateTime,
-                       p.CustomerType, p.CustomerID,
+                       p.CustomerType, p.CustomerID, p.ExpenseOrderID,
                        CASE
                            WHEN p.CustomerType = 'Customer' THEN c.CustomerName
                            WHEN p.CustomerType = 'Merchant' THEN m.MerchantName
@@ -368,6 +368,7 @@ class FinanceService:
                     'status': row.Status,
                     'description': row.Description or '',
                     'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                    'expense_order_id': row.ExpenseOrderID,
                 })
 
             total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 0

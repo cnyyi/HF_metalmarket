@@ -2,13 +2,11 @@
 
 {% block title %}用户添加{% endblock %}
 
-{% block page_header %}
-    <i class="fa fa-user-plus"></i> 添加用户
-{% endblock %}
-
 {% block breadcrumb %}
-<li class="breadcrumb-item"><a href="{{ url_for('user.user_list') }}">用户管理</a></li>
-<li class="breadcrumb-item active">添加用户</li>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<a href="{{ url_for('user.user_list') }}" class="breadcrumb-chip">用户管理</a>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">添加用户</span>
 {% endblock %}
 
 {% block content %}

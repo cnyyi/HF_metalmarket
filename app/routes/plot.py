@@ -391,6 +391,21 @@ def list_data():
         search = request.args.get('search', '').strip()
         status = request.args.get('status', '').strip()
         plot_type = request.args.get('plot_type', '').strip()
+        rent_status = request.args.get('rent_status', '').strip()
+        sort_by = request.args.get('sort_by', '').strip()
+        sort_dir = request.args.get('sort_dir', 'asc').strip().lower()
+        
+        allowed_sort = {
+            'plot_code': 'p.PlotNumber',
+            'plot_type': 'p.PlotType',
+            'rent_status': 'RentStatus',
+            'area': 'p.Area'
+        }
+        order_clause = 'p.CreateTime DESC'
+        if sort_by in allowed_sort:
+            col = allowed_sort[sort_by]
+            direction = 'DESC' if sort_dir == 'desc' else 'ASC'
+            order_clause = f'{col} {direction}'
         
         offset = (page - 1) * per_page
         
@@ -401,25 +416,42 @@ def list_data():
             params = []
             
             if search:
-                where_clause += " AND (PlotNumber LIKE ? OR PlotName LIKE ? OR Location LIKE ?)"
+                where_clause += " AND (p.PlotNumber LIKE ? OR p.PlotName LIKE ? OR p.Location LIKE ?)"
                 search_param = f"%{search}%"
                 params.extend([search_param, search_param, search_param])
             
             if status:
-                where_clause += " AND Status = ?"
+                where_clause += " AND p.Status = ?"
                 params.append(status)
             
             if plot_type:
-                where_clause += " AND PlotType = ?"
+                where_clause += " AND p.PlotType = ?"
                 params.append(plot_type)
             
-            cursor.execute(f"SELECT COUNT(*) FROM Plot {where_clause}", params)
+            # 租赁状态筛选（注意：StartDate/EndDate 是 DATE 类型，需用 CAST(GETDATE() AS DATE) 比较）
+            if rent_status == '租赁中':
+                where_clause += " AND EXISTS (SELECT 1 FROM ContractPlot cp INNER JOIN Contract c ON cp.ContractID = c.ContractID WHERE cp.PlotID = p.PlotID AND c.StartDate <= CAST(GETDATE() AS DATE) AND c.EndDate >= CAST(GETDATE() AS DATE) AND c.Status <> N'已终止')"
+            elif rent_status == '空闲':
+                where_clause += " AND NOT EXISTS (SELECT 1 FROM ContractPlot cp INNER JOIN Contract c ON cp.ContractID = c.ContractID WHERE cp.PlotID = p.PlotID AND c.StartDate <= CAST(GETDATE() AS DATE) AND c.EndDate >= CAST(GETDATE() AS DATE) AND c.Status <> N'已终止')"
+            
+            cursor.execute(f"""
+                SELECT COUNT(*) FROM Plot p {where_clause}
+            """, params)
             total = cursor.fetchone()[0]
             
             cursor.execute(f"""
-                SELECT PlotID, PlotNumber, PlotName, PlotType, Area, UnitPrice, MonthlyRent, YearlyRent, Location, Status, ImagePath, CreateTime
-                FROM Plot {where_clause}
-                ORDER BY CreateTime DESC
+                SELECT p.PlotID, p.PlotNumber, p.PlotName, p.PlotType, p.Area, p.UnitPrice, 
+                       p.MonthlyRent, p.YearlyRent, p.Location, p.Status, p.ImagePath, p.CreateTime,
+                       CASE WHEN EXISTS (
+                           SELECT 1 FROM ContractPlot cp 
+                           INNER JOIN Contract c ON cp.ContractID = c.ContractID 
+                           WHERE cp.PlotID = p.PlotID 
+                             AND c.StartDate <= CAST(GETDATE() AS DATE) 
+                             AND c.EndDate >= CAST(GETDATE() AS DATE) 
+                             AND c.Status <> N'已终止'
+                       ) THEN N'租赁中' ELSE N'空闲' END AS RentStatus
+                FROM Plot p {where_clause}
+                ORDER BY {order_clause}
                 OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
             """, params + [offset, per_page])
             
@@ -434,6 +466,7 @@ def list_data():
                 'yearly_rent': float(r.YearlyRent) if r.YearlyRent else 0,
                 'location': r.Location,
                 'status': r.Status,
+                'rent_status': r.RentStatus,
                 'image_path': r.ImagePath,
                 'create_time': r.CreateTime.strftime('%Y-%m-%d %H:%M:%S') if r.CreateTime else None
             } for r in cursor.fetchall()]

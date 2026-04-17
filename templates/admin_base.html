@@ -50,7 +50,7 @@
 
             {% if current_user.is_authenticated %}
             <!-- 市场管理 -->
-            {% if current_user.has_permission('plot_manage') or current_user.has_permission('merchant_manage') or current_user.has_permission('contract_manage') or current_user.has_permission('utility_manage') or current_user.has_permission('scale_manage') or current_user.has_permission('dorm_manage') %}
+            {% if current_user.has_permission('plot_manage') or current_user.has_permission('merchant_manage') or current_user.has_permission('contract_manage') or current_user.has_permission('utility_manage') or current_user.has_permission('scale_manage') or current_user.has_permission('dorm_manage') or current_user.has_permission('expense_manage') %}
             <div class="sidebar-section">
                 <div class="sidebar-section-title">市场管理</div>
                 {% if current_user.has_permission('plot_manage') %}
@@ -81,6 +81,12 @@
                 <a class="sidebar-item {% if request.endpoint and 'scale' in request.endpoint %}active{% endif %}" href="{{ url_for('scale.scale_list') }}">
                     <i class="fa fa-balance-scale"></i>
                     <span class="sidebar-item-text">磅秤数据</span>
+                </a>
+                {% endif %}
+                {% if current_user.has_permission('expense_manage') %}
+                <a class="sidebar-item {% if request.endpoint and 'expense' in request.endpoint %}active{% endif %}" href="{{ url_for('expense.index') }}">
+                    <i class="fa fa-file-invoice-dollar"></i>
+                    <span class="sidebar-item-text">费用单</span>
                 </a>
                 {% endif %}
                 {% if current_user.has_permission('dorm_manage') %}
@@ -201,15 +207,10 @@
                 <i class="fa fa-bars"></i>
             </button>
             <!-- 内联面包屑 -->
-            <div class="topbar-breadcrumb" id="topbarBreadcrumb">
-                <a href="{{ url_for('admin.index') }}"><i class="fa fa-home"></i></a>
-                <span class="separator">/</span>
-                <span class="current" id="breadcrumbCurrent">{% block page_header_text %}{% endblock %}</span>
-            </div>
-            <!-- 隐藏的面包屑数据（供JS解析旧格式） -->
-            <div style="display:none" id="breadcrumbData">
+            <nav class="topbar-breadcrumb" id="topbarBreadcrumb" aria-label="面包屑导航">
+                <a href="{{ url_for('admin.index') }}" class="breadcrumb-home"><i class="fa fa-home"></i> 工作台</a>
                 {% block breadcrumb %}{% endblock %}
-            </div>
+            </nav>
         </div>
         <div class="topbar-right">
             <!-- 暗色模式切换 -->
@@ -255,13 +256,6 @@
     <!-- ===== 主内容区 ===== -->
     <main class="main-content">
         <div class="main-content-inner">
-            <!-- 页面标题区域 -->
-            {% block page_header_wrapper %}
-            <div class="page-header">
-                <h2>{% block page_header %}{% endblock %}</h2>
-            </div>
-            {% endblock %}
-
             <!-- Flash 消息数据（供 admin.js 解析） -->
             <script type="application/json" id="flashMessagesData">{{ get_flashed_messages(with_categories=true) | tojson }}</script>
             

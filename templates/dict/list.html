@@ -2,12 +2,9 @@
 
 {% block title %}字典管理{% endblock %}
 
-{% block page_header %}
-    <i class="fa fa-book"></i> 字典管理
-{% endblock %}
-
 {% block breadcrumb %}
-<li class="breadcrumb-item active">字典管理</li>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">字典管理</span>
 {% endblock %}
 
 {% block content %}
@@ -287,8 +284,8 @@ function renderTable(data) {
 
         if ($('#checkAll').length > 0) {
             tr += '<td class="table-actions">';
-            tr += '<button type="button" class="btn btn-sm btn-warning" title="编辑" onclick="openEditModal(' + item.dict_id + ')"><i class="fa fa-edit"></i></button> ';
-            tr += '<button type="button" class="btn btn-sm btn-danger" title="删除" onclick="deleteItem(' + item.dict_id + ')"><i class="fa fa-trash"></i></button>';
+            tr += '<button type="button" class="btn btn-sm btn-warning" title="编辑" onclick="openEditModal(' + item.dict_id + ')"><i class="fa fa-edit"></i> 编辑</button> ';
+            tr += '<button type="button" class="btn btn-sm btn-danger" title="删除" onclick="deleteItem(' + item.dict_id + ')"><i class="fa fa-trash"></i> 删除</button>';
             tr += '</td>';
         }
 

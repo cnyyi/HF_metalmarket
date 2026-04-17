@@ -1,0 +1,28 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - generic [ref=e6]: 宏发金属交易市场
+    - generic [ref=e7]: HF Metal Trading Market
+    - generic [ref=e8]: 铸造信赖 · 金属为证
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - heading "登录系统" [level=2] [ref=e12]
+        - paragraph [ref=e13]: 宏发金属交易市场管理系统
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - generic [ref=e16]: 用户名
+          - textbox "用户名" [ref=e19]:
+            - /placeholder: 请输入用户名
+        - generic [ref=e20]:
+          - generic [ref=e21]: 密码
+          - textbox "密码" [ref=e24]:
+            - /placeholder: 请输入密码
+        - generic [ref=e25]:
+          - checkbox "记住我" [ref=e26]
+          - generic [ref=e27]: 记住我
+        - button "登录" [ref=e28] [cursor=pointer]: 登录
+        - paragraph [ref=e30]:
+          - text: 还没有账号？
+          - link "立即注册" [ref=e31] [cursor=pointer]:
+            - /url: /auth/register
+    - generic [ref=e32]: 2026 宏发金属交易市场. 保留所有权利.

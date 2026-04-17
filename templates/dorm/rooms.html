@@ -3,12 +3,10 @@
 {% block title %}宿舍房间管理{% endblock %}
 
 {% block breadcrumb %}
-<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">首页</a></li>
-<li class="breadcrumb-item active">宿舍房间</li>
-{% endblock %}
-
-{% block page_header %}
-    <i class="fa fa-bed"></i> 宿舍房间管理
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-chip">宿舍管理</span>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">宿舍房间</span>
 {% endblock %}
 
 {% block content %}

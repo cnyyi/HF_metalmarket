@@ -1,0 +1,12 @@
+{
+  "access_db_path": "D:\\BaiduSyncdisk\\HF_metalmarket\\Database.mdb",
+  "access_password": "www.fzatw.com",
+  "sql_server": "yyi.myds.me",
+  "sql_database": "hf_metalmarket",
+  "sql_user": "sa",
+  "sql_password": "yyI.123212",
+  "default_scale_id": 1,
+  "sync_interval": 60,
+  "only_finished": true,
+  "log_level": "INFO"
+}

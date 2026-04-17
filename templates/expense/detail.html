@@ -1,0 +1,218 @@
+{% extends "admin_base.html" %}
+
+{% block title %}费用单详情{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<a href="{{ url_for('expense.index') }}" class="breadcrumb-chip">费用单</a>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">费用单详情</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.detail-header { background: var(--bs-primary-bg-subtle); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+.detail-field { margin-bottom: 8px; }
+.detail-field .label { color: var(--bs-secondary-color); font-size: 13px; }
+.detail-field .value { font-weight: 500; font-size: 15px; }
+.payable-status { font-size: 12px; padding: 2px 8px; border-radius: 10px; }
+.payable-status.unpaid { background: #fee2e2; color: #dc2626; }
+.payable-status.partial { background: #fef3c7; color: #d97706; }
+.payable-status.paid { background: #d1fae5; color: #059669; }
+.summary-card { border-radius: 10px; text-align: center; padding: 16px; }
+.summary-card .amount { font-size: 24px; font-weight: 700; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="loadingHint" class="text-center text-muted py-5">
+    <i class="fa fa-spinner fa-spin fa-2x"></i>
+    <p class="mt-2">加载中...</p>
+</div>
+
+<div id="detailContent" style="display:none;">
+    <!-- 主表信息 -->
+    <div class="detail-header">
+        <div class="row">
+            <div class="col-md-8">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="detail-field">
+                            <div class="label">单号</div>
+                            <div class="value" id="orderNo">-</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="detail-field">
+                            <div class="label">费用大类</div>
+                            <div class="value"><span class="badge bg-info" id="expenseCategory">-</span></div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="detail-field">
+                            <div class="label">供应商/收款方</div>
+                            <div class="value" id="vendorName">-</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="detail-field">
+                            <div class="label">费用日期</div>
+                            <div class="value" id="orderDate">-</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-3">
+                        <div class="detail-field">
+                            <div class="label">创建人</div>
+                            <div class="value" id="createByName">-</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="detail-field">
+                            <div class="label">创建时间</div>
+                            <div class="value" id="createTime">-</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="detail-field">
+                            <div class="label">备注</div>
+                            <div class="value" id="description">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="mb-1"><span class="text-muted">状态：</span><span class="badge bg-success" id="orderStatus">已确认</span></div>
+                <div class="fs-4 fw-bold text-primary" id="totalAmount">¥0.00</div>
+                <div class="text-muted" style="font-size:13px;">费用总金额</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 汇总卡片 -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card summary-card" style="background: #eff6ff;">
+                <div class="text-muted" style="font-size:13px;">总金额</div>
+                <div class="amount text-primary" id="sumTotal">¥0.00</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card summary-card" style="background: #fef3c7;">
+                <div class="text-muted" style="font-size:13px;">已付金额</div>
+                <div class="amount text-warning" id="sumPaid">¥0.00</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card summary-card" style="background: #fee2e2;">
+                <div class="text-muted" style="font-size:13px;">未付金额</div>
+                <div class="amount text-danger" id="sumUnpaid">¥0.00</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 明细行表格 -->
+    <div class="card">
+        <div class="card-header">
+            <h6 class="mb-0"><i class="fa fa-list"></i> 费用明细</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>序号</th>
+                            <th>费用项</th>
+                            <th>明细描述</th>
+                            <th>金额</th>
+                            <th>人员</th>
+                            <th>作业日期</th>
+                            <th>应付状态</th>
+                            <th>已付金额</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsTableBody">
+                        <tr><td colspan="8" class="text-center text-muted">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 返回按钮 -->
+    <div class="text-end mt-3">
+        <a href="{{ url_for('expense.index') }}" class="btn btn-secondary">
+            <i class="fa fa-arrow-left"></i> 返回列表
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(function() {
+    var orderId = {{ order_id }};
+
+    $.get('{{ url_for("expense.detail_data", order_id=0) }}'.replace('/0', '/' + orderId), function(res) {
+        if (!res.success) {
+            showToast(res.message || '加载失败', 'danger');
+            $('#loadingHint').html('<p class="text-danger">' + escapeHtml(res.message || '加载失败') + '</p>');
+            return;
+        }
+
+        var data = res.data;
+
+        // 填充主表
+        $('#orderNo').text(data.order_no);
+        $('#expenseCategory').text(data.expense_category);
+        $('#vendorName').text(data.vendor_name);
+        $('#orderDate').text(data.order_date);
+        $('#createByName').text(data.create_by_name);
+        $('#createTime').text(data.create_time);
+        $('#description').text(data.description || '-');
+        $('#orderStatus').text(data.status);
+        $('#totalAmount').text('¥' + data.total_amount.toFixed(2));
+        $('#sumTotal').text('¥' + data.total_amount.toFixed(2));
+
+        // 明细行
+        var html = '';
+        var totalPaid = 0;
+        var totalUnpaid = 0;
+        for (var i = 0; i < data.items.length; i++) {
+            var item = data.items[i];
+            var statusClass = 'unpaid';
+            var statusText = '未付款';
+            if (item.payable_status === '部分付款') { statusClass = 'partial'; statusText = '部分付款'; }
+            else if (item.payable_status === '已付款') { statusClass = 'paid'; statusText = '已付款'; }
+
+            var unpaid = item.amount - item.payable_paid_amount;
+            totalPaid += item.payable_paid_amount;
+            totalUnpaid += unpaid;
+
+            html += '<tr>' +
+                '<td>' + (i + 1) + '</td>' +
+                '<td>' + escapeHtml(item.expense_type_name) + '</td>' +
+                '<td>' + escapeHtml(item.item_description || '-') + '</td>' +
+                '<td class="text-end fw-bold">¥' + item.amount.toFixed(2) + '</td>' +
+                '<td>' + escapeHtml(item.worker_name || '-') + '</td>' +
+                '<td>' + (item.work_date || '-') + '</td>' +
+                '<td><span class="payable-status ' + statusClass + '">' + statusText + '</span></td>' +
+                '<td class="text-end">¥' + item.payable_paid_amount.toFixed(2) + '</td>' +
+                '</tr>';
+        }
+        $('#itemsTableBody').html(html);
+        $('#sumPaid').text('¥' + totalPaid.toFixed(2));
+        $('#sumUnpaid').text('¥' + totalUnpaid.toFixed(2));
+
+        $('#loadingHint').hide();
+        $('#detailContent').show();
+    });
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+});
+</script>
+{% endblock %}

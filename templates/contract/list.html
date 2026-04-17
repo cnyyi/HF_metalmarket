@@ -2,10 +2,6 @@
 
 {% block title %}合同列表{% endblock %}
 
-{% block page_header %}
-    <i class="fa fa-file-text"></i> 合同管理
-{% endblock %}
-
 {% block extra_css %}
 <style>
 .contract-number-link {
@@ -25,8 +21,10 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
-<li class="breadcrumb-item active">合同管理</li>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<a href="{{ url_for('contract.contract_list') }}" class="breadcrumb-chip">合同管理</a>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">合同列表</span>
 {% endblock %}
 
 {% block content %}

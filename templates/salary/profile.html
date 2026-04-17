@@ -2,8 +2,13 @@
 
 {% block title %}工资档案{% endblock %}
 
-{% block page_header %}
-    <i class="fa fa-address-card-o"></i> 工资档案管理
+{% block breadcrumb %}
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-chip">财务管理</span>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<a href="{{ url_for('salary.profile') }}" class="breadcrumb-chip">工资管理</a>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">工资档案</span>
 {% endblock %}
 
 {% block content %}

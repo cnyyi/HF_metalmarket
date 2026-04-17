@@ -102,9 +102,11 @@ function emptyStateHtml(title, desc, iconClass) {
  * @param {HTMLElement} el - 目标元素
  * @param {number} target - 目标数值
  * @param {number} duration - 动画时长（毫秒）
+ * @param {boolean} isMoney - 是否金额（显示¥符号和2位小数），默认true
  */
-function animateValue(el, target, duration) {
+function animateValue(el, target, duration, isMoney) {
     duration = duration || 800;
+    if (isMoney === undefined) isMoney = true;
     var start = 0;
     var startTime = null;
 
@@ -114,7 +116,11 @@ function animateValue(el, target, duration) {
         // ease-out cubic
         var eased = 1 - Math.pow(1 - progress, 3);
         var current = target * eased;
-        el.textContent = '¥' + current.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        if (isMoney) {
+            el.textContent = '¥' + current.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        } else {
+            el.textContent = Math.round(current).toLocaleString('en-US');
+        }
         if (progress < 1) {
             requestAnimationFrame(step);
         }
@@ -282,30 +288,8 @@ function animateValue(el, target, duration) {
     }
 })();
 
+
 /**
- * 面包屑解析：从旧格式 <li> 提取文本填充到 topbar breadcrumb
+ * 面包屑已迁移为圆角色块格式，直接由子页面 breadcrumb block 渲染
+ * 无需 JS 解析旧格式
  */
-(function() {
-    var breadcrumbData = document.getElementById('breadcrumbData');
-    var breadcrumbCurrent = document.getElementById('breadcrumbCurrent');
-
-    // 如果子页面提供了 page_header_text block，优先使用
-    if (breadcrumbCurrent && breadcrumbCurrent.textContent.trim()) {
-        return; // 已有文本，跳过
-    }
-
-    // 否则从旧 breadcrumb 数据中提取
-    if (breadcrumbData && breadcrumbCurrent) {
-        var items = breadcrumbData.querySelectorAll('.breadcrumb-item');
-        var parts = [];
-        items.forEach(function(item) {
-            var text = item.textContent.trim();
-            if (text && text !== '首页') {
-                parts.push(text);
-            }
-        });
-        if (parts.length > 0) {
-            breadcrumbCurrent.textContent = parts.join(' / ');
-        }
-    }
-})();

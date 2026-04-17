@@ -190,14 +190,6 @@
             
             <!-- 主内容区 -->
             <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
-                <!-- 页面标题区域 -->
-                <div class="row mt-4 mb-3">
-                    <div class="col-md-12">
-                        <h2>{% block page_header %}{% endblock %}</h2>
-                        <hr>
-                    </div>
-                </div>
-                
                 <!-- 消息提示 -->
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}

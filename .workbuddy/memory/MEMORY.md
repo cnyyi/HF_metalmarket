@@ -15,6 +15,7 @@
 - **客户管理**：`customer_bp` → `/customer/` → `templates/customer/list.html`（往来客户CRUD）
 - **权限控制**：`@check_permission('xxx_manage')` 装饰器（定义在 `app/routes/user.py`）
 - **字典管理**：所有字典从 `Sys_Dictionary` 表动态获取
+- **Receivable/Payable 状态值**：`N'未付款'` / `N'部分付款'` / `N'已付款'`（统一体系，字段名 `Amount` 非 `TotalAmount`）
 - **费用类型**：已从 ExpenseType 独立表迁移到 Sys_Dictionary 字典表（2026-04-15）
   - 收入方向：`expense_item_income`（租金/水费/电费/过磅费/管理费/其他收入/物业费/宿舍租金/宿舍水费/宿舍电费）
   - 支出方向：`expense_item_expend`（采购/维修费/工资/水电费/税费/其他支出）
@@ -25,7 +26,7 @@
 
 ## 模块完成度（2026-04-15）
 - Auth 100% | User 95% | Merchant 100% | Plot 90%（架构违规，Status值注意用"已出租"非"已租"）| Contract 85%（架构违规）
-- Utility 95%（抄表状态过滤✅）| Finance 92%（收款核销✅/应付管理✅/现金流水✅/客户类型✅/账户体系✅/直接记账✅/导出❌）| Scale 5%（空壳）
+- Utility 95%（抄表状态过滤✅）| Finance 92%（收款核销✅/应付管理✅/现金流水✅/客户类型✅/账户体系✅/直接记账✅/导出❌）| Scale 30%（数据同步✅/ScaleRecord扩展✅/前端展示待开发）
 - Admin Dashboard 95%（统计卡✅/收支柱形图✅/最近动态✅/逾期应收✅/合同到期✅/地块数据✅）
 - Customer 100%（CRUD✅ + 搜索API✅）
 - Salary 90%（工资档案✅/月度核算✅/审核发放✅/工资条✅/联动财务✅）
@@ -34,6 +35,7 @@
 - Finance P1 100%（账户体系✅/直接记账✅/CashFlow扩展✅/收付款联动账户✅）
 - Finance P2 100%（预收预付✅/押金管理✅/冲抵核销✅/迁移脚本已执行✅）
 - Finance P3-P4 待开发（内部调拨/计次计量业务）
+- ExpenseOrder（费用单）开发完成（2026-04-16）：主从结构✅/应付联动✅/列表页✅/新增页✅/详情页✅/导航✅/权限✅
 
 ## 商户门户（Phase 1 完成 2026-04-15）
 - User表新增 UserType 字段：Admin(管理端) / Merchant(商户端)
@@ -55,11 +57,16 @@
 - **外部CSS/JS**：admin.css(工业金属美学主题+暗色模式) + admin.js(主题切换+侧边栏交互+微交互)
 - **CDN统一**：Bootstrap 5.3.0 + Font Awesome 6.5.1 + jQuery 3.7.1 + Chart.js 4.4.1(仅首页)
 - **字体**：Noto Sans SC(标题) + DM Sans(正文) + JetBrains Mono(金额数据) via Google Fonts
-- **主题**：工业金属美学 — 钢蓝#2C3E6B主色 + 铜色#C87533强调色
+- **配色方案（2026-04-16 改版）**：
+  - 亮色主色：深蓝 #165DFF + 铜 #C87533
+  - 辅助色：深紫 #6366F1 + 青 #06B6D4
+  - 暗色模式：背景 #1E1E2E、文字 #E2E8F0、强调色 #818CF8
 - **暗色模式**：CSS变量 `[data-theme="dark"]` 全覆盖，localStorage持久化，topbar切换按钮
-- **全局组件**：Toast通知 / GlobalLoading / emptyStateHtml / animateValue(数字跳动) / 金额列自动检测
-- **首页仪表盘**：4统计卡 + 月度收支柱形图 + 最近动态 + 逾期应收 + 合同到期预警
+- **全局组件**：Toast通知 / GlobalLoading / emptyStateHtml / animateValue(数字跳动，支持整数/金额模式) / 金额列自动检测
+- **首页仪表盘**：2 KPI卡(今日净收+在租商户) + 2环形饼图(应收账款回款率+应付账款支付率) + 地块总览(弧形仪表) + 地块明细 + 过磅统计(整数) + 磅费走势 + 月度收支(渐变柱) + 最近动态 + 逾期应收 + 合同到期
 - **面包屑**：内联到topbar，旧breadcrumb block自动兼容（JS解析）
+- **卡片规范**：圆角12px、阴影 0 4px 20px rgba(0,0,0,0.06)、内边距20px、1px浅色边框
+- **animateValue**：第4参数 isMoney，true=¥+2位小数(默认)，false=纯整数(过磅车辆等)
 
 ## 数据库扩展
 - **ReceivableDetail 表**：2026-04-15 新增，关联 Receivable 与 UtilityReading（多对多），用于合并应收回溯抄表明细
@@ -100,6 +107,18 @@
 - **页面**：rooms(房间管理) + occupancy(入住管理+身份证上传) + reading(电表抄表) + bill(月度账单)
 - **流程**：录入房间→办理入住→每月抄电表→生成月度账单→确认→开账（联动应收）→缴费核销
 - **导航**：市场管理下拉→磅秤数据下方分割线→宿舍房间/入住管理/电表抄表/宿舍账单
+
+## 过磅数据同步模块（2026-04-16 新增）
+- **程序位置**：`scale_sync/scale_sync.py` + `scale_sync/sync_config.json`
+- **数据源**：Access 过磅软件数据库（Database.mdb，密码 www.fzatw.com）
+- **目标**：SQL Server hf_metalmarket.ScaleRecord
+- **同步方式**：增量同步，基于流水号（SourceSerialNo）对比
+- **过滤条件**：只同步 RecordFinish=1（已完成）的记录
+- **ScaleRecord 扩展字段**：SourceSerialNo(UNIQUE)/WeighType/SenderName/ReceiverName/DeductWeight/ActualWeight/ScaleFee/GrossTime/TareTime/GrossOperator/TareOperator/IsSynced
+- **MerchantID**：允许NULL（已删外键约束），过磅数据商户信息经常为空
+- **Scale 表**：默认1条记录（ScaleID=1, ScaleNumber='A', A磅秤）
+- **运行模式**：前台运行 / `--once` 单次同步 / `--install` 安装为Windows服务
+- **首次全量**：19414条记录同步成功（2004年至2026年）
 
 ## 权威文档
 - 数据库设计：`docs/design/数据库设计.md`

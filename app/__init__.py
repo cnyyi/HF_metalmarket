@@ -38,6 +38,7 @@ def create_app(config_class=Config):
         ('app.routes.portal', 'portal_bp', None, False),
         ('app.routes.salary', 'salary_bp', '/salary', False),
         ('app.routes.dorm', 'dorm_bp', '/dorm', False),
+        ('app.routes.expense', 'expense_bp', '/expense', False),
         ('app.routes.admin', 'admin_bp', None, False),
     ]
 

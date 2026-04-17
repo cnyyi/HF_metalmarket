@@ -1,51 +1,891 @@
 {% extends "admin_base.html" %}
 
-{% block title %}磅秤列表{% endblock %}
-
-{% block page_header %}
-    <i class="fa fa-balance-scale"></i> 磅秤管理
-{% endblock %}
+{% block title %}磅秤数据看板{% endblock %}
 
 {% block breadcrumb %}
-<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
-<li class="breadcrumb-item active">磅秤数据</li>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<a href="{{ url_for('scale.scale_list') }}" class="breadcrumb-chip">磅秤数据</a>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">磅秤列表</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    @keyframes fadeSlideUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulse-glow {
+        0%, 100% { opacity: 0.6; }
+        50% { opacity: 1; }
+    }
+    @keyframes countUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    .scale-dashboard { animation: fadeSlideUp 0.4s ease both; }
+
+    .overview-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+
+    .overview-card {
+        background: var(--color-bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--color-border-light);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        overflow: hidden;
+        transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease;
+        animation: fadeSlideUp 0.5s ease both;
+    }
+    .overview-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.12);
+    }
+    [data-theme="dark"] .overview-card { box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+    [data-theme="dark"] .overview-card:hover { box-shadow: 0 12px 32px rgba(0,0,0,0.35); }
+
+    .overview-card::before {
+        content: '';
+        display: block;
+        height: 3px;
+    }
+    .overview-card.inbound::before { background: linear-gradient(90deg, #165DFF, #4E9AF1); }
+    .overview-card.outbound::before { background: linear-gradient(90deg, #F59E0B, #FBBF24); }
+
+    .overview-header {
+        padding: 16px 20px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .overview-title {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--color-text);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .overview-title i {
+        font-size: 0.9rem;
+    }
+    .overview-title.inbound-title i { color: #165DFF; }
+    .overview-title.outbound-title i { color: #F59E0B; }
+
+    .overview-body {
+        padding: 16px 20px 20px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+    }
+
+    .stat-item {
+        text-align: center;
+        position: relative;
+    }
+    .stat-item:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        right: -8px;
+        top: 10%;
+        height: 80%;
+        width: 1px;
+        background: var(--color-border-light);
+    }
+
+    .stat-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 10px;
+        font-size: 1rem;
+        color: #fff;
+    }
+    .stat-icon.vehicle-in { background: linear-gradient(135deg, #165DFF, #4E9AF1); }
+    .stat-icon.cargo-in { background: linear-gradient(135deg, #06B6D4, #34D399); }
+    .stat-icon.fee-in { background: linear-gradient(135deg, #6366F1, #818CF8); }
+    .stat-icon.vehicle-out { background: linear-gradient(135deg, #F59E0B, #FBBF24); }
+    .stat-icon.cargo-out { background: linear-gradient(135deg, #EF4444, #F87171); }
+    .stat-icon.fee-out { background: linear-gradient(135deg, #10B981, #34D399); }
+
+    .stat-value {
+        font-family: var(--font-mono);
+        font-size: 1.6rem;
+        font-weight: 700;
+        line-height: 1.2;
+        letter-spacing: -0.03em;
+        color: var(--color-text);
+        animation: countUp 0.6s ease both;
+    }
+    .stat-label {
+        font-size: 0.75rem;
+        color: var(--color-text-muted);
+        margin-top: 4px;
+        font-weight: 500;
+    }
+
+    .chart-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+
+    .chart-card {
+        background: var(--color-bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--color-border-light);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        overflow: hidden;
+        animation: fadeSlideUp 0.5s ease both;
+    }
+    [data-theme="dark"] .chart-card { box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+
+    .chart-card-header {
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--color-border-light);
+    }
+    .chart-card-title {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--color-text);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .chart-card-title i { color: #165DFF; }
+
+    .chart-card-body {
+        padding: 16px;
+        height: 280px;
+        position: relative;
+    }
+
+    .today-card {
+        background: var(--color-bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--color-border-light);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        overflow: hidden;
+        animation: fadeSlideUp 0.5s ease both;
+    }
+    [data-theme="dark"] .today-card { box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+
+    .today-card-header {
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--color-border-light);
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .today-card-title {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--color-text);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .today-card-title i { color: #06B6D4; }
+
+    .today-search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .today-search input {
+        width: 200px;
+        font-size: 0.82rem;
+    }
+
+    .today-card-body { padding: 0; }
+
+    .today-table {
+        width: 100%;
+        font-size: 0.82rem;
+        margin: 0;
+    }
+    .today-table thead th {
+        background: var(--color-bg-card);
+        color: var(--color-text-muted);
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--color-border-light);
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+    .today-table tbody td {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--color-border-light);
+        color: var(--color-text);
+        vertical-align: middle;
+    }
+    .today-table tbody tr:hover {
+        background: rgba(22, 93, 255, 0.04);
+    }
+    [data-theme="dark"] .today-table tbody tr:hover {
+        background: rgba(22, 93, 255, 0.08);
+    }
+
+    .direction-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 20px;
+        font-size: 0.72rem;
+        font-weight: 600;
+    }
+    .direction-badge.inbound {
+        background: rgba(22, 93, 255, 0.1);
+        color: #165DFF;
+    }
+    .direction-badge.outbound {
+        background: rgba(245, 158, 11, 0.1);
+        color: #F59E0B;
+    }
+
+    .plate-link {
+        color: #165DFF;
+        cursor: pointer;
+        text-decoration: none;
+        font-weight: 500;
+    }
+    .plate-link:hover {
+        text-decoration: underline;
+    }
+
+    .today-footer {
+        padding: 12px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-top: 1px solid var(--color-border-light);
+    }
+    .today-count {
+        font-size: 0.78rem;
+        color: var(--color-text-muted);
+    }
+
+    .refresh-btn {
+        background: none;
+        border: 1px solid var(--color-border-light);
+        border-radius: 8px;
+        padding: 4px 10px;
+        font-size: 0.78rem;
+        color: var(--color-text-muted);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .refresh-btn:hover {
+        border-color: #165DFF;
+        color: #165DFF;
+    }
+    .refresh-btn.spinning i {
+        animation: spin 0.8s linear infinite;
+    }
+
+    .loading-overlay {
+        position: absolute;
+        inset: 0;
+        background: var(--color-bg-card);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        border-radius: 12px;
+    }
+    .loading-spinner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        color: var(--color-text-muted);
+        font-size: 0.82rem;
+    }
+
+    .error-msg {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--color-text-muted);
+    }
+    .error-msg i { font-size: 2rem; margin-bottom: 8px; display: block; color: #EF4444; }
+
+    @media (max-width: 992px) {
+        .overview-row, .chart-row { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 576px) {
+        .overview-body { grid-template-columns: 1fr; gap: 12px; }
+        .stat-item:not(:last-child)::after { display: none; }
+        .stat-value { font-size: 1.3rem; }
+        .today-search input { width: 140px; }
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="card-header">
-        <div class="row">
-            <div class="col-md-6">
-                <h5 class="card-title mb-0">磅秤列表</h5>
+<div class="scale-dashboard">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <span class="text-muted" style="font-size: 0.82rem;">
+            <i class="fa fa-clock-o"></i> 数据更新于 <span id="lastUpdate">--</span>
+        </span>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('scale.records') }}" class="btn btn-sm btn-outline-primary">
+                <i class="fa fa-list"></i> 全部记录
+            </a>
+            <button class="refresh-btn" id="btnRefreshAll">
+                <i class="fa fa-refresh"></i> 刷新
+            </button>
+        </div>
+    </div>
+
+    <div class="overview-row">
+        <div class="overview-card inbound">
+            <div class="overview-header">
+                <div class="overview-title inbound-title">
+                    <i class="fa fa-sign-in"></i> 进场数据概览
+                </div>
             </div>
-            <div class="col-md-6 text-end">
-                <a href="{{ url_for('scale.records') }}" class="btn btn-info">
-                    <i class="fa fa-list"></i> 过磅记录
-                </a>
+            <div class="overview-body">
+                <div class="stat-item">
+                    <div class="stat-icon vehicle-in"><i class="fa fa-truck"></i></div>
+                    <div class="stat-value" id="inboundVehicles">0</div>
+                    <div class="stat-label">进场车辆</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon cargo-in"><i class="fa fa-cubes"></i></div>
+                    <div class="stat-value" id="inboundCargo">0</div>
+                    <div class="stat-label">进场货物(吨)</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon fee-in"><i class="fa fa-jpy"></i></div>
+                    <div class="stat-value" id="inboundFee">0</div>
+                    <div class="stat-label">进场磅费(元)</div>
+                </div>
+            </div>
+        </div>
+        <div class="overview-card outbound">
+            <div class="overview-header">
+                <div class="overview-title outbound-title">
+                    <i class="fa fa-sign-out"></i> 出场数据概览
+                </div>
+            </div>
+            <div class="overview-body">
+                <div class="stat-item">
+                    <div class="stat-icon vehicle-out"><i class="fa fa-truck"></i></div>
+                    <div class="stat-value" id="outboundVehicles">0</div>
+                    <div class="stat-label">出场车辆</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon cargo-out"><i class="fa fa-cubes"></i></div>
+                    <div class="stat-value" id="outboundCargo">0</div>
+                    <div class="stat-label">出场货物(吨)</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon fee-out"><i class="fa fa-jpy"></i></div>
+                    <div class="stat-value" id="outboundFee">0</div>
+                    <div class="stat-label">出场磅费(元)</div>
+                </div>
             </div>
         </div>
     </div>
-    <div class="card-body">
-        <!-- 数据表格 -->
-        <div class="table-responsive">
-            <table class="table table-striped table-hover">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>磅秤编号</th>
-                        <th>名称</th>
-                        <th>位置</th>
-                        <th>状态</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td colspan="6" class="text-center text-muted">暂无数据</td>
-                    </tr>
-                </tbody>
-            </table>
+
+    <div class="chart-row">
+        <div class="chart-card">
+            <div class="chart-card-header">
+                <div class="chart-card-title">
+                    <i class="fa fa-line-chart"></i> 上月进场趋势
+                </div>
+            </div>
+            <div class="chart-card-body">
+                <canvas id="lastMonthChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-card">
+            <div class="chart-card-header">
+                <div class="chart-card-title">
+                    <i class="fa fa-line-chart"></i> 本月进场趋势
+                </div>
+            </div>
+            <div class="chart-card-body">
+                <canvas id="thisMonthChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="today-card">
+        <div class="today-card-header">
+            <div class="today-card-title">
+                <i class="fa fa-table"></i> 当日过磅记录
+            </div>
+            <div class="today-search">
+                <input type="text" class="form-control form-control-sm" id="todayKeyword" placeholder="搜索车牌号/货名/流水号">
+                <button class="btn btn-sm btn-primary" id="btnTodaySearch"><i class="fa fa-search"></i> 搜索</button>
+            </div>
+        </div>
+        <div class="today-card-body">
+            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                <table class="today-table table table-sm">
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>方向</th>
+                            <th>车牌号</th>
+                            <th>货名</th>
+                            <th>毛重(kg)</th>
+                            <th>皮重(kg)</th>
+                            <th>净重(kg)</th>
+                            <th>扣重(kg)</th>
+                            <th>实重(kg)</th>
+                            <th>磅费</th>
+                            <th>发货单位</th>
+                            <th>收货单位</th>
+                            <th>操作员</th>
+                        </tr>
+                    </thead>
+                    <tbody id="todayTableBody">
+                        <tr><td colspan="13" class="text-center text-muted py-4">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="today-footer">
+            <span class="today-count" id="todayCountInfo">共 0 条记录</span>
+            <nav id="todayPagination" style="display:none;">
+                <ul class="pagination pagination-sm mb-0" id="todayPaginationList"></ul>
+            </nav>
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="plateDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #165DFF, #4E9AF1); color: #fff;">
+                <h5 class="modal-title"><i class="fa fa-truck"></i> 过磅记录详情</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="plateDetailBody">
+                <p class="text-muted">加载中...</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+var lastMonthChartInstance = null;
+var thisMonthChartInstance = null;
+var todayPage = 1;
+var todayPerPage = 15;
+
+function animateValue(el, endVal, duration, isCurrency) {
+    if (!el) return;
+    var startVal = 0;
+    var startTime = null;
+    function step(timestamp) {
+        if (!startTime) startTime = timestamp;
+        var progress = Math.min((timestamp - startTime) / duration, 1);
+        var eased = 1 - Math.pow(1 - progress, 3);
+        var current = startVal + (endVal - startVal) * eased;
+        if (isCurrency) {
+            el.textContent = '¥' + formatNumber(Math.round(current));
+        } else if (endVal >= 1000) {
+            el.textContent = formatNumber(Math.round(current));
+        } else {
+            el.textContent = Math.round(current);
+        }
+        if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+}
+
+function loadOverview() {
+    $.ajax({
+        url: '{{ url_for("scale.api_dashboard_overview") }}',
+        type: 'GET',
+        success: function(resp) {
+            if (!resp.success) return;
+            var d = resp.data;
+            animateValue($('#inboundVehicles')[0], d.inbound.vehicles, 800, false);
+            animateValue($('#inboundCargo')[0], Math.round(d.inbound.cargo_weight / 1000), 800, false);
+            animateValue($('#inboundFee')[0], d.inbound.fee, 800, true);
+            animateValue($('#outboundVehicles')[0], d.outbound.vehicles, 800, false);
+            animateValue($('#outboundCargo')[0], Math.round(d.outbound.cargo_weight / 1000), 800, false);
+            animateValue($('#outboundFee')[0], d.outbound.fee, 800, true);
+        }
+    });
+}
+
+function loadTrendChart(canvasId, year, month, chartInstanceRef) {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+    var textColor = isDark ? '#8B92A5' : '#6B7280';
+
+    return $.ajax({
+        url: '{{ url_for("scale.api_dashboard_trend") }}',
+        type: 'GET',
+        data: { year: year, month: month },
+        success: function(resp) {
+            if (!resp.success) return;
+            var d = resp.data;
+            var ctx = document.getElementById(canvasId);
+            if (!ctx) return;
+
+            if (chartInstanceRef === 'last' && lastMonthChartInstance) lastMonthChartInstance.destroy();
+            if (chartInstanceRef === 'this' && thisMonthChartInstance) thisMonthChartInstance.destroy();
+
+            var chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: d.labels,
+                    datasets: [
+                        {
+                            label: '车辆数量(辆)',
+                            data: d.vehicles,
+                            borderColor: '#165DFF',
+                            backgroundColor: function(context) {
+                                var chart = context.chart;
+                                var ctx2 = chart.ctx;
+                                var area = chart.chartArea;
+                                if (!area) return 'rgba(22,93,255,0.1)';
+                                var gradient = ctx2.createLinearGradient(0, area.bottom, 0, area.top);
+                                gradient.addColorStop(0, 'rgba(22,93,255,0)');
+                                gradient.addColorStop(1, 'rgba(22,93,255,0.15)');
+                                return gradient;
+                            },
+                            borderWidth: 2.5,
+                            pointRadius: 0,
+                            pointHoverRadius: 5,
+                            pointBackgroundColor: '#165DFF',
+                            pointHoverBorderColor: '#fff',
+                            pointHoverBorderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '货物数量(吨)',
+                            data: d.cargo_weights,
+                            borderColor: '#06B6D4',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            pointHoverRadius: 4,
+                            fill: false,
+                            tension: 0.4,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '磅费金额(元)',
+                            data: d.fees,
+                            borderColor: '#6366F1',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            borderDash: [5, 3],
+                            pointRadius: 0,
+                            pointHoverRadius: 4,
+                            fill: false,
+                            tension: 0.4,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 1000, easing: 'easeOutQuart' },
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            align: 'end',
+                            labels: {
+                                color: textColor,
+                                usePointStyle: true,
+                                pointStyle: 'line',
+                                font: { size: 11 },
+                                padding: 12
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: isDark ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)',
+                            titleColor: isDark ? '#E2E8F0' : '#1A1F2E',
+                            bodyColor: isDark ? '#8B92A5' : '#6B7280',
+                            borderColor: isDark ? '#374151' : '#E2E5EB',
+                            borderWidth: 1,
+                            cornerRadius: 10,
+                            padding: 12,
+                            callbacks: {
+                                label: function(ctx) {
+                                    var label = ctx.dataset.label || '';
+                                    var val = ctx.raw;
+                                    if (label.indexOf('金额') > -1) return label + ': ¥' + formatNumber(val);
+                                    return label + ': ' + val;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            border: { display: false },
+                            ticks: { color: textColor, font: { size: 10 }, maxTicksLimit: 15 }
+                        },
+                        y: {
+                            position: 'left',
+                            grid: { color: gridColor, drawBorder: false },
+                            border: { display: false },
+                            ticks: {
+                                color: textColor,
+                                font: { size: 10 },
+                                padding: 6,
+                                callback: function(v) {
+                                    if (v >= 10000) return (v / 10000).toFixed(0) + '万';
+                                    if (v >= 1000) return (v / 1000).toFixed(0) + 'k';
+                                    return v;
+                                }
+                            }
+                        },
+                        y1: {
+                            position: 'right',
+                            grid: { display: false },
+                            border: { display: false },
+                            ticks: {
+                                color: '#6366F1',
+                                font: { size: 10 },
+                                padding: 6,
+                                callback: function(v) {
+                                    if (v >= 10000) return (v / 10000).toFixed(0) + '万';
+                                    return v;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (chartInstanceRef === 'last') lastMonthChartInstance = chart;
+            if (chartInstanceRef === 'this') thisMonthChartInstance = chart;
+        }
+    });
+}
+
+function loadTodayRecords(page) {
+    if (!page) page = 1;
+    todayPage = page;
+    var keyword = $('#todayKeyword').val().trim();
+
+    $.ajax({
+        url: '{{ url_for("scale.api_dashboard_today") }}',
+        type: 'GET',
+        data: { page: page, per_page: todayPerPage, keyword: keyword || '' },
+        success: function(resp) {
+            if (resp.success) {
+                renderTodayTable(resp.data);
+            } else {
+                $('#todayTableBody').html('<tr><td colspan="13" class="text-center text-danger">' + (resp.message || '加载失败') + '</td></tr>');
+            }
+        },
+        error: function() {
+            $('#todayTableBody').html('<tr><td colspan="13" class="text-center text-danger">网络错误</td></tr>');
+        }
+    });
+}
+
+function renderTodayTable(data) {
+    var items = data.items;
+    var tbody = $('#todayTableBody');
+    if (!items || items.length === 0) {
+        tbody.html('<tr><td colspan="13" class="text-center text-muted py-4"><i class="fa fa-inbox fa-2x mb-2" style="display:block;"></i>今日暂无过磅记录</td></tr>');
+        $('#todayPagination').hide();
+        $('#todayCountInfo').text('共 0 条记录');
+        return;
+    }
+
+    var html = '';
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        var dirBadge = item.direction === '出场'
+            ? '<span class="direction-badge outbound"><i class="fa fa-sign-out"></i> 出场</span>'
+            : '<span class="direction-badge inbound"><i class="fa fa-sign-in"></i> 进场</span>';
+
+        html += '<tr>';
+        html += '<td>' + item.scale_time + '</td>';
+        html += '<td>' + dirBadge + '</td>';
+        html += '<td><span class="plate-link" data-id="' + item.scale_record_id + '">' + escapeHtml(item.license_plate || '-') + '</span></td>';
+        html += '<td>' + escapeHtml(item.product_name || '-') + '</td>';
+        html += '<td class="text-end">' + item.gross_weight.toFixed(0) + '</td>';
+        html += '<td class="text-end">' + item.tare_weight.toFixed(0) + '</td>';
+        html += '<td class="text-end fw-bold">' + item.net_weight.toFixed(0) + '</td>';
+        html += '<td class="text-end">' + item.deduct_weight.toFixed(0) + '</td>';
+        html += '<td class="text-end">' + item.actual_weight.toFixed(0) + '</td>';
+        html += '<td class="text-end">¥' + formatNumber(item.scale_fee) + '</td>';
+        html += '<td><small>' + escapeHtml(item.sender_name || '-') + '</small></td>';
+        html += '<td><small>' + escapeHtml(item.receiver_name || '-') + '</small></td>';
+        html += '<td>' + escapeHtml(item.operator) + '</td>';
+        html += '</tr>';
+    }
+    tbody.html(html);
+    $('#todayCountInfo').text('共 ' + data.total_count + ' 条记录');
+    renderTodayPagination(data);
+}
+
+function renderTodayPagination(data) {
+    var totalPages = data.total_pages;
+    var curPage = data.current_page;
+    if (totalPages <= 1) { $('#todayPagination').hide(); return; }
+
+    var html = '';
+    html += '<li class="page-item ' + (curPage === 1 ? 'disabled' : '') + '">';
+    html += '<a class="page-link" href="#" data-page="' + (curPage - 1) + '">‹</a></li>';
+
+    var startPage = Math.max(1, curPage - 2);
+    var endPage = Math.min(totalPages, curPage + 2);
+    for (var i = startPage; i <= endPage; i++) {
+        html += '<li class="page-item ' + (i === curPage ? 'active' : '') + '">';
+        html += '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
+    }
+
+    html += '<li class="page-item ' + (curPage === totalPages ? 'disabled' : '') + '">';
+    html += '<a class="page-link" href="#" data-page="' + (curPage + 1) + '">›</a></li>';
+
+    $('#todayPaginationList').html(html);
+    $('#todayPagination').show();
+}
+
+function showPlateDetail(recordId) {
+    $.ajax({
+        url: '{{ url_for("scale.api_record_detail", record_id=0) }}'.replace('/0', '/' + recordId),
+        type: 'GET',
+        success: function(resp) {
+            if (resp.success) {
+                var d = resp.data;
+                var dirLabel = d.tare_time ? '出场' : '进场';
+                var dirCls = d.tare_time ? 'outbound' : 'inbound';
+                var html = '<table class="table table-bordered table-sm" style="font-size:0.85rem;">';
+                html += '<tr><th width="110">流水号</th><td>' + escapeHtml(d.source_serial_no) + '</td>';
+                html += '<th width="110">方向</th><td><span class="direction-badge ' + dirCls + '">' + dirLabel + '</span></td></tr>';
+                html += '<tr><th>过磅时间</th><td>' + d.scale_time + '</td>';
+                html += '<th>过磅类型</th><td>' + escapeHtml(d.weigh_type || '-') + '</td></tr>';
+                html += '<tr><th>车牌号</th><td>' + escapeHtml(d.license_plate || '-') + '</td>';
+                html += '<th>货名</th><td>' + escapeHtml(d.product_name || '-') + '</td></tr>';
+                html += '<tr><th>发货单位</th><td>' + escapeHtml(d.sender_name || '-') + '</td>';
+                html += '<th>收货单位</th><td>' + escapeHtml(d.receiver_name || '-') + '</td></tr>';
+                html += '<tr><th>毛重(kg)</th><td class="text-end">' + d.gross_weight.toFixed(2) + '</td>';
+                html += '<th>毛重时间</th><td>' + (d.gross_time || '-') + '</td></tr>';
+                html += '<tr><th>皮重(kg)</th><td class="text-end">' + d.tare_weight.toFixed(2) + '</td>';
+                html += '<th>皮重时间</th><td>' + (d.tare_time || '-') + '</td></tr>';
+                html += '<tr><th>净重(kg)</th><td class="text-end fw-bold">' + d.net_weight.toFixed(2) + '</td>';
+                html += '<th>扣重(kg)</th><td class="text-end">' + d.deduct_weight.toFixed(2) + '</td></tr>';
+                html += '<tr><th>实重(kg)</th><td class="text-end fw-bold">' + d.actual_weight.toFixed(2) + '</td>';
+                html += '<th>过磅费</th><td class="text-end">¥' + formatNumber(d.scale_fee) + '</td></tr>';
+                html += '<tr><th>单价</th><td class="text-end">¥' + formatNumber(d.unit_price) + '</td>';
+                html += '<th>金额</th><td class="text-end fw-bold">¥' + formatNumber(d.total_amount) + '</td></tr>';
+                html += '<tr><th>操作员</th><td>' + escapeHtml(d.operator) + '</td>';
+                html += '<th>商户</th><td>' + escapeHtml(d.merchant_name || '-') + '</td></tr>';
+                html += '<tr><th>备注</th><td colspan="3">' + escapeHtml(d.description || '-') + '</td></tr>';
+                html += '</table>';
+                $('#plateDetailBody').html(html);
+            } else {
+                $('#plateDetailBody').html('<p class="text-danger">' + (resp.message || '获取详情失败') + '</p>');
+            }
+        },
+        error: function() {
+            $('#plateDetailBody').html('<p class="text-danger">网络错误</p>');
+        }
+    });
+    new bootstrap.Modal(document.getElementById('plateDetailModal')).show();
+}
+
+function loadAll() {
+    var now = new Date();
+    var thisYear = now.getFullYear();
+    var thisMonth = now.getMonth() + 1;
+
+    var lastMonth = thisMonth - 1;
+    var lastYear = thisYear;
+    if (lastMonth === 0) { lastMonth = 12; lastYear = thisYear - 1; }
+
+    loadOverview();
+    loadTrendChart('lastMonthChart', lastYear, lastMonth, 'last');
+    loadTrendChart('thisMonthChart', thisYear, thisMonth, 'this');
+    loadTodayRecords(1);
+
+    var h = now.getHours().toString().padStart(2, '0');
+    var m = now.getMinutes().toString().padStart(2, '0');
+    var s = now.getSeconds().toString().padStart(2, '0');
+    $('#lastUpdate').text(h + ':' + m + ':' + s);
+}
+
+$(document).ready(function() {
+    loadAll();
+
+    $('#btnRefreshAll').on('click', function() {
+        var $icon = $(this).find('i');
+        $icon.addClass('spinning');
+        $(this).prop('disabled', true);
+        loadAll();
+        setTimeout(function() {
+            $icon.removeClass('spinning');
+            $('#btnRefreshAll').prop('disabled', false);
+        }, 1500);
+    });
+
+    $(document).on('click', '#todayPaginationList .page-link', function(e) {
+        e.preventDefault();
+        var page = $(this).data('page');
+        if (page && page >= 1) loadTodayRecords(page);
+    });
+
+    $('#btnTodaySearch').on('click', function() { loadTodayRecords(1); });
+    $('#todayKeyword').on('keypress', function(e) {
+        if (e.which === 13) loadTodayRecords(1);
+    });
+
+    $(document).on('click', '.plate-link', function() {
+        var id = $(this).data('id');
+        showPlateDetail(id);
+    });
+
+    var observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(m) {
+            if (m.attributeName === 'data-theme') {
+                loadAll();
+            }
+        });
+    });
+    observer.observe(document.documentElement, { attributes: true });
+});
+</script>
 {% endblock %}

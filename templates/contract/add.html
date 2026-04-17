@@ -2,14 +2,11 @@
 
 {% block title %}添加合同{% endblock %}
 
-{% block page_header %}
-    <i class="fa fa-plus"></i> 添加合同
-{% endblock %}
-
 {% block breadcrumb %}
-<li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">市场管理</a></li>
-<li class="breadcrumb-item"><a href="{{ url_for('contract.contract_list') }}">合同管理</a></li>
-<li class="breadcrumb-item active">添加合同</li>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<a href="{{ url_for('contract.contract_list') }}" class="breadcrumb-chip">合同管理</a>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">添加合同</span>
 {% endblock %}
 
 {% block content %}

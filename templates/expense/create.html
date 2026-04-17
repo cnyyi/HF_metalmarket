@@ -1,0 +1,272 @@
+{% extends "admin_base.html" %}
+
+{% block title %}新增费用单{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<a href="{{ url_for('expense.index') }}" class="breadcrumb-chip">费用单</a>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">新增费用单</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.item-row { background: var(--bs-light); border-radius: 8px; padding: 16px; margin-bottom: 12px; position: relative; }
+.item-row:hover { background: var(--bs-tertiary-bg); }
+.btn-remove-item { position: absolute; top: 8px; right: 8px; }
+.total-section { background: var(--bs-primary-bg-subtle); border-radius: 8px; padding: 16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title mb-0"><i class="fa fa-plus-circle"></i> 填写费用单信息</h5>
+    </div>
+    <div class="card-body">
+        <form id="expenseOrderForm">
+            <!-- 主表信息 -->
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">费用大类 <span class="text-danger">*</span></label>
+                    <select class="form-select" id="expenseCategory" required>
+                        <option value="">请选择费用大类</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">供应商/收款方 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="vendorName" placeholder="请输入供应商名称" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">费用日期 <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="orderDate" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">备注</label>
+                    <input type="text" class="form-control" id="description" placeholder="备注信息（可选）">
+                </div>
+            </div>
+
+            <hr>
+
+            <!-- 明细行区域 -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0"><i class="fa fa-list"></i> 费用明细</h6>
+                <button type="button" class="btn btn-success btn-sm" id="btnAddItem">
+                    <i class="fa fa-plus"></i> 添加明细行
+                </button>
+            </div>
+
+            <div id="itemsContainer">
+                <!-- 明细行会动态添加 -->
+            </div>
+
+            <!-- 合计 -->
+            <div class="total-section mt-3">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <span class="text-muted">明细行数：<strong id="itemCount">0</strong></span>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <span class="text-muted">合计金额：</span>
+                        <span class="fs-4 fw-bold text-primary" id="totalAmount">¥0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 提交按钮 -->
+            <div class="text-end mt-4">
+                <a href="{{ url_for('expense.index') }}" class="btn btn-secondary">
+                    <i class="fa fa-arrow-left"></i> 返回列表
+                </a>
+                <button type="submit" class="btn btn-primary ms-2" id="btnSubmit">
+                    <i class="fa fa-check"></i> 确认创建
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(function() {
+    var categories = [];
+    var expenseItems = [];
+    var itemIndex = 0;
+
+    // 加载费用大类
+    $.get('{{ url_for("expense.categories") }}', function(res) {
+        if (!res.success) return;
+        categories = res.data;
+        var html = '<option value="">请选择费用大类</option>';
+        categories.forEach(function(item) {
+            html += '<option value="' + escapeHtml(item.dict_name) + '">' + escapeHtml(item.dict_name) + '</option>';
+        });
+        $('#expenseCategory').html(html);
+    });
+
+    // 加载支出费用项
+    $.get('{{ url_for("expense.expense_items") }}', function(res) {
+        if (!res.success) return;
+        expenseItems = res.data;
+    });
+
+    // 设置默认日期
+    $('#orderDate').val(new Date().toISOString().split('T')[0]);
+
+    // 添加明细行
+    $('#btnAddItem').click(function() {
+        addItemRow();
+    });
+
+    function addItemRow(data) {
+        itemIndex++;
+        var idx = itemIndex;
+        var optionsHtml = '<option value="">请选择费用项</option>';
+        expenseItems.forEach(function(item) {
+            var selected = data && data.expense_type_id == item.dict_id ? ' selected' : '';
+            optionsHtml += '<option value="' + item.dict_id + '"' + selected + '>' + escapeHtml(item.dict_name) + '</option>';
+        });
+
+        var html = '<div class="item-row" data-idx="' + idx + '">' +
+            '<button type="button" class="btn btn-sm btn-outline-danger btn-remove-item" title="删除"><i class="fa fa-times"></i> 删除</button>' +
+            '<div class="row">' +
+                '<div class="col-md-2">' +
+                    '<label class="form-label">费用项 <span class="text-danger">*</span></label>' +
+                    '<select class="form-select form-select-sm item-expense-type">' + optionsHtml + '</select>' +
+                '</div>' +
+                '<div class="col-md-2">' +
+                    '<label class="form-label">金额 <span class="text-danger">*</span></label>' +
+                    '<div class="input-group input-group-sm">' +
+                        '<span class="input-group-text">¥</span>' +
+                        '<input type="number" class="form-control item-amount" step="0.01" min="0.01" placeholder="0.00" value="' + (data ? data.amount : '') + '">' +
+                    '</div>' +
+                '</div>' +
+                '<div class="col-md-3">' +
+                    '<label class="form-label">明细描述</label>' +
+                    '<input type="text" class="form-control form-control-sm item-desc" placeholder="如：4月垃圾运费" value="' + (data && data.item_description ? escapeHtml(data.item_description) : '') + '">' +
+                '</div>' +
+                '<div class="col-md-2">' +
+                    '<label class="form-label">人员姓名</label>' +
+                    '<input type="text" class="form-control form-control-sm item-worker" placeholder="临时工用" value="' + (data && data.worker_name ? escapeHtml(data.worker_name) : '') + '">' +
+                '</div>' +
+                '<div class="col-md-2">' +
+                    '<label class="form-label">作业日期</label>' +
+                    '<input type="date" class="form-control form-control-sm item-work-date" value="' + (data && data.work_date ? data.work_date : '') + '">' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+        $('#itemsContainer').append(html);
+        calcTotal();
+    }
+
+    // 删除明细行
+    $(document).on('click', '.btn-remove-item', function() {
+        $(this).closest('.item-row').remove();
+        calcTotal();
+    });
+
+    // 金额变化时重算合计
+    $(document).on('input', '.item-amount', function() {
+        calcTotal();
+    });
+
+    function calcTotal() {
+        var total = 0;
+        var count = 0;
+        $('.item-row').each(function() {
+            var amount = parseFloat($(this).find('.item-amount').val()) || 0;
+            total += amount;
+            count++;
+        });
+        $('#totalAmount').text('¥' + total.toFixed(2));
+        $('#itemCount').text(count);
+    }
+
+    // 提交
+    $('#expenseOrderForm').submit(function(e) {
+        e.preventDefault();
+
+        var items = [];
+        var valid = true;
+        $('.item-row').each(function() {
+            var row = $(this);
+            var expense_type_id = row.find('.item-expense-type').val();
+            var amount = parseFloat(row.find('.item-amount').val()) || 0;
+            if (!expense_type_id) {
+                showToast('请选择每行的费用项', 'danger');
+                valid = false;
+                return false;
+            }
+            if (amount <= 0) {
+                showToast('每行金额必须大于0', 'danger');
+                valid = false;
+                return false;
+            }
+            items.push({
+                expense_type_id: parseInt(expense_type_id),
+                amount: amount,
+                item_description: row.find('.item-desc').val().trim(),
+                worker_name: row.find('.item-worker').val().trim(),
+                work_date: row.find('.item-work-date').val()
+            });
+        });
+
+        if (!valid) return;
+        if (items.length === 0) {
+            showToast('请至少添加一条明细行', 'danger');
+            return;
+        }
+
+        var data = {
+            expense_category: $('#expenseCategory').val(),
+            vendor_name: $('#vendorName').val().trim(),
+            order_date: $('#orderDate').val(),
+            description: $('#description').val().trim(),
+            items: items
+        };
+
+        if (!data.expense_category) { showToast('请选择费用大类', 'danger'); return; }
+        if (!data.vendor_name) { showToast('请输入供应商名称', 'danger'); return; }
+        if (!data.order_date) { showToast('请选择费用日期', 'danger'); return; }
+
+        var btn = $('#btnSubmit');
+        btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 提交中...');
+
+        $.ajax({
+            url: '{{ url_for("expense.create_order") }}',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(res) {
+                if (res.success) {
+                    showToast(res.message, 'success');
+                    setTimeout(function() {
+                        window.location.href = '{{ url_for("expense.detail", order_id=0) }}'.replace('/0', '/' + res.data.order_id);
+                    }, 1000);
+                } else {
+                    showToast(res.message, 'danger');
+                    btn.prop('disabled', false).html('<i class="fa fa-check"></i> 确认创建');
+                }
+            },
+            error: function(xhr) {
+                var msg = '创建失败';
+                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                showToast(msg, 'danger');
+                btn.prop('disabled', false).html('<i class="fa fa-check"></i> 确认创建');
+            }
+        });
+    });
+
+    // 初始添加一行
+    // 等字典加载完再加
+    setTimeout(function() { addItemRow(); }, 500);
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+});
+</script>
+{% endblock %}
