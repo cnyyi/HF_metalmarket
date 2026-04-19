@@ -178,7 +178,7 @@ class CustomerService:
         with DBConnection() as conn:
             cursor = conn.cursor()
             # 检查应收/应付是否关联
-            cursor.execute("SELECT COUNT(*) FROM Receivable WHERE CustomerType='Customer' AND CustomerID=?", customer_id)
+            cursor.execute("SELECT COUNT(*) FROM Receivable WHERE CustomerType='Customer' AND CustomerID=? AND IsActive=1", customer_id)
             recv_count = cursor.fetchone()[0]
             cursor.execute("SELECT COUNT(*) FROM Payable WHERE CustomerType='Customer' AND CustomerID=?", customer_id)
             pay_count = cursor.fetchone()[0]

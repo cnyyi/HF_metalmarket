@@ -35,10 +35,12 @@ def receivable_list():
         per_page = request.args.get('per_page', 10, type=int)
         search = request.args.get('search', '').strip()
         status = request.args.get('status', '').strip()
+        expense_type_id = request.args.get('expense_type_id', type=int)
 
         result = receivable_svc.get_receivables(
             page=page, per_page=per_page,
-            search=search or None, status=status or None
+            search=search or None, status=status or None,
+            expense_type_id=expense_type_id
         )
 
         return jsonify({'success': True, 'data': result})
@@ -61,7 +63,12 @@ def receivable_create():
             reference_id=data.get('reference_id'),
             reference_type=data.get('reference_type'),
             customer_type=data.get('customer_type', 'Merchant'),
-            customer_id=data.get('customer_id')
+            customer_id=data.get('customer_id'),
+            product_name=data.get('product_name'),
+            specification=data.get('specification'),
+            quantity=data.get('quantity'),
+            unit_id=data.get('unit_id'),
+            unit_price=data.get('unit_price')
         )
 
         return jsonify({'success': True, 'message': '添加成功', 'id': new_id})
@@ -69,6 +76,33 @@ def receivable_create():
         return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
         return jsonify({'success': False, 'message': f'添加失败：{str(e)}'}), 500
+
+
+@finance_bp.route('/receivable/delete/<int:receivable_id>', methods=['POST'])
+@login_required
+@check_permission('finance_manage')
+def receivable_delete(receivable_id):
+    """软删除应收账款"""
+    try:
+        data = request.get_json() if request.is_json else {}
+        delete_reason = data.get('delete_reason', '').strip() if data else ''
+
+        if not delete_reason:
+            return jsonify({'success': False, 'message': '请填写删除原因'}), 400
+
+        result = receivable_svc.soft_delete(
+            receivable_id=receivable_id,
+            deleted_by=current_user.user_id,
+            delete_reason=delete_reason
+        )
+
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'删除失败：{str(e)}'}), 500
 
 
 @finance_bp.route('/receivable/expense_types', methods=['GET'])
@@ -87,6 +121,22 @@ def receivable_expense_types():
         return jsonify({'success': True, 'data': result})
     except Exception as e:
         return jsonify({'success': False, 'message': f'获取费用类型失败：{str(e)}'}), 500
+
+
+@finance_bp.route('/receivable/unit_types', methods=['GET'])
+@login_required
+def receivable_unit_types():
+    """获取单位类型（从字典表获取）"""
+    try:
+        items = DictService.get_expense_items('unit_type')
+        result = [{
+            'unit_id': item['dict_id'],
+            'unit_name': item['dict_name'],
+            'unit_code': item['dict_code'],
+        } for item in items]
+        return jsonify({'success': True, 'data': result})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'获取单位类型失败：{str(e)}'}), 500
 
 
 @finance_bp.route('/receivable/search_merchants', methods=['GET'])
@@ -144,7 +194,7 @@ def receivable_collect(receivable_id):
 @finance_bp.route('/receivable/detail/<int:receivable_id>', methods=['GET'])
 @login_required
 def receivable_detail(receivable_id):
-    """应收详情（含收款历史）"""
+    """应收详情（含收款历史、关联合同/抄表数据）"""
     try:
         receivable = receivable_svc.repo.get_by_id(receivable_id)
         if not receivable:
@@ -175,16 +225,224 @@ def receivable_detail(receivable_id):
             'amount': float(receivable.Amount),
             'paid_amount': float(receivable.PaidAmount),
             'remaining_amount': float(receivable.RemainingAmount),
+            'product_name': receivable.ProductName or '',
+            'specification': receivable.Specification or '',
+            'quantity': float(receivable.Quantity) if receivable.Quantity else None,
+            'unit_id': receivable.UnitID,
+            'unit_name': receivable.UnitName or '',
+            'unit_price': float(receivable.UnitPrice) if receivable.UnitPrice else None,
             'due_date': receivable.DueDate.strftime('%Y-%m-%d') if receivable.DueDate else '',
             'status': receivable.Status,
             'description': receivable.Description or '',
+            'reference_id': receivable.ReferenceID,
+            'reference_type': receivable.ReferenceType or '',
             'create_time': receivable.CreateTime.strftime('%Y-%m-%d %H:%M') if receivable.CreateTime else '',
+            'is_active': bool(receivable.IsActive) if hasattr(receivable, 'IsActive') else True,
+            'deleted_at': receivable.DeletedAt.strftime('%Y-%m-%d %H:%M') if hasattr(receivable, 'DeletedAt') and receivable.DeletedAt else '',
+            'delete_reason': receivable.DeleteReason or '' if hasattr(receivable, 'DeleteReason') else '',
             'collection_records': collection_list
         }
+
+        # 关联数据：租金→合同，电费/水费→抄表
+        expense_name = receivable.ExpenseTypeName or ''
+        ref_type = receivable.ReferenceType or ''
+
+        # 租金：通过 ReferenceID=ContractID 查关联合同
+        if (expense_name == '租金' or ref_type == 'contract') and receivable.ReferenceID:
+            contract_data = _get_contract_summary(receivable.ReferenceID)
+            if contract_data:
+                data['contract_info'] = contract_data
+
+        # 电费/水费：通过多种策略查关联抄表
+        if expense_name in ('电费', '水费') or ref_type == 'utility_reading_merged' or ref_type == 'utility_reading':
+            reading_data = _get_utility_readings(receivable_id)
+            if reading_data:
+                data['utility_readings'] = reading_data
 
         return jsonify({'success': True, 'data': data})
     except Exception as e:
         return jsonify({'success': False, 'message': f'获取详情失败：{str(e)}'}), 500
+
+
+def _get_contract_summary(contract_id):
+    """获取合同摘要信息（含关联合同地块）"""
+    try:
+        from utils.database import DBConnection
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT c.ContractID, c.ContractNumber, c.ContractName,
+                       c.MerchantID, m.MerchantName,
+                       c.StartDate, c.EndDate,
+                       c.ContractAmount, c.AmountReduction, c.ActualAmount,
+                       c.Status, c.PaymentMethod, c.ContractPeriod
+                FROM Contract c
+                LEFT JOIN Merchant m ON c.MerchantID = m.MerchantID
+                WHERE c.ContractID = ?
+            """, contract_id)
+            row = cursor.fetchone()
+            if not row:
+                return None
+
+            # 查关联合同地块
+            cursor.execute("""
+                SELECT cp.PlotID, cp.UnitPrice, cp.Area, cp.MonthlyPrice,
+                       p.PlotNumber, p.PlotName
+                FROM ContractPlot cp
+                LEFT JOIN Plot p ON cp.PlotID = p.PlotID
+                WHERE cp.ContractID = ?
+            """, contract_id)
+            plots = []
+            for p in cursor.fetchall():
+                plots.append({
+                    'plot_number': p.PlotNumber or '',
+                    'plot_name': p.PlotName or '',
+                    'area': float(p.Area) if p.Area else 0,
+                    'monthly_price': float(p.MonthlyPrice) if p.MonthlyPrice else 0,
+                })
+            plot_numbers = ', '.join([pl['plot_number'] for pl in plots if pl['plot_number']])
+
+            return {
+                'contract_id': row.ContractID,
+                'contract_number': row.ContractNumber or '',
+                'contract_name': row.ContractName or '',
+                'merchant_name': row.MerchantName or '',
+                'plot_numbers': plot_numbers,
+                'plots': plots,
+                'start_date': row.StartDate.strftime('%Y-%m-%d') if row.StartDate else '',
+                'end_date': row.EndDate.strftime('%Y-%m-%d') if row.EndDate else '',
+                'contract_amount': float(row.ContractAmount) if row.ContractAmount else 0,
+                'amount_reduction': float(row.AmountReduction) if row.AmountReduction else 0,
+                'actual_amount': float(row.ActualAmount) if row.ActualAmount else 0,
+                'status': row.Status or '',
+                'payment_method': row.PaymentMethod or '',
+                'contract_period': row.ContractPeriod or '',
+            }
+    except Exception:
+        return None
+
+
+def _get_utility_readings(receivable_id):
+    """获取关联的抄表数据列表
+
+    查询策略（按优先级）：
+    1. 通过 ReceivableDetail 关联查
+    2. 通过 ReferenceID 直接查（旧版 utility_reading 类型）
+    3. 通过 MerchantID + BelongMonth + MeterType 关联查（兜底）
+    """
+    try:
+        import re
+        from utils.database import DBConnection
+
+        # 公共 SQL 片段：抄表记录 + 电表/水表关联
+        UTILITY_SELECT = """
+            SELECT ur.ReadingID, ur.MeterID, ur.MeterType,
+                   ur.LastReading, ur.CurrentReading, ur.Usage, ur.UnitPrice, ur.TotalAmount,
+                   ur.BelongMonth, ur.ReadingDate, ur.ReadingMonth,
+                   CASE
+                       WHEN ur.MeterType = N'electricity' THEN ISNULL(em.MeterMultiplier, 1)
+                       WHEN ur.MeterType = N'water' THEN ISNULL(wm.MeterMultiplier, 1)
+                       ELSE 1
+                   END AS MeterMultiplier,
+                   CASE
+                       WHEN ur.MeterType = N'electricity' THEN em.MeterNumber
+                       WHEN ur.MeterType = N'water' THEN wm.MeterNumber
+                       ELSE ''
+                   END AS MeterNumber,
+                   CASE
+                       WHEN ur.MeterType = N'electricity' THEN ISNULL(em.InstallationLocation, '')
+                       WHEN ur.MeterType = N'water' THEN ISNULL(wm.InstallationLocation, '')
+                       ELSE ''
+                   END AS InstallationLocation
+        """
+        UTILITY_JOINS = """
+            LEFT JOIN ElectricityMeter em ON ur.MeterType = N'electricity' AND ur.MeterID = em.MeterID
+            LEFT JOIN WaterMeter wm ON ur.MeterType = N'water' AND ur.MeterID = wm.MeterID
+        """
+
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            rows = []
+
+            # ---- 策略1：通过 ReceivableDetail 关联 ----
+            cursor.execute(f"""
+                {UTILITY_SELECT}
+                FROM ReceivableDetail rd
+                INNER JOIN UtilityReading ur ON rd.ReadingID = ur.ReadingID
+                {UTILITY_JOINS}
+                WHERE rd.ReceivableID = ?
+                ORDER BY ur.MeterType, ur.MeterID
+            """, receivable_id)
+            rows = cursor.fetchall()
+
+            # ---- 策略2：通过 ReferenceID 直接查（旧版 utility_reading） ----
+            if not rows:
+                cursor.execute(f"""
+                    {UTILITY_SELECT}
+                    FROM UtilityReading ur
+                    {UTILITY_JOINS}
+                    WHERE ur.ReadingID IN (
+                        SELECT ReferenceID FROM Receivable
+                        WHERE ReceivableID = ? AND ReferenceType = N'utility_reading'
+                    )
+                    ORDER BY ur.MeterType, ur.MeterID
+                """, receivable_id)
+                rows = cursor.fetchall()
+
+            # ---- 策略3：通过 MerchantID + BelongMonth + MeterType 兜底查 ----
+            if not rows:
+                # 先获取该应收的 MerchantID 和 Description
+                cursor.execute("""
+                    SELECT MerchantID, Description, ExpenseTypeID
+                    FROM Receivable WHERE ReceivableID = ?
+                """, receivable_id)
+                recv = cursor.fetchone()
+                if recv and recv.MerchantID and recv.Description:
+                    # 从 Description 解析月份，格式如 "2026年01月电费（3块表）"
+                    month_match = re.search(r'(\d{4}年\d{2}月)', recv.Description)
+                    belong_month = month_match.group(1) if month_match else ''
+
+                    # 判断 MeterType：Description 包含"水费"→ water，否则→ electricity
+                    meter_type = 'water' if '水费' in (recv.Description or '') else 'electricity'
+
+                    if belong_month:
+                        cursor.execute(f"""
+                            {UTILITY_SELECT}
+                            FROM UtilityReading ur
+                            {UTILITY_JOINS}
+                            WHERE ur.MerchantID = ? AND ur.BelongMonth = ? AND ur.MeterType = ?
+                            ORDER BY ur.MeterID
+                        """, recv.MerchantID, belong_month, meter_type)
+                        rows = cursor.fetchall()
+
+            if not rows:
+                return []
+
+            result = []
+            total_amount = 0
+            for row in rows:
+                subtotal = float(row.TotalAmount) if row.TotalAmount else 0
+                total_amount += subtotal
+                result.append({
+                    'reading_id': row.ReadingID,
+                    'meter_number': row.MeterNumber or '',
+                    'meter_type': row.MeterType or '',
+                    'installation_location': row.InstallationLocation or '',
+                    'belong_month': row.BelongMonth or row.ReadingMonth or '',
+                    'last_reading': float(row.LastReading) if row.LastReading else 0,
+                    'current_reading': float(row.CurrentReading) if row.CurrentReading else 0,
+                    'meter_multiplier': float(row.MeterMultiplier) if row.MeterMultiplier else 1,
+                    'usage': float(row.Usage) if row.Usage else 0,
+                    'unit_price': float(row.UnitPrice) if row.UnitPrice else 0,
+                    'subtotal': subtotal,
+                })
+            # 返回列表+合计
+            return {
+                'items': result,
+                'total_amount': total_amount
+            }
+    except Exception:
+        return []
 
 
 # ==================== 应付账款 ====================

@@ -123,6 +123,130 @@ class UtilityService:
             }
         }
     
+    def _delete_reading_and_receivables(self, cursor, reading_id):
+        total_amount = 0.0
+
+        cursor.execute("""
+            SELECT ur.MeterType, ur.MerchantID, ur.TotalAmount, ur.BelongMonth
+            FROM UtilityReading ur
+            WHERE ur.ReadingID = ?
+        """, (reading_id,))
+        reading_row = cursor.fetchone()
+
+        if not reading_row:
+            return False
+
+        total_amount = float(reading_row.TotalAmount) if reading_row.TotalAmount else 0.0
+
+        # 1. 处理旧版应收：通过 ReferenceID 直接关联 (utility_reading)
+        cursor.execute("""
+            SELECT ReceivableID, Amount, RemainingAmount, PaidAmount
+            FROM Receivable
+            WHERE ReferenceID = ? AND ReferenceType = N'utility_reading'
+        """, (reading_id,))
+        old_receivables = cursor.fetchall()
+
+        for rv in old_receivables:
+            cursor.execute("""
+                DELETE FROM ReceivableDetail WHERE ReceivableID = ?
+            """, (rv.ReceivableID,))
+            cursor.execute("""
+                DELETE FROM Receivable WHERE ReceivableID = ?
+            """, (rv.ReceivableID,))
+            logger.info(f'删除旧版应收，ID: {rv.ReceivableID}')
+
+        # 2. 处理新版合并应收：通过 ReceivableDetail 关联 (utility_reading_merged)
+        cursor.execute("""
+            SELECT r.ReceivableID, r.Amount, r.RemainingAmount, r.PaidAmount
+            FROM Receivable r
+            INNER JOIN ReceivableDetail rd ON r.ReceivableID = rd.ReceivableID
+            WHERE rd.ReadingID = ?
+        """, (reading_id,))
+        merged_receivables = cursor.fetchall()
+
+        for rv in merged_receivables:
+            receivable_id = rv.ReceivableID
+            receivable_amount = float(rv.Amount)
+            remaining_amount = float(rv.RemainingAmount)
+            new_amount = round(receivable_amount - total_amount, 2)
+            new_remaining = round(remaining_amount - total_amount, 2)
+
+            if new_amount <= 0:
+                cursor.execute("""
+                    DELETE FROM ReceivableDetail WHERE ReceivableID = ?
+                """, (receivable_id,))
+                cursor.execute("""
+                    DELETE FROM Receivable WHERE ReceivableID = ?
+                """, (receivable_id,))
+                logger.info(f'删除合并应收，ID: {receivable_id}')
+            else:
+                cursor.execute("""
+                    UPDATE Receivable SET Amount = ?, RemainingAmount = ?
+                    WHERE ReceivableID = ?
+                """, (new_amount, new_remaining, receivable_id))
+                cursor.execute("""
+                    DELETE FROM ReceivableDetail
+                    WHERE ReceivableID = ? AND ReadingID = ?
+                """, (receivable_id, reading_id))
+                logger.info(f'更新合并应收，ID: {receivable_id}, 新金额: {new_amount}')
+
+        # 3. 删除抄表记录
+        cursor.execute("""
+            DELETE FROM UtilityReading WHERE ReadingID = ?
+        """, (reading_id,))
+
+        return True
+
+    def delete_reading(self, reading_id):
+        try:
+            logger.info(f'开始删除抄表记录，ID: {reading_id}')
+            with DBConnection() as conn:
+                cursor = conn.cursor()
+
+                result = self._delete_reading_and_receivables(cursor, reading_id)
+
+                if not result:
+                    logger.warning(f'抄表记录不存在，ID: {reading_id}')
+                    return {'success': False, 'message': '抄表记录不存在'}
+
+                conn.commit()
+                logger.info(f'删除抄表记录成功，ID: {reading_id}')
+                return {'success': True, 'message': '抄表记录删除成功'}
+
+        except Exception as e:
+            logger.error(f'删除抄表记录失败，ID: {reading_id}, 错误: {str(e)}')
+            return {'success': False, 'message': f'删除失败：{str(e)}'}
+
+    def delete_readings_batch(self, reading_ids):
+        try:
+            if not reading_ids or len(reading_ids) == 0:
+                return {'success': False, 'message': '请选择要删除的抄表记录'}
+
+            deleted_count = 0
+            with DBConnection() as conn:
+                cursor = conn.cursor()
+
+                for reading_id in reading_ids:
+                    try:
+                        result = self._delete_reading_and_receivables(cursor, reading_id)
+                        if result:
+                            deleted_count += 1
+                    except Exception as e:
+                        logger.error(f'删除抄表记录 {reading_id} 失败：{str(e)}')
+                        continue
+
+                conn.commit()
+
+                return {
+                    'success': True,
+                    'message': f'成功删除 {deleted_count} 条抄表记录',
+                    'deleted_count': deleted_count
+                }
+
+        except Exception as e:
+            logger.error(f'批量删除失败：{str(e)}')
+            return {'success': False, 'message': f'批量删除失败：{str(e)}'}
+    
     def get_meter_list_paginated(self, meter_number='', meter_type='all', page=1, page_size=20):
         """
         获取水电表列表（分页+筛选）
@@ -629,6 +753,109 @@ class UtilityService:
                 'message': f'解除关联失败：{str(e)}'
             }
     
+    def pay_reading(self, merchant_id, belong_month, meter_type, account_id, amount, created_by):
+        """
+        抄表数据快捷收费 — 走应收核销流程
+
+        1. 根据 merchant_id + belong_month + meter_type 查找合并应收记录
+        2. 调用 finance_service.collect_receivable 进行核销（5步联动）
+        3. 若无应收记录，走直接记账
+
+        Args:
+            merchant_id: 商户ID
+            belong_month: 所属月份（格式 "YYYY年MM月"）
+            meter_type: 表类型（electricity/water）
+            account_id: 收款账户ID
+            amount: 交费金额
+            created_by: 操作人ID
+
+        Returns:
+            dict: {success, message}
+        """
+        from app.services.finance_service import FinanceService
+        from app.services.account_service import AccountService
+        from datetime import date
+
+        finance_svc = FinanceService()
+
+        if amount <= 0:
+            return {'success': False, 'message': '交费金额必须大于0'}
+
+        # 查找该商户当月对应表类型的合并应收
+        expense_name = '电费' if meter_type == 'electricity' else '水费'
+
+        # 获取费用类型ID — 优先从字典表查，兼容旧 ExpenseType 表
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+
+            # 字典表查找
+            cursor.execute("""
+                SELECT DictID FROM Sys_Dictionary
+                WHERE DictType = ? AND DictName = ? AND IsActive = 1
+            """, ('expense_item_income', expense_name))
+            dict_row = cursor.fetchone()
+            expense_type_id = dict_row.DictID if dict_row else None
+
+            if not expense_type_id:
+                # 兼容旧 ExpenseType 表
+                expense_code = 'electricity' if meter_type == 'electricity' else 'water'
+                cursor.execute(
+                    "SELECT ExpenseTypeID FROM ExpenseType WHERE ExpenseTypeCode = ? AND IsActive = 1",
+                    (expense_code,)
+                )
+                et_row = cursor.fetchone()
+                expense_type_id = et_row.ExpenseTypeID if et_row else None
+
+            # 查找合并应收
+            receivable_id = None
+            if expense_type_id:
+                cursor.execute("""
+                    SELECT TOP 1 r.ReceivableID, r.Amount, r.RemainingAmount, r.Status
+                    FROM Receivable r
+                    WHERE r.MerchantID = ?
+                      AND r.ExpenseTypeID = ?
+                      AND r.ReferenceType = N'utility_reading_merged'
+                      AND r.Description LIKE ?
+                      AND r.Status IN (N'未付款', N'部分付款')
+                      AND r.IsActive = 1
+                    ORDER BY r.ReceivableID DESC
+                """, (merchant_id, expense_type_id, f'{belong_month}{expense_name}%'))
+                rv_row = cursor.fetchone()
+                if rv_row:
+                    receivable_id = rv_row.ReceivableID
+
+        if receivable_id:
+            # 走应收核销流程
+            result = finance_svc.collect_receivable(
+                receivable_id=receivable_id,
+                amount=amount,
+                payment_method='现金',
+                transaction_date=date.today().strftime('%Y-%m-%d'),
+                description=f'{belong_month}{expense_name}收费',
+                created_by=created_by,
+                account_id=account_id
+            )
+            if result.get('success'):
+                result['message'] = f'收费成功，已核销应收账款'
+            return result
+        else:
+            # 无应收记录，走直接记账
+            if not expense_type_id:
+                return {'success': False, 'message': f'未找到"{expense_name}"费用类型，请先配置'}
+
+            result = finance_svc.direct_entry(
+                direction='income',
+                amount=amount,
+                account_id=account_id,
+                expense_type_id=expense_type_id,
+                transaction_date=date.today().strftime('%Y-%m-%d'),
+                description=f'{belong_month}{expense_name}收费（无应收记录，直接记账）',
+                created_by=created_by
+            )
+            if result.get('success'):
+                result['message'] = f'收费成功（直接记账，无关联应收）'
+            return result
+
     def _check_meter_number_exists(self, meter_number, meter_type):
         """
         检查表编号是否存在
@@ -950,17 +1177,24 @@ class UtilityService:
             if not inserted_readings:
                 return
 
-            # 获取费用类型ID
+            # 获取费用类型ID（优先从字典表获取，兼容旧 ExpenseType 表）
             expense_code = 'water' if meter_type == 'water' else 'electricity'
             cursor.execute(
-                "SELECT ExpenseTypeID FROM ExpenseType WHERE ExpenseTypeCode = ? AND IsActive = 1",
+                "SELECT DictID FROM Sys_Dictionary WHERE DictCode = ? AND DictType = N'expense_item_income' AND IsActive = 1",
                 (expense_code,)
             )
             et_row = cursor.fetchone()
             if not et_row:
+                # 回退到旧表
+                cursor.execute(
+                    "SELECT ExpenseTypeID FROM ExpenseType WHERE ExpenseTypeCode = ? AND IsActive = 1",
+                    (expense_code,)
+                )
+                et_row = cursor.fetchone()
+            if not et_row:
                 logger.warning(f'未找到费用类型: {expense_code}，跳过生成应收')
                 return
-            expense_type_id = et_row.ExpenseTypeID
+            expense_type_id = et_row[0]
 
             # 按商户分组：合并金额、收集 reading_id 列表
             merchant_groups = {}  # {merchant_id: {'total_amount': float, 'reading_ids': [int]}}
@@ -988,6 +1222,7 @@ class UtilityService:
                       AND r.ExpenseTypeID = ?
                       AND r.ReferenceType = N'utility_reading_merged'
                       AND r.Description LIKE ?
+                      AND r.IsActive = 1
                 """, (merchant_id, expense_type_id, f'{reading_month}{expense_name}%'))
                 existing = cursor.fetchone()
 
@@ -1067,6 +1302,7 @@ class UtilityService:
 
         except Exception as e:
             logger.error(f'合并生成应收账款失败：{str(e)}')
+            raise  # re-raise 让外层 rollback
 
     def _create_receivable(self, conn, cursor, reading_id, meter_type, reading_month):
         """

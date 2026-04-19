@@ -16,18 +16,27 @@
 - **权限控制**：`@check_permission('xxx_manage')` 装饰器（定义在 `app/routes/user.py`）
 - **字典管理**：所有字典从 `Sys_Dictionary` 表动态获取
 - **Receivable/Payable 状态值**：`N'未付款'` / `N'部分付款'` / `N'已付款'`（统一体系，字段名 `Amount` 非 `TotalAmount`）
+- **Receivable 商品字段**（2026-04-18）：ProductName/Specification/Quantity/UnitID/UnitPrice（均可空），UnitID 关联字典表 unit_type（Kg/吨/车/瓶），数量×单价=应收金额
+  - 列表不显示这4列（用户要求移除），但添加弹窗和详情弹窗保留
+  - 详情弹窗按费用类型显示关联数据：租金→关联合同信息（ContractID via ReferenceID），电费/水费→关联抄表明细列表（含表号/位置/月份/表底/倍率/用量/单价/小计/合计）
+- **Receivable 关联数据查询**（2026-04-18 修复）：
+  - 合同查询：Contract表没有PlotID/MonthlyRent/DepositAmount/SignDate字段，合同-地块关系通过ContractPlot中间表，金额字段为ContractAmount/AmountReduction/ActualAmount
+  - 抄表查询：3层策略——①ReceivableDetail关联 → ②ReferenceID直接查 → ③MerchantID+BelongMonth+MeterType兜底（从Description解析月份）
+  - 判断条件：租金看expense_name=='租金'或ref_type=='contract'，电费/水费看expense_name或ref_type=='utility_reading_merged'/'utility_reading'
+- **Receivable 软删除**（2026-04-18）：IsActive(BIT默认1) + DeletedBy + DeletedAt + DeleteReason，所有查询必须加 `WHERE IsActive=1`，已付款/部分付款+有关联收款记录的禁止删除
 - **费用类型**：已从 ExpenseType 独立表迁移到 Sys_Dictionary 字典表（2026-04-15）
   - 收入方向：`expense_item_income`（租金/水费/电费/过磅费/管理费/其他收入/物业费/宿舍租金/宿舍水费/宿舍电费）
   - 支出方向：`expense_item_expend`（采购/维修费/工资/水电费/税费/其他支出）
   - ExpenseTypeID 字段现在存储 DictID，JOIN 查询优先字典表兼容旧数据
   - 外键约束已删除（Receivable/Payable/CashFlow → ExpenseType 的 FK）
   - `DictService.get_expense_items(dict_type)` 为获取费用项的统一入口
+  - ⚠️ **注意**：`_create_merged_receivables()` 已修复为优先查字典表（2026-04-18），旧代码用旧 ExpenseType 表 ID 导致电费应收的 ExpenseTypeID=3（应为1017）
 - **财务管理**：统一由 `FinanceService` 管控跨表事务（收款/付款核销均4步联动）
 
-## 模块完成度（2026-04-15）
-- Auth 100% | User 95% | Merchant 100% | Plot 90%（架构违规，Status值注意用"已出租"非"已租"）| Contract 85%（架构违规）
-- Utility 95%（抄表状态过滤✅）| Finance 92%（收款核销✅/应付管理✅/现金流水✅/客户类型✅/账户体系✅/直接记账✅/导出❌）| Scale 30%（数据同步✅/ScaleRecord扩展✅/前端展示待开发）
-- Admin Dashboard 95%（统计卡✅/收支柱形图✅/最近动态✅/逾期应收✅/合同到期✅/地块数据✅）
+## 模块完成度（2026-04-17）
+- Auth 100% | User 95% | Merchant 100% | Plot 95%（架构违规已修复✅/Status值注意用"已出租"非"已租"）| Contract 95%（架构违规已修复✅）
+- Utility 95%（抄表状态过滤✅）| Finance 92%（收款核销✅/应付管理✅/现金流水✅/客户类型✅/账户体系✅/直接记账✅/导出❌）| Scale 40%（数据同步✅/ScaleRecord扩展✅/Dashboard看板✅含本月/上月/去年同期趋势对比/前端展示待开发）
+- Admin Dashboard 95%（统计卡✅/收支柱形图✅/最近动态✅/逾期应收✅/合同到期✅/地块数据✅/暗色模式修复✅）
 - Customer 100%（CRUD✅ + 搜索API✅）
 - Salary 90%（工资档案✅/月度核算✅/审核发放✅/工资条✅/联动财务✅）
 - Dorm 90%（房间管理✅/入住退房✅/电表抄表✅/月度账单✅/联动财务✅）
@@ -47,7 +56,9 @@
 - 权限：merchant角色 + 5个门户权限(portal_view/contract/finance/scale/utility)
 
 ## 已知技术债务
-- **架构违规**：contract.py、plot.py 在routes层直接使用DBConnection
+- ~~**架构违规**：contract.py、plot.py 在routes层直接使用DBConnection~~ → ✅ 已修复（2026-04-17，迁移到 ContractService/PlotService）
+- **架构违规**：admin.py 仍直接使用 DBConnection（仪表盘统计查询，合理场景暂保留）
+- **架构违规**：finance.py 的 receivable_detail 中新增了 _get_contract_summary 和 _get_utility_readings 辅助函数直接使用 DBConnection（查关联合同/抄表数据，routes层内联辅助函数，暂保留）
 - **Dead code**：app/extensions.py 未被引用
 - **调试代码**：utility.py 仍有部分 print() 语句
 - **财务导出**：应收/应付/现金流水导出Excel功能均未实现

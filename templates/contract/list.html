@@ -63,7 +63,7 @@
                         <th style="width: 100px;">开始日期</th>
                         <th style="width: 100px;">结束日期</th>
                         <th style="width: 120px; text-align: right;">合同金额</th>
-                        <th style="width: 100px;">操作</th>
+                        <th style="width: 130px;">操作</th>
                     </tr>
                 </thead>
                 <tbody id="contractTableBody">
@@ -285,10 +285,10 @@ function loadContracts(page) {
                             '<td>' + (contract.start_date || '-') + '</td>' +
                             '<td>' + (contract.end_date || '-') + '</td>' +
                             '<td class="text-end">¥' + formatNumber(contract.actual_amount) + '</td>' +
-                            '<td>' +
+                            '<td class="table-actions text-nowrap">' +
                                 '<button type="button" class="btn btn-sm btn-outline-success me-1 download-btn" data-id="' + contract.contract_id + '" title="下载合同"><i class="fa fa-download"></i> 下载</button>' +
-                                '<a href="/contract/edit/' + contract.contract_id + '" class="btn btn-sm btn-outline-primary me-1"><i class="fa fa-edit"></i> 编辑</a>' +
-                                '<button type="button" class="btn btn-sm btn-outline-danger delete-btn" data-id="' + contract.contract_id + '"><i class="fa fa-trash"></i> 删除</button>' +
+                                '<a href="/contract/edit/' + contract.contract_id + '" class="btn btn-sm btn-outline-primary me-1" title="编辑合同"><i class="fa fa-edit"></i> 编辑</a>' +
+                                '<button type="button" class="btn btn-sm btn-outline-danger delete-btn" data-id="' + contract.contract_id + '" title="删除合同"><i class="fa fa-trash"></i> 删除</button>' +
                             '</td>' +
                         '</tr>';
                         tbody.append(row);

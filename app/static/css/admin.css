@@ -1076,6 +1076,238 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--color-text-muted);
 }
 
+/* ========== readonly 输入框暗色 ========== */
+[data-theme="dark"] .form-control[readonly] {
+    background-color: var(--color-bg-dark);
+    color: var(--color-text-muted);
+    border-color: var(--color-border);
+}
+
+/* ========== 表格暗色模式 ========== */
+/* 基础表格 */
+[data-theme="dark"] .table {
+    --bs-table-color: var(--color-text);
+    --bs-table-bg: transparent;
+    --bs-table-border-color: var(--color-border);
+    --bs-table-striped-color: var(--color-text);
+    --bs-table-striped-bg: var(--table-stripe-bg);
+    --bs-table-hover-color: var(--color-text);
+    --bs-table-hover-bg: var(--table-hover-bg);
+}
+
+/* thead 在暗色模式下 */
+[data-theme="dark"] .table > :not(caption) > * > th {
+    background-color: var(--color-bg-dark);
+    border-bottom-color: var(--color-border);
+    color: var(--color-text);
+}
+
+/* table-light（Bootstrap 亮色表头类）暗色覆盖 */
+[data-theme="dark"] .table-light {
+    --bs-table-color: var(--color-text);
+    --bs-table-bg: var(--color-bg-dark);
+    --bs-table-border-color: var(--color-border);
+    --bs-table-striped-bg: var(--color-bg-dark);
+    --bs-table-hover-bg: var(--table-hover-bg);
+}
+
+/* table-info 暗色覆盖 */
+[data-theme="dark"] .table-info {
+    --bs-table-color: var(--color-text);
+    --bs-table-bg: rgba(var(--color-primary-rgb), 0.12);
+    --bs-table-border-color: var(--color-border);
+}
+
+/* table-active 暗色覆盖 */
+[data-theme="dark"] .table-active {
+    --bs-table-color: var(--color-text);
+    --bs-table-bg: rgba(var(--color-primary-rgb), 0.1);
+}
+
+/* table-bordered 暗色覆盖 */
+[data-theme="dark"] .table-bordered {
+    border-color: var(--color-border);
+}
+[data-theme="dark"] .table-bordered > :not(caption) > * > th,
+[data-theme="dark"] .table-bordered > :not(caption) > * > td {
+    border-color: var(--color-border);
+}
+
+/* table-sm 暗色覆盖 — 确保内边距在暗色下正常 */
+[data-theme="dark"] .table-sm th,
+[data-theme="dark"] .table-sm td {
+    border-color: var(--color-border);
+}
+
+/* table-responsive 暗色下边框 */
+[data-theme="dark"] .table-responsive {
+    border-color: var(--color-border);
+}
+
+/* .table-actions 列 */
+[data-theme="dark"] .table-actions {
+    border-color: var(--color-border);
+}
+
+/* ========== bg-light / text-dark 暗色覆盖 ========== */
+[data-theme="dark"] .bg-light {
+    background-color: var(--color-bg-light) !important;
+}
+[data-theme="dark"] .text-dark {
+    color: var(--color-text) !important;
+}
+
+/* ========== Badge 暗色 ========== */
+[data-theme="dark"] .badge.bg-light {
+    background-color: rgba(var(--color-primary-rgb), 0.15) !important;
+    color: var(--color-primary) !important;
+}
+
+/* ========== 卡片 bg-light 统计卡 暗色 ========== */
+[data-theme="dark"] .card.bg-light {
+    background-color: var(--color-bg-light) !important;
+    border-color: var(--color-border) !important;
+}
+
+/* ========== Modal 暗色 ========== */
+[data-theme="dark"] .modal-content {
+    background-color: var(--color-bg-card);
+    border-color: var(--color-border);
+    color: var(--color-text);
+}
+
+[data-theme="dark"] .modal-header {
+    border-bottom-color: var(--color-border);
+}
+
+[data-theme="dark"] .modal-footer {
+    border-top-color: var(--color-border);
+}
+
+[data-theme="dark"] .modal-body {
+    background-color: var(--color-bg-card);
+}
+
+[data-theme="dark"] .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* ========== 抄表特殊高亮暗色 ========== */
+[data-theme="dark"] .highlight-subtotal { background-color: rgba(var(--color-info), 0.12); }
+[data-theme="dark"] .highlight-total { background-color: rgba(var(--color-warning), 0.12); }
+
+/* ========== 分页暗色 ========== */
+[data-theme="dark"] .pagination .page-link {
+    background-color: var(--color-bg-light);
+    border-color: var(--color-border);
+    color: var(--color-text);
+}
+[data-theme="dark"] .pagination .page-link:hover {
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+}
+[data-theme="dark"] .pagination .page-item.active .page-link {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+}
+[data-theme="dark"] .pagination .page-item.disabled .page-link {
+    background-color: var(--color-bg-light);
+    color: var(--color-text-light);
+    border-color: var(--color-border);
+}
+
+/* ========== 关闭按钮暗色 ========== */
+[data-theme="dark"] .close,
+[data-theme="dark"] .btn-close {
+    color: var(--color-text);
+}
+
+/* ========== Alert 暗色 ========== */
+[data-theme="dark"] .alert-light {
+    background-color: var(--color-bg-light);
+    border-color: var(--color-border);
+    color: var(--color-text);
+}
+
+/* ========== List Group 暗色 ========== */
+[data-theme="dark"] .list-group-item {
+    background-color: var(--color-bg-light);
+    border-color: var(--color-border);
+    color: var(--color-text);
+}
+[data-theme="dark"] .list-group-item:hover {
+    background-color: var(--table-hover-bg);
+}
+
+/* ========== hr 暗色 ========== */
+[data-theme="dark"] hr {
+    border-color: var(--color-border);
+}
+
+/* ========== 预格式化/代码 暗色 ========== */
+[data-theme="dark"] pre,
+[data-theme="dark"] code {
+    background-color: var(--color-bg-dark);
+    color: var(--color-text);
+    border-color: var(--color-border);
+}
+
+/* ========== Nav Tabs 暗色 ========== */
+[data-theme="dark"] .nav-tabs {
+    border-bottom-color: var(--color-border);
+}
+[data-theme="dark"] .nav-tabs .nav-link {
+    color: var(--color-text-muted);
+    border-color: transparent;
+}
+[data-theme="dark"] .nav-tabs .nav-link:hover {
+    color: var(--color-text);
+    border-color: var(--color-border) var(--color-border) transparent;
+    background-color: var(--color-bg-light);
+}
+[data-theme="dark"] .nav-tabs .nav-link.active {
+    color: var(--color-primary);
+    background-color: var(--color-bg-card);
+    border-color: var(--color-border) var(--color-border) var(--color-bg-card);
+}
+
+/* ========== Toast 暗色 ========== */
+[data-theme="dark"] .toast {
+    background-color: var(--color-bg-light);
+    border-color: var(--color-border);
+    color: var(--color-text);
+}
+[data-theme="dark"] .toast-header {
+    background-color: var(--color-bg-dark);
+    border-bottom-color: var(--color-border);
+    color: var(--color-text);
+}
+
+/* ========== 进度条 暗色 ========== */
+[data-theme="dark"] .progress {
+    background-color: var(--color-bg-dark);
+}
+
+/* ========== Accordion 暗色 ========== */
+[data-theme="dark"] .accordion-button {
+    background-color: var(--color-bg-light);
+    color: var(--color-text);
+    border-color: var(--color-border);
+}
+[data-theme="dark"] .accordion-button:not(.collapsed) {
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+}
+[data-theme="dark"] .accordion-body {
+    background-color: var(--color-bg-light);
+    color: var(--color-text);
+}
+[data-theme="dark"] .accordion-item {
+    background-color: var(--color-bg-light);
+    border-color: var(--color-border);
+}
+
 /* ========== 面包屑 — 保持兼容但样式更新 ========== */
 .breadcrumb-container {
     padding: var(--space-2) 0;

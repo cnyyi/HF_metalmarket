@@ -2,6 +2,10 @@
 宏发金属交易市场 - 过磅数据同步服务
 从 Access 过磅软件数据库同步数据到 SQL Server
 
+功能：
+  1. 增量同步：按流水号插入新记录
+  2. 变更检测：对比已同步记录的更新时间，发现修改后标记原记录并插入新版本
+
 运行方式：
   python scale_sync.py                # 前台运行
   python scale_sync.py --install      # 安装为 Windows 服务
@@ -16,7 +20,7 @@ import json
 import time
 import logging
 import pyodbc
-from datetime import datetime
+from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
 
 # ============================================================
@@ -45,6 +49,9 @@ DEFAULT_CONFIG = {
     # 只同步 RecordFinish=1 的已完成过磅记录
     "only_finished": True,
 
+    # 变更检测回查天数（检查最近N天内已同步记录是否被修改）
+    "change_detection_days": 3,
+
     # 日志级别
     "log_level": "INFO"
 }
@@ -65,6 +72,9 @@ def load_config():
     for key, value in DEFAULT_CONFIG.items():
         if key not in config:
             config[key] = value
+            # 回写到配置文件
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
     return config
 
 
@@ -126,6 +136,62 @@ def get_sql_connection(config):
 
 
 # ============================================================
+# 数据转换工具
+# ============================================================
+
+WEIGH_TYPE_MAP = {
+    'PO': '皮毛重',
+    'SO': '毛重',
+    'OO': '皮重',
+    'IO': '入口',
+}
+
+
+def row_to_params(data, columns, config, modified_from_id=None):
+    """将 Access 一行数据转换为 SQL Server INSERT 参数"""
+    scale_id = config.get('default_scale_id', 1)
+    now = datetime.now()
+
+    serial_no = data.get('流水号', '')
+    weigh_type = WEIGH_TYPE_MAP.get(data.get('过磅类型', ''), data.get('过磅类型', ''))
+    scale_time = data.get('二次过磅时间') or data.get('一次过磅时间') or data.get('更新时间') or now
+    product_name = data.get('货名', '') or data.get('规格', '')
+    memo = data.get('备注', '') or ''
+    source_update_time = data.get('更新时间')  # Access 端更新时间
+
+    params = (
+        scale_id,
+        None,                               # MerchantID = NULL
+        serial_no,
+        weigh_type,
+        data.get('毛重', 0) or 0,
+        data.get('皮重', 0) or 0,
+        data.get('净重', 0) or 0,
+        data.get('扣重', 0) or 0,
+        data.get('实重', 0) or 0,
+        data.get('单价', 0) or 0,
+        data.get('金额', 0) or 0,
+        data.get('过磅费', 0) or 0,
+        data.get('车号', ''),
+        product_name,
+        data.get('发货单位', ''),
+        data.get('收货单位', ''),
+        data.get('毛重时间'),
+        data.get('皮重时间'),
+        scale_time,
+        data.get('毛重司磅员', ''),
+        data.get('皮重司磅员', ''),
+        data.get('更新人', '') or '系统同步',
+        memo,
+        now,
+        source_update_time,                 # SourceUpdateTime
+        0,                                  # IsModified = 0（新记录）
+        modified_from_id,                   # ModifiedFromRecordID
+    )
+    return serial_no, params
+
+
+# ============================================================
 # 同步逻辑
 # ============================================================
 
@@ -141,7 +207,7 @@ def get_last_synced_serial(sql_conn):
 
 
 def fetch_new_records(access_conn, last_serial, only_finished=True):
-    """从 Access 查询新记录"""
+    """从 Access 查询新记录（流水号 > last_serial）"""
     cursor = access_conn.cursor()
 
     sql = """
@@ -168,13 +234,153 @@ def fetch_new_records(access_conn, last_serial, only_finished=True):
     return cursor.fetchall(), [desc[0] for desc in cursor.description]
 
 
-def insert_records(sql_conn, records, columns, config, logger):
+def fetch_recent_source_records(sql_conn, detection_days):
+    """
+    查询 SQL Server 中最近 N 天已同步、且未被修改标记的记录
+    返回 dict: {SourceSerialNo: (ScaleRecordID, SourceUpdateTime)}
+    """
+    cursor = sql_conn.cursor()
+    cutoff = datetime.now() - timedelta(days=detection_days)
+
+    cursor.execute("""
+        SELECT SourceSerialNo, ScaleRecordID, SourceUpdateTime
+        FROM ScaleRecord
+        WHERE SourceSerialNo IS NOT NULL
+          AND IsModified = 0
+          AND CreateTime >= ?
+    """, (cutoff,))
+
+    result = {}
+    for row in cursor.fetchall():
+        serial = row[0]
+        # 如果同一流水号有多条未修改记录，取最新的那条
+        if serial not in result or (row[2] and result[serial][1] and row[2] > result[serial][1]):
+            result[serial] = (row[1], row[2])  # (ScaleRecordID, SourceUpdateTime)
+    return result
+
+
+def fetch_access_updated_records(access_conn, serial_nos, only_finished=True):
+    """
+    从 Access 查询指定流水号的记录（用于变更检测）
+    返回 dict: {流水号: row_dict}
+    """
+    if not serial_nos:
+        return {}
+
+    cursor = access_conn.cursor()
+
+    # 构建 IN 子句
+    placeholders = ','.join(f"'{s}'" for s in serial_nos)
+    sql = f"""
+        SELECT 
+            流水号, 车号, 过磅类型, 发货单位, 收货单位, 货名, 规格,
+            毛重, 皮重, 净重, 扣重, 实重, 单价, 金额, 过磅费,
+            毛重司磅员, 皮重司磅员, 毛重磅号, 皮重磅号,
+            毛重时间, 皮重时间,
+            一次过磅时间, 二次过磅时间,
+            更新人, 更新时间, 备注, RecordFinish
+        FROM 称重信息
+        WHERE 流水号 IN ({placeholders})
+    """
+
+    if only_finished:
+        sql += " AND RecordFinish = 1"
+
+    cursor.execute(sql)
+    columns = [desc[0] for desc in cursor.description]
+
+    result = {}
+    for row in cursor.fetchall():
+        data = dict(zip(columns, row))
+        serial = data.get('流水号', '')
+        if serial:
+            result[serial] = data
+    return result
+
+
+def detect_changes(sql_conn, access_conn, config, logger):
+    """
+    变更检测：对比最近已同步记录与 Access 端数据
+    发现修改后：标记原记录 IsModified=1，插入新版本记录
+    返回修改的记录数
+    """
+    detection_days = config.get('change_detection_days', 3)
+
+    # 1. 从 SQL Server 获取最近 N 天已同步的记录
+    source_records = fetch_recent_source_records(sql_conn, detection_days)
+    if not source_records:
+        logger.debug("变更检测: 无最近记录需要检查")
+        return 0
+
+    logger.debug(f"变更检测: 检查 {len(source_records)} 条最近记录")
+
+    # 2. 从 Access 查询这些流水号的当前数据
+    serial_nos = list(source_records.keys())
+    access_data = fetch_access_updated_records(
+        access_conn, serial_nos,
+        only_finished=config.get('only_finished', True)
+    )
+
+    # 3. 逐一对比更新时间
+    modified_count = 0
+    cursor = sql_conn.cursor()
+
+    for serial_no, (record_id, stored_update_time) in source_records.items():
+        access_row = access_data.get(serial_no)
+        if not access_row:
+            continue  # Access 中已无此记录，跳过
+
+        access_update_time = access_row.get('更新时间')
+        if not access_update_time or not stored_update_time:
+            continue
+
+        # 对比更新时间：如果 Access 的更新时间比存储的更新时间更新，则认为被修改
+        if access_update_time > stored_update_time:
+            logger.info(f"发现修改: 流水号 {serial_no}, 原更新时间={stored_update_time}, 新更新时间={access_update_time}")
+
+            # 标记原记录为已修改
+            cursor.execute("""
+                UPDATE ScaleRecord SET IsModified = 1
+                WHERE ScaleRecordID = ?
+            """, (record_id,))
+
+            # 插入新版本记录，ModifiedFromRecordID 指向原记录
+            _, params = row_to_params(access_row, list(access_row.keys()), config, modified_from_id=record_id)
+            try:
+                cursor.execute("""
+                    INSERT INTO ScaleRecord (
+                        ScaleID, MerchantID, SourceSerialNo, WeighType,
+                        GrossWeight, TareWeight, NetWeight, DeductWeight, ActualWeight,
+                        UnitPrice, TotalAmount, ScaleFee,
+                        LicensePlate, ProductName,
+                        SenderName, ReceiverName,
+                        GrossTime, TareTime, ScaleTime,
+                        GrossOperator, TareOperator, Operator,
+                        Description, CreateTime,
+                        SourceUpdateTime, IsModified, ModifiedFromRecordID
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, params)
+                modified_count += 1
+            except pyodbc.IntegrityError:
+                logger.warning(f"修改记录插入冲突: 流水号 {serial_no}")
+            except Exception as e:
+                logger.error(f"修改记录插入失败 [{serial_no}]: {e}")
+
+    if modified_count > 0:
+        try:
+            sql_conn.commit()
+            logger.info(f"变更检测完成: 处理 {modified_count} 条修改记录")
+        except Exception as e:
+            logger.error(f"变更检测提交失败: {e}")
+            sql_conn.rollback()
+
+    return modified_count
+
+
+def insert_new_records(sql_conn, records, columns, config, logger):
     """批量插入新记录到 SQL Server"""
     if not records:
         return 0
-
-    scale_id = config.get('default_scale_id', 1)
-    now = datetime.now()
 
     insert_sql = """
         INSERT INTO ScaleRecord (
@@ -185,17 +391,10 @@ def insert_records(sql_conn, records, columns, config, logger):
             SenderName, ReceiverName,
             GrossTime, TareTime, ScaleTime,
             GrossOperator, TareOperator, Operator,
-            Description, CreateTime
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            Description, CreateTime,
+            SourceUpdateTime, IsModified, ModifiedFromRecordID
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
-
-    # 过磅类型映射
-    weigh_type_map = {
-        'PO': '皮毛重',
-        'SO': '毛重',
-        'OO': '皮重',
-        'IO': '入口',
-    }
 
     inserted = 0
     skipped = 0
@@ -204,43 +403,12 @@ def insert_records(sql_conn, records, columns, config, logger):
 
     for row in records:
         data = dict(zip(columns, row))
+        serial_no, params = row_to_params(data, columns, config)
 
-        serial_no = data.get('流水号', '')
         if not serial_no:
             skipped += 1
             continue
 
-        weigh_type = weigh_type_map.get(data.get('过磅类型', ''), data.get('过磅类型', ''))
-        scale_time = data.get('二次过磅时间') or data.get('一次过磅时间') or data.get('更新时间') or now
-        product_name = data.get('货名', '') or data.get('规格', '')
-        memo = data.get('备注', '') or ''
-
-        params = (
-            scale_id,
-            None,                               # MerchantID = NULL
-            serial_no,
-            weigh_type,
-            data.get('毛重', 0) or 0,
-            data.get('皮重', 0) or 0,
-            data.get('净重', 0) or 0,
-            data.get('扣重', 0) or 0,
-            data.get('实重', 0) or 0,
-            data.get('单价', 0) or 0,
-            data.get('金额', 0) or 0,
-            data.get('过磅费', 0) or 0,
-            data.get('车号', ''),
-            product_name,
-            data.get('发货单位', ''),
-            data.get('收货单位', ''),
-            data.get('毛重时间'),
-            data.get('皮重时间'),
-            scale_time,
-            data.get('毛重司磅员', ''),
-            data.get('皮重司磅员', ''),
-            data.get('更新人', '') or '系统同步',
-            memo,
-            now,
-        )
         batch_params.append((serial_no, params))
 
         # 批量提交
@@ -256,7 +424,7 @@ def insert_records(sql_conn, records, columns, config, logger):
             sql_conn, insert_sql, batch_params, inserted, skipped, logger
         )
 
-    logger.info(f"同步完成: 插入 {inserted} 条，跳过 {skipped} 条")
+    logger.info(f"新增同步完成: 插入 {inserted} 条，跳过 {skipped} 条")
     return inserted
 
 
@@ -291,26 +459,28 @@ def do_sync(config, logger):
         return
 
     try:
-        # 获取最后同步的流水号
+        # ---- 阶段1: 变更检测 ----
+        modified = detect_changes(sql_conn, access_conn, config, logger)
+
+        # ---- 阶段2: 增量插入新记录 ----
         last_serial = get_last_synced_serial(sql_conn)
         logger.debug(f"最后已同步流水号: {last_serial or '无'}")
 
-        # 从 Access 读取新记录
         records, columns = fetch_new_records(
             access_conn, last_serial,
             only_finished=config.get('only_finished', True)
         )
 
-        if not records:
-            logger.debug("无新记录")
+        if not records and modified == 0:
+            logger.debug("无新记录，无修改")
             return
 
-        logger.info(f"发现 {len(records)} 条新记录，开始同步...")
-
-        # 插入到 SQL Server
-        inserted = insert_records(sql_conn, records, columns, config, logger)
-
-        logger.info(f"同步完成: 插入 {inserted} 条，跳过 {len(records) - inserted} 条")
+        if records:
+            logger.info(f"发现 {len(records)} 条新记录，开始同步...")
+            inserted = insert_new_records(sql_conn, records, columns, config, logger)
+            logger.info(f"本次同步: 新增 {inserted} 条，修改 {modified} 条")
+        else:
+            logger.info(f"本次同步: 新增 0 条，修改 {modified} 条")
 
     except Exception as e:
         logger.error(f"同步异常: {e}")
@@ -339,6 +509,7 @@ def run_loop(config, logger):
     logger.info(f"过磅数据同步服务启动，同步间隔 {interval} 秒")
     logger.info(f"Access 数据库: {config['access_db_path']}")
     logger.info(f"SQL Server: {config['sql_server']}/{config['sql_database']}")
+    logger.info(f"变更检测回查天数: {config.get('change_detection_days', 3)}")
 
     while True:
         try:

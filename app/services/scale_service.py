@@ -185,14 +185,14 @@ class ScaleService:
         inbound_row = execute_query("""
             SELECT COUNT(*), ISNULL(SUM(NetWeight), 0), ISNULL(SUM(ScaleFee), 0)
             FROM ScaleRecord
-            WHERE CAST(GrossTime AS DATE) = ?
+            WHERE CAST(ScaleTime AS DATE) = ?
               AND TareTime IS NULL
         """, (today_str,), fetch_type='one')
 
         outbound_row = execute_query("""
             SELECT COUNT(*), ISNULL(SUM(NetWeight), 0), ISNULL(SUM(ScaleFee), 0)
             FROM ScaleRecord
-            WHERE CAST(TareTime AS DATE) = ?
+            WHERE CAST(ScaleTime AS DATE) = ?
               AND TareTime IS NOT NULL
         """, (today_str,), fetch_type='one')
 
@@ -225,13 +225,13 @@ class ScaleService:
 
         rows = execute_query("""
             SELECT
-                DAY(COALESCE(TareTime, GrossTime)) AS DayNum,
+                DAY(ScaleTime) AS DayNum,
                 COUNT(*) AS VehicleCount,
                 ISNULL(SUM(NetWeight), 0) AS CargoWeight,
                 ISNULL(SUM(ScaleFee), 0) AS FeeAmount
             FROM ScaleRecord
-            WHERE FORMAT(COALESCE(TareTime, GrossTime), 'yyyy-MM') = ?
-            GROUP BY DAY(COALESCE(TareTime, GrossTime))
+            WHERE FORMAT(ScaleTime, 'yyyy-MM') = ?
+            GROUP BY DAY(ScaleTime)
             ORDER BY DayNum
         """, (month_str,), fetch_type='all')
 
@@ -269,7 +269,7 @@ class ScaleService:
     def get_today_records(page=1, per_page=15, keyword=None):
         today_str = datetime.now().strftime('%Y-%m-%d')
 
-        conditions = ["CAST(COALESCE(sr.TareTime, sr.GrossTime, sr.ScaleTime) AS DATE) = ?"]
+        conditions = ["CAST(sr.ScaleTime AS DATE) = ?"]
         params = [today_str]
 
         if keyword:

@@ -74,14 +74,14 @@
                         <td>{{ merchant.create_time.strftime('%Y-%m-%d %H:%M') }}</td>
                         <td class="table-actions">
                             <a href="{{ url_for('merchant.edit', merchant_id=merchant.merchant_id) }}" class="btn btn-sm btn-warning" title="编辑">
-                                <i class="fa fa-edit"></i>
+                                <i class="fa fa-edit"></i> 编辑
                             </a>
                             <button class="btn btn-sm btn-outline-success btn-portal" title="门户管理"
                                     data-id="{{ merchant.merchant_id }}" data-name="{{ merchant.merchant_name }}">
-                                <i class="fa fa-globe"></i>
+                                <i class="fa fa-globe"></i> 门户管理
                             </button>
                             <a href="#" class="btn btn-sm btn-danger" title="删除" onclick="return confirm('确定要删除这个商户吗？');">
-                                <i class="fa fa-trash"></i>
+                                <i class="fa fa-trash"></i> 删除
                             </a>
                         </td>
                     </tr>

@@ -189,7 +189,7 @@ $(function() {
                     var statusBadge = getBillStatusBadge(item.status);
                     var tenantTypeBadge = item.tenant_type === '商户'
                         ? '<span class="badge bg-info">商户</span>'
-                        : '<span class="badge bg-light text-dark">个人</span>';
+                        : '<span class="badge bg-secondary">个人</span>';
 
                     html += '<tr data-bill-id="' + item.bill_id + '">' +
                         '<td><input type="checkbox" class="bill-check" value="' + item.bill_id + '" data-status="' + item.status + '"></td>' +
@@ -220,7 +220,7 @@ $(function() {
             '已开账': '<span class="badge bg-primary">已开账</span>',
             '已收清': '<span class="badge bg-success">已收清</span>'
         };
-        return map[status] || '<span class="badge bg-light text-dark">' + escapeHtml(status) + '</span>';
+        return map[status] || '<span class="badge bg-secondary">' + escapeHtml(status) + '</span>';
     }
 
     function getBillActions(item) {

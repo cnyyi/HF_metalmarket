@@ -563,3 +563,84 @@ def reading_data_list():
             'success': False,
             'message': f'获取数据失败：{str(e)}'
         }), 500
+
+
+@utility_bp.route('/reading_data/pay', methods=['POST'])
+@login_required
+def pay_reading():
+    """
+    抄表数据快捷收费
+    """
+    try:
+        data = request.get_json()
+        merchant_id = data.get('merchant_id')
+        belong_month = data.get('belong_month')  # 格式 "YYYY年MM月"
+        meter_type = data.get('meter_type', 'electricity')
+        account_id = data.get('account_id')
+        amount = float(data.get('amount', 0))
+
+        if not merchant_id:
+            return jsonify({'success': False, 'message': '商户ID不能为空'}), 400
+        if not belong_month:
+            return jsonify({'success': False, 'message': '所属月份不能为空'}), 400
+        if not account_id:
+            return jsonify({'success': False, 'message': '请选择收款账户'}), 400
+        if amount <= 0:
+            return jsonify({'success': False, 'message': '交费金额必须大于0'}), 400
+
+        result = utility_service.pay_reading(
+            merchant_id=merchant_id,
+            belong_month=belong_month,
+            meter_type=meter_type,
+            account_id=account_id,
+            amount=amount,
+            created_by=current_user.user_id
+        )
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'收费失败：{str(e)}'
+        }), 500
+
+
+@utility_bp.route('/reading_data/delete/<int:reading_id>', methods=['POST'])
+@login_required
+def delete_reading(reading_id):
+    """
+    删除单条抄表记录
+    """
+    try:
+        result = utility_service.delete_reading(reading_id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'删除失败：{str(e)}'
+        }), 500
+
+
+@utility_bp.route('/reading_data/delete_batch', methods=['POST'])
+@login_required
+def delete_readings_batch():
+    """
+    批量删除抄表记录
+    """
+    try:
+        data = request.get_json()
+        reading_ids = data.get('reading_ids', [])
+        
+        if not reading_ids or not isinstance(reading_ids, list):
+            return jsonify({
+                'success': False,
+                'message': '请提供有效的抄表记录ID列表'
+            }), 400
+        
+        result = utility_service.delete_readings_batch(reading_ids)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'批量删除失败：{str(e)}'
+        }), 500

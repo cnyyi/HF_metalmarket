@@ -28,18 +28,23 @@
     </div>
     <div class="card-body">
         <div class="row mb-3">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="input-group">
                     <span class="input-group-text"><i class="fa fa-search"></i></span>
                     <input type="text" class="form-control" id="searchInput" placeholder="搜索商户/客户名称">
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <select class="form-select" id="statusFilter">
                     <option value="">全部状态</option>
                     <option value="未付款">未付款</option>
                     <option value="部分付款">部分付款</option>
                     <option value="已付款">已付款</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="expenseTypeFilter">
+                    <option value="">全部费用类型</option>
                 </select>
             </div>
             <div class="col-md-2">
@@ -70,6 +75,15 @@
                         <td colspan="10" class="text-center text-muted">加载中...</td>
                     </tr>
                 </tbody>
+                <tfoot id="receivableTableFoot" style="display:none;">
+                    <tr class="table-summary-row">
+                        <td colspan="4" class="text-center fw-bold"><i class="fa fa-calculator"></i> 合计（共 <span id="summaryTotalCount">0</span> 条）</td>
+                        <td class="text-end fw-bold" id="summaryTotalAmount">¥0</td>
+                        <td class="text-end fw-bold text-success" id="summaryTotalPaid">¥0</td>
+                        <td class="text-end fw-bold text-danger" id="summaryTotalRemaining">¥0</td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
 
@@ -121,18 +135,48 @@
                             </select>
                         </div>
                         <div class="col-md-6">
+                            <label class="form-label fw-bold">到期日期 <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="dueDateInput">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">品名</label>
+                            <input type="text" class="form-control" id="productNameInput" placeholder="如：钢材、铝材等">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">规格</label>
+                            <input type="text" class="form-control" id="specificationInput" placeholder="如：6m、10mm等">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">单位</label>
+                            <select class="form-select" id="unitSelect">
+                                <option value="">请选择</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">数量</label>
+                            <input type="number" class="form-control" id="quantityInput" placeholder="输入数量" step="0.0001" min="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">单价</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" class="form-control" id="unitPriceInput" placeholder="输入单价" step="0.0001" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
                             <label class="form-label fw-bold">应收金额 <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text">¥</span>
                                 <input type="number" class="form-control" id="amountInput"
-                                       placeholder="请输入应收金额" step="0.01" min="0.01">
+                                       placeholder="手动输入或自动计算" step="0.01" min="0.01">
                             </div>
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">到期日期 <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" id="dueDateInput">
+                            <div class="form-text" id="amountCalcHint" style="display:none;">
+                                <i class="fa fa-calculator"></i> 已按 数量×单价 自动计算
+                            </div>
                         </div>
                     </div>
                     <div class="row mb-3">
@@ -268,9 +312,59 @@
         </div>
     </div>
 </div>
+
+<!-- 删除确认弹窗 -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fa fa-exclamation-triangle"></i> 删除确认</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning mb-3">
+                    <i class="fa fa-exclamation-circle"></i> <strong>注意：</strong>删除后该应收记录将标记为已删除，不再显示在列表中。此操作不可撤销！
+                </div>
+                <div class="mb-3">
+                    <strong>应收信息：</strong>
+                    <div id="deleteInfo" class="mt-2 p-2 bg-light rounded"></div>
+                </div>
+                <form id="deleteForm">
+                    <input type="hidden" id="deleteReceivableId">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">删除原因 <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="deleteReason" rows="3"
+                                  placeholder="请输入删除原因（必填）" required></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="btnConfirmDelete">
+                    <i class="fa fa-trash"></i> 确认删除
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
+<style>
+.table-summary-row {
+    background: var(--color-bg-card, #f8f9fa);
+    border-top: 2px solid #165DFF;
+    font-size: 0.88rem;
+}
+.table-summary-row td {
+    padding: 12px 8px;
+    vertical-align: middle;
+    border-bottom: none;
+}
+[data-theme="dark"] .table-summary-row {
+    background: rgba(22, 93, 255, 0.06);
+}
+</style>
 <script>
 var currentPage = 1;
 var perPage = 10;
@@ -299,11 +393,12 @@ function loadReceivables(page) {
     currentPage = page;
     var search = $('#searchInput').val().trim();
     var status = $('#statusFilter').val();
+    var expenseTypeId = $('#expenseTypeFilter').val();
 
     $.ajax({
         url: '/finance/receivable/list',
         type: 'GET',
-        data: { page: page, per_page: perPage, search: search, status: status },
+        data: { page: page, per_page: perPage, search: search, status: status, expense_type_id: expenseTypeId || '' },
         success: function(resp) {
             if (resp.success) {
                 renderTable(resp.data);
@@ -320,8 +415,11 @@ function loadReceivables(page) {
 function renderTable(data) {
     var items = data.items;
     var tbody = $('#receivableTableBody');
+    var tfoot = $('#receivableTableFoot');
+
     if (!items || items.length === 0) {
         tbody.html('<tr><td colspan="10" class="text-center text-muted">暂无数据</td></tr>');
+        tfoot.hide();
         $('#paginationNav').hide();
         return;
     }
@@ -345,10 +443,25 @@ function renderTable(data) {
         if (item.status !== '已付款') {
             html += '<button class="btn btn-sm btn-outline-success me-1 btn-collect" data-id="' + item.receivable_id + '" data-merchant="' + escapeHtml(item.merchant_name) + '" data-amount="' + item.amount + '" data-remaining="' + item.remaining_amount + '" data-customer-type="' + (item.customer_type || 'Merchant') + '" data-customer-id="' + (item.customer_id || item.merchant_id) + '"><i class="fa fa-money"></i> 收款</button>';
         }
+        if (item.status === '未付款') {
+            html += '<button class="btn btn-sm btn-outline-danger me-1 btn-delete" data-id="' + item.receivable_id + '" data-merchant="' + escapeHtml(item.merchant_name) + '" data-amount="' + item.amount + '"><i class="fa fa-trash-o"></i> 删除</button>';
+        }
         html += '<button class="btn btn-sm btn-outline-info btn-detail" data-id="' + item.receivable_id + '"><i class="fa fa-eye"></i> 详情</button>';
         html += '</td></tr>';
     }
     tbody.html(html);
+
+    // 渲染汇总行
+    if (data.summaries) {
+        $('#summaryTotalCount').text(data.total_count);
+        $('#summaryTotalAmount').text('¥' + formatNumber(data.summaries.total_amount));
+        $('#summaryTotalPaid').text('¥' + formatNumber(data.summaries.total_paid));
+        $('#summaryTotalRemaining').text('¥' + formatNumber(data.summaries.total_remaining));
+        tfoot.show();
+    } else {
+        tfoot.hide();
+    }
+
     renderPagination(data);
 }
 
@@ -384,6 +497,41 @@ function loadExpenseTypes() {
             if (resp.success) {
                 var select = $('#expenseTypeSelect');
                 select.html('<option value="">请选择费用类型</option>');
+                for (var i = 0; i < resp.data.length; i++) {
+                    var et = resp.data[i];
+                    select.append('<option value="' + et.expense_type_id + '">' + escapeHtml(et.expense_type_name) + '</option>');
+                }
+            }
+        }
+    });
+}
+
+function loadUnitTypes() {
+    $.ajax({
+        url: '/finance/receivable/unit_types',
+        type: 'GET',
+        success: function(resp) {
+            if (resp.success) {
+                var select = $('#unitSelect');
+                select.html('<option value="">请选择</option>');
+                for (var i = 0; i < resp.data.length; i++) {
+                    var u = resp.data[i];
+                    select.append('<option value="' + u.unit_id + '">' + escapeHtml(u.unit_name) + '</option>');
+                }
+            }
+        }
+    });
+}
+
+function loadExpenseTypeFilter() {
+    $.ajax({
+        url: '/finance/receivable/expense_types',
+        type: 'GET',
+        data: { direction: '收入' },
+        success: function(resp) {
+            if (resp.success) {
+                var select = $('#expenseTypeFilter');
+                select.html('<option value="">全部费用类型</option>');
                 for (var i = 0; i < resp.data.length; i++) {
                     var et = resp.data[i];
                     select.append('<option value="' + et.expense_type_id + '">' + escapeHtml(et.expense_type_name) + '</option>');
@@ -453,6 +601,11 @@ function submitReceivable() {
     var amount = $('#amountInput').val();
     var dueDate = $('#dueDateInput').val();
     var description = $('#descriptionInput').val();
+    var productName = $('#productNameInput').val().trim();
+    var specification = $('#specificationInput').val().trim();
+    var quantity = $('#quantityInput').val();
+    var unitId = $('#unitSelect').val();
+    var unitPrice = $('#unitPriceInput').val();
 
     if (!customerId) {
         showToast('warning', customerType === 'Customer' ? '请选择客户' : '请选择商户');
@@ -469,7 +622,12 @@ function submitReceivable() {
         expense_type_id: parseInt(expenseTypeId),
         amount: parseFloat(amount),
         due_date: dueDate,
-        description: description
+        description: description,
+        product_name: productName || null,
+        specification: specification || null,
+        quantity: quantity ? parseFloat(quantity) : null,
+        unit_id: unitId ? parseInt(unitId) : null,
+        unit_price: unitPrice ? parseFloat(unitPrice) : null
     };
 
     var btn = $('#btnSubmitReceivable');
@@ -675,6 +833,18 @@ function openDetailModal(id) {
             html += '<div class="col-md-6 detail-field"><span class="label">名称：</span><span class="value">' + escapeHtml(d.merchant_name) + '</span></div>';
             html += '<div class="col-md-6 detail-field"><span class="label">费用类型：</span><span class="value">' + escapeHtml(d.expense_type_name) + '</span></div>';
             html += '<div class="col-md-6 detail-field"><span class="label">应收金额：</span><span class="value">¥' + formatNumber(d.amount) + '</span></div>';
+            if (d.product_name) {
+                html += '<div class="col-md-6 detail-field"><span class="label">品名：</span><span class="value">' + escapeHtml(d.product_name) + '</span></div>';
+            }
+            if (d.specification) {
+                html += '<div class="col-md-6 detail-field"><span class="label">规格：</span><span class="value">' + escapeHtml(d.specification) + '</span></div>';
+            }
+            if (d.quantity != null) {
+                html += '<div class="col-md-6 detail-field"><span class="label">数量：</span><span class="value">' + d.quantity + (d.unit_name ? ' ' + escapeHtml(d.unit_name) : '') + '</span></div>';
+            }
+            if (d.unit_price != null) {
+                html += '<div class="col-md-6 detail-field"><span class="label">单价：</span><span class="value">¥' + formatNumber(d.unit_price) + '</span></div>';
+            }
             html += '<div class="col-md-6 detail-field"><span class="label">已收金额：</span><span class="value text-success">¥' + formatNumber(d.paid_amount) + '</span></div>';
             html += '<div class="col-md-6 detail-field"><span class="label">剩余金额：</span><span class="value text-danger">¥' + formatNumber(d.remaining_amount) + '</span></div>';
             html += '<div class="col-md-6 detail-field"><span class="label">到期日期：</span><span class="value">' + d.due_date + '</span></div>';
@@ -683,7 +853,61 @@ function openDetailModal(id) {
             if (d.description) {
                 html += '<div class="col-md-12 detail-field"><span class="label">备注：</span><span class="value">' + escapeHtml(d.description) + '</span></div>';
             }
+            if (d.is_active === false || d.deleted_at) {
+                html += '<div class="col-md-12"><div class="alert alert-danger mb-0 mt-2"><i class="fa fa-ban"></i> <strong>已删除</strong>';
+                if (d.deleted_at) html += ' — 删除时间：' + d.deleted_at;
+                if (d.delete_reason) html += ' — 原因：' + escapeHtml(d.delete_reason);
+                html += '</div></div>';
+            }
             html += '</div></div>';
+
+            // 关联合同信息（租金类型）
+            if (d.contract_info) {
+                var ci = d.contract_info;
+                html += '<div class="detail-section"><h6><i class="fa fa-file-text-o"></i> 关联合同</h6><div class="row">';
+                html += '<div class="col-md-6 detail-field"><span class="label">合同编号：</span><span class="value">' + escapeHtml(ci.contract_number) + '</span></div>';
+                html += '<div class="col-md-6 detail-field"><span class="label">合同名称：</span><span class="value">' + escapeHtml(ci.contract_name) + '</span></div>';
+                html += '<div class="col-md-6 detail-field"><span class="label">商户：</span><span class="value">' + escapeHtml(ci.merchant_name) + '</span></div>';
+                html += '<div class="col-md-6 detail-field"><span class="label">地块编号：</span><span class="value">' + escapeHtml(ci.plot_numbers) + '</span></div>';
+                html += '<div class="col-md-6 detail-field"><span class="label">合同期限：</span><span class="value">' + ci.start_date + ' ~ ' + ci.end_date + '</span></div>';
+                html += '<div class="col-md-6 detail-field"><span class="label">合同金额：</span><span class="value">¥' + formatNumber(ci.contract_amount) + '</span></div>';
+                html += '<div class="col-md-6 detail-field"><span class="label">减免金额：</span><span class="value">¥' + formatNumber(ci.amount_reduction) + '</span></div>';
+                html += '<div class="col-md-6 detail-field"><span class="label">实收金额：</span><span class="value">¥' + formatNumber(ci.actual_amount) + '</span></div>';
+                html += '<div class="col-md-6 detail-field"><span class="label">合同状态：</span><span class="value">' + escapeHtml(ci.status) + '</span></div>';
+                html += '<div class="col-md-6 detail-field"><span class="label">付款方式：</span><span class="value">' + escapeHtml(ci.payment_method) + '</span></div>';
+                html += '</div></div>';
+            }
+
+            // 关联抄表数据（电费/水费类型）
+            if (d.utility_readings && d.utility_readings.items && d.utility_readings.items.length > 0) {
+                var ur = d.utility_readings;
+                var isElec = d.expense_type_name === '电费';
+                var typeLabel = isElec ? '电费' : '水费';
+                var usageLabel = isElec ? '用电量' : '用水量';
+                var priceLabel = isElec ? '电价' : '水价';
+                html += '<div class="detail-section"><h6><i class="fa fa-bolt"></i> 关联' + typeLabel + '抄表</h6>';
+                html += '<div class="table-responsive"><table class="table table-sm table-bordered">';
+                html += '<thead><tr><th>表号</th><th>安装位置</th><th>所属月份</th><th>上月表底</th><th>本月表底</th><th>倍率</th><th>' + usageLabel + '</th><th>' + priceLabel + '</th><th>小计</th></tr></thead>';
+                html += '<tbody>';
+                for (var i = 0; i < ur.items.length; i++) {
+                    var item = ur.items[i];
+                    html += '<tr>';
+                    html += '<td>' + escapeHtml(item.meter_number) + '</td>';
+                    html += '<td>' + escapeHtml(item.installation_location) + '</td>';
+                    html += '<td>' + escapeHtml(item.belong_month) + '</td>';
+                    html += '<td class="text-end">' + item.last_reading + '</td>';
+                    html += '<td class="text-end">' + item.current_reading + '</td>';
+                    html += '<td class="text-end">' + item.meter_multiplier + '</td>';
+                    html += '<td class="text-end">' + item.usage + '</td>';
+                    html += '<td class="text-end">¥' + formatNumber(item.unit_price) + '</td>';
+                    html += '<td class="text-end fw-bold">¥' + formatNumber(item.subtotal) + '</td>';
+                    html += '</tr>';
+                }
+                html += '</tbody>';
+                html += '<tfoot><tr class="table-summary-row"><td colspan="8" class="text-end fw-bold">合计</td><td class="text-end fw-bold text-danger">¥' + formatNumber(ur.total_amount) + '</td></tr></tfoot>';
+                html += '</table></div></div>';
+            }
+
             html += '<div class="detail-section"><h6><i class="fa fa-history"></i> 收款历史</h6>';
             var records = d.collection_records;
             if (records && records.length > 0) {
@@ -710,6 +934,12 @@ $(document).ready(function() {
     $('#btnSearch').on('click', function() { loadReceivables(1); });
     $('#searchInput').on('keypress', function(e) { if (e.which === 13) loadReceivables(1); });
     $('#statusFilter').on('change', function() { loadReceivables(1); });
+    $('#expenseTypeFilter').on('change', function() { loadReceivables(1); });
+
+    // 加载费用类型筛选列表
+    loadExpenseTypeFilter();
+    // 加载单位类型（用于添加弹窗）
+    loadUnitTypes();
     $(document).on('click', '#paginationList .page-link', function(e) {
         e.preventDefault();
         var page = $(this).data('page');
@@ -725,11 +955,40 @@ $(document).ready(function() {
         $('#customerTypeSelect').val('Merchant');
         updateCustomerLabel();
         loadExpenseTypes();
+        $('#amountCalcHint').hide();
         var nextMonth = new Date();
         nextMonth.setMonth(nextMonth.getMonth() + 1);
         $('#dueDateInput').val(nextMonth.toISOString().split('T')[0]);
         var modal = new bootstrap.Modal(document.getElementById('addReceivableModal'));
         modal.show();
+    });
+
+    // 数量/单价 blur 自动计算应收金额
+    function calcAmountFromQtyPrice() {
+        var qty = parseFloat($('#quantityInput').val());
+        var price = parseFloat($('#unitPriceInput').val());
+        if (qty > 0 && price > 0) {
+            var calculated = qty * price;
+            $('#amountInput').val(calculated.toFixed(2));
+            $('#amountCalcHint').show();
+        } else {
+            $('#amountCalcHint').hide();
+        }
+    }
+    $(document).on('blur', '#quantityInput, #unitPriceInput', calcAmountFromQtyPrice);
+    // 输入时也实时提示
+    $(document).on('input', '#quantityInput, #unitPriceInput', function() {
+        var qty = parseFloat($('#quantityInput').val());
+        var price = parseFloat($('#unitPriceInput').val());
+        if (qty > 0 && price > 0) {
+            $('#amountCalcHint').html('<i class="fa fa-calculator"></i> 数量×单价 = ¥' + (qty * price).toFixed(2)).show();
+        } else {
+            $('#amountCalcHint').hide();
+        }
+    });
+    // 手动修改应收金额时隐藏自动计算提示
+    $(document).on('input', '#amountInput', function() {
+        $('#amountCalcHint').hide();
     });
 
     // 客户类型切换
@@ -776,6 +1035,51 @@ $(document).ready(function() {
     });
     $('#btnSubmitCollect').on('click', submitCollect);
     $(document).on('click', '.btn-detail', function() { openDetailModal($(this).data('id')); });
+
+    // 删除按钮
+    $(document).on('click', '.btn-delete', function() {
+        var id = $(this).data('id');
+        var merchant = $(this).data('merchant');
+        var amount = $(this).data('amount');
+        $('#deleteReceivableId').val(id);
+        $('#deleteInfo').html('客户：<strong>' + escapeHtml(merchant) + '</strong>，金额：<strong class="text-danger">¥' + formatNumber(amount) + '</strong>');
+        $('#deleteReason').val('');
+        var modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        modal.show();
+    });
+
+    $('#btnConfirmDelete').on('click', function() {
+        var id = $('#deleteReceivableId').val();
+        var reason = $('#deleteReason').val().trim();
+        if (!reason) { showToast('warning', '请填写删除原因'); return; }
+
+        var btn = $(this);
+        btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 删除中...');
+
+        $.ajax({
+            url: '/finance/receivable/delete/' + id,
+            type: 'POST',
+            contentType: 'application/json',
+            headers: { 'X-CSRFToken': getCSRFToken() },
+            data: JSON.stringify({ delete_reason: reason }),
+            success: function(resp) {
+                if (resp.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+                    loadReceivables(currentPage);
+                    showToast('success', resp.message || '删除成功');
+                } else {
+                    showToast('error', resp.message || '删除失败');
+                }
+            },
+            error: function(xhr) {
+                var resp = xhr.responseJSON;
+                showToast('error', resp ? resp.message : '网络错误');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fa fa-trash"></i> 确认删除');
+            }
+        });
+    });
     $('#btnExportExcel').on('click', function() { showToast('info', '导出功能开发中'); });
 });
 </script>

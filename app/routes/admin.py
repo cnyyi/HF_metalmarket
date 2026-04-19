@@ -34,6 +34,7 @@ def dashboard_stats():
                     COUNT(CASE WHEN Status = N'未付款' THEN 1 END),
                     COUNT(CASE WHEN Status = N'部分付款' THEN 1 END)
                 FROM Receivable
+                WHERE IsActive = 1
             """)
             recv_row = cursor.fetchone()
             receivable_unpaid = float(recv_row[0])
@@ -137,6 +138,7 @@ def dashboard_stats():
                 WHERE r.Status IN (N'未付款', N'部分付款')
                   AND r.DueDate IS NOT NULL
                   AND r.DueDate < CAST(GETDATE() AS DATE)
+                  AND r.IsActive = 1
                 ORDER BY r.DueDate ASC
             """)
             overdue_rows = cursor.fetchall()
@@ -235,14 +237,14 @@ def dashboard_stats():
                 electricity_total_usage = float(elec_row[0])
                 electricity_total_amount = float(elec_row[1])
 
-            # 11. 当日过磅统计
+            # 11. 当日过磅统计（按 ScaleTime 过磅完成时间过滤）
             cursor.execute("""
                 SELECT
                     COUNT(*),
                     ISNULL(SUM(NetWeight), 0),
                     ISNULL(SUM(ScaleFee), 0)
                 FROM ScaleRecord
-                WHERE CAST(COALESCE(TareTime, GrossTime, ScaleTime) AS DATE) = ?
+                WHERE CAST(ScaleTime AS DATE) = ?
             """, (today,))
             scale_row = cursor.fetchone()
             scale_vehicles = int(scale_row[0])

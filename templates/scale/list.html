@@ -176,6 +176,20 @@
         position: relative;
     }
 
+    .chart-tab-btn {
+        background: none;
+        border: 1px solid var(--color-border-light);
+        border-radius: 6px;
+        padding: 3px 10px;
+        font-size: 0.72rem;
+        color: var(--color-text-muted);
+        cursor: pointer;
+        transition: all 0.2s;
+        font-weight: 500;
+    }
+    .chart-tab-btn:hover { border-color: #165DFF; color: #165DFF; }
+    .chart-tab-btn.active { background: #165DFF; border-color: #165DFF; color: #fff; }
+
     .today-card {
         background: var(--color-bg-card);
         border-radius: 12px;
@@ -415,25 +429,20 @@
         </div>
     </div>
 
-    <div class="chart-row">
+    <div class="chart-row" style="grid-template-columns: 1fr;">
         <div class="chart-card">
             <div class="chart-card-header">
                 <div class="chart-card-title">
-                    <i class="fa fa-line-chart"></i> 上月进场趋势
+                    <i class="fa fa-line-chart"></i> 本月 vs 上月 vs 去年同期趋势对比
+                </div>
+                <div style="display:flex;gap:6px;">
+                    <button class="chart-tab-btn active" data-metric="vehicles">车辆数</button>
+                    <button class="chart-tab-btn" data-metric="fees">磅费</button>
+                    <button class="chart-tab-btn" data-metric="cargo">货物(吨)</button>
                 </div>
             </div>
             <div class="chart-card-body">
-                <canvas id="lastMonthChart"></canvas>
-            </div>
-        </div>
-        <div class="chart-card">
-            <div class="chart-card-header">
-                <div class="chart-card-title">
-                    <i class="fa fa-line-chart"></i> 本月进场趋势
-                </div>
-            </div>
-            <div class="chart-card-body">
-                <canvas id="thisMonthChart"></canvas>
+                <canvas id="compareChart"></canvas>
             </div>
         </div>
     </div>
@@ -504,8 +513,16 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
-var lastMonthChartInstance = null;
-var thisMonthChartInstance = null;
+var compareChartInstance = null;
+var currentMetric = 'vehicles';
+var lastMonthData = null;
+var thisMonthData = null;
+var lastYearMonthData = null;
+
+function formatNumber(n) {
+    if (n === null || n === undefined) return '0';
+    return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
 var todayPage = 1;
 var todayPerPage = 15;
 
@@ -547,156 +564,204 @@ function loadOverview() {
     });
 }
 
-function loadTrendChart(canvasId, year, month, chartInstanceRef) {
+function loadCompareChart() {
+    var now = new Date();
+    var thisYear = now.getFullYear();
+    var thisMonth = now.getMonth() + 1;
+    var lastMonth = thisMonth - 1;
+    var lastYear = thisYear;
+    if (lastMonth === 0) { lastMonth = 12; lastYear = thisYear - 1; }
+    var lastYearSameYear = thisYear - 1;
+
+    var deferred1 = $.ajax({
+        url: '{{ url_for("scale.api_dashboard_trend") }}',
+        type: 'GET',
+        data: { year: lastYear, month: lastMonth }
+    });
+
+    var deferred2 = $.ajax({
+        url: '{{ url_for("scale.api_dashboard_trend") }}',
+        type: 'GET',
+        data: { year: thisYear, month: thisMonth }
+    });
+
+    var deferred3 = $.ajax({
+        url: '{{ url_for("scale.api_dashboard_trend") }}',
+        type: 'GET',
+        data: { year: lastYearSameYear, month: thisMonth }
+    });
+
+    $.when(deferred1, deferred2, deferred3).done(function(resp1, resp2, resp3) {
+        if (!resp1[0].success || !resp2[0].success || !resp3[0].success) return;
+        lastMonthData = resp1[0].data;
+        thisMonthData = resp2[0].data;
+        lastYearMonthData = resp3[0].data;
+        renderCompareChart();
+    });
+}
+
+function renderCompareChart() {
+    if (!lastMonthData || !thisMonthData || !lastYearMonthData) return;
+
     var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     var gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
     var textColor = isDark ? '#8B92A5' : '#6B7280';
 
-    return $.ajax({
-        url: '{{ url_for("scale.api_dashboard_trend") }}',
-        type: 'GET',
-        data: { year: year, month: month },
-        success: function(resp) {
-            if (!resp.success) return;
-            var d = resp.data;
-            var ctx = document.getElementById(canvasId);
-            if (!ctx) return;
+    var now = new Date();
+    var maxDay = now.getDate();
+    var labels = [];
+    for (var d = 1; d <= maxDay; d++) labels.push(d + '日');
 
-            if (chartInstanceRef === 'last' && lastMonthChartInstance) lastMonthChartInstance.destroy();
-            if (chartInstanceRef === 'this' && thisMonthChartInstance) thisMonthChartInstance.destroy();
+    var metricConfig = {
+        vehicles: {
+            thisKey: 'vehicles', lastKey: 'vehicles', lastYearKey: 'vehicles',
+            thisLabel: '本月车辆(辆)', lastLabel: '上月车辆(辆)', lastYearLabel: '去年同期车辆(辆)',
+            yTitle: '车辆数(辆)', yColor: '#165DFF',
+            thisColor: '#165DFF', lastColor: '#93B4FF', lastYearColor: '#A78BFA',
+            fillThis: true
+        },
+        fees: {
+            thisKey: 'fees', lastKey: 'fees', lastYearKey: 'fees',
+            thisLabel: '本月磅费(元)', lastLabel: '上月磅费(元)', lastYearLabel: '去年同期磅费(元)',
+            yTitle: '磅费(元)', yColor: '#F59E0B',
+            thisColor: '#F59E0B', lastColor: '#FCD68D', lastYearColor: '#C4B5FD',
+            fillThis: true
+        },
+        cargo: {
+            thisKey: 'cargo_weights', lastKey: 'cargo_weights', lastYearKey: 'cargo_weights',
+            thisLabel: '本月货物(吨)', lastLabel: '上月货物(吨)', lastYearLabel: '去年同期货物(吨)',
+            yTitle: '货物(吨)', yColor: '#10B981',
+            thisColor: '#10B981', lastColor: '#6EE7B7', lastYearColor: '#A7F3D0',
+            fillThis: true
+        }
+    };
 
-            var chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: d.labels,
-                    datasets: [
-                        {
-                            label: '车辆数量(辆)',
-                            data: d.vehicles,
-                            borderColor: '#165DFF',
-                            backgroundColor: function(context) {
-                                var chart = context.chart;
-                                var ctx2 = chart.ctx;
-                                var area = chart.chartArea;
-                                if (!area) return 'rgba(22,93,255,0.1)';
-                                var gradient = ctx2.createLinearGradient(0, area.bottom, 0, area.top);
-                                gradient.addColorStop(0, 'rgba(22,93,255,0)');
-                                gradient.addColorStop(1, 'rgba(22,93,255,0.15)');
-                                return gradient;
-                            },
-                            borderWidth: 2.5,
-                            pointRadius: 0,
-                            pointHoverRadius: 5,
-                            pointBackgroundColor: '#165DFF',
-                            pointHoverBorderColor: '#fff',
-                            pointHoverBorderWidth: 2,
-                            fill: true,
-                            tension: 0.4,
-                            yAxisID: 'y'
-                        },
-                        {
-                            label: '货物数量(吨)',
-                            data: d.cargo_weights,
-                            borderColor: '#06B6D4',
-                            backgroundColor: 'transparent',
-                            borderWidth: 2,
-                            pointRadius: 0,
-                            pointHoverRadius: 4,
-                            fill: false,
-                            tension: 0.4,
-                            yAxisID: 'y'
-                        },
-                        {
-                            label: '磅费金额(元)',
-                            data: d.fees,
-                            borderColor: '#6366F1',
-                            backgroundColor: 'transparent',
-                            borderWidth: 2,
-                            borderDash: [5, 3],
-                            pointRadius: 0,
-                            pointHoverRadius: 4,
-                            fill: false,
-                            tension: 0.4,
-                            yAxisID: 'y1'
-                        }
-                    ]
+    var cfg = metricConfig[currentMetric];
+    if (!cfg) cfg = metricConfig.vehicles;
+
+    var thisData = thisMonthData[cfg.thisKey].slice(0, maxDay);
+    var lastData = lastMonthData[cfg.lastKey].slice(0, maxDay);
+    var lastYearData = lastYearMonthData[cfg.lastYearKey].slice(0, maxDay);
+
+    var datasets = [
+        {
+            label: cfg.thisLabel,
+            data: thisData,
+            borderColor: cfg.thisColor,
+            backgroundColor: function(context) {
+                if (!cfg.fillThis) return 'transparent';
+                var chart = context.chart;
+                var ctx2 = chart.ctx;
+                var area = chart.chartArea;
+                if (!area) return 'rgba(22,93,255,0.1)';
+                var gradient = ctx2.createLinearGradient(0, area.bottom, 0, area.top);
+                gradient.addColorStop(0, cfg.thisColor + '00');
+                gradient.addColorStop(1, cfg.thisColor + '1A');
+                return gradient;
+            },
+            borderWidth: 2.5,
+            pointRadius: 3,
+            pointHoverRadius: 6,
+            pointBackgroundColor: cfg.thisColor,
+            pointHoverBorderColor: '#fff',
+            pointHoverBorderWidth: 2,
+            fill: cfg.fillThis,
+            tension: 0.4
+        },
+        {
+            label: cfg.lastLabel,
+            data: lastData,
+            borderColor: cfg.lastColor,
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            borderDash: [6, 3],
+            pointRadius: 2,
+            pointHoverRadius: 5,
+            pointBackgroundColor: cfg.lastColor,
+            fill: false,
+            tension: 0.4
+        },
+        {
+            label: cfg.lastYearLabel,
+            data: lastYearData,
+            borderColor: cfg.lastYearColor,
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            borderDash: [2, 4],
+            pointRadius: 1.5,
+            pointHoverRadius: 4,
+            pointBackgroundColor: cfg.lastYearColor,
+            fill: false,
+            tension: 0.4
+        }
+    ];
+
+    var ctx = document.getElementById('compareChart');
+    if (!ctx) return;
+    if (compareChartInstance) compareChartInstance.destroy();
+
+    compareChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: { labels: labels, datasets: datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 800, easing: 'easeOutQuart' },
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    align: 'end',
+                    labels: {
+                        color: textColor,
+                        usePointStyle: true,
+                        pointStyle: 'line',
+                        font: { size: 11 },
+                        padding: 12
+                    }
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: { duration: 1000, easing: 'easeOutQuart' },
-                    interaction: { mode: 'index', intersect: false },
-                    plugins: {
-                        legend: {
-                            position: 'top',
-                            align: 'end',
-                            labels: {
-                                color: textColor,
-                                usePointStyle: true,
-                                pointStyle: 'line',
-                                font: { size: 11 },
-                                padding: 12
-                            }
-                        },
-                        tooltip: {
-                            backgroundColor: isDark ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)',
-                            titleColor: isDark ? '#E2E8F0' : '#1A1F2E',
-                            bodyColor: isDark ? '#8B92A5' : '#6B7280',
-                            borderColor: isDark ? '#374151' : '#E2E5EB',
-                            borderWidth: 1,
-                            cornerRadius: 10,
-                            padding: 12,
-                            callbacks: {
-                                label: function(ctx) {
-                                    var label = ctx.dataset.label || '';
-                                    var val = ctx.raw;
-                                    if (label.indexOf('金额') > -1) return label + ': ¥' + formatNumber(val);
-                                    return label + ': ' + val;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            grid: { display: false },
-                            border: { display: false },
-                            ticks: { color: textColor, font: { size: 10 }, maxTicksLimit: 15 }
-                        },
-                        y: {
-                            position: 'left',
-                            grid: { color: gridColor, drawBorder: false },
-                            border: { display: false },
-                            ticks: {
-                                color: textColor,
-                                font: { size: 10 },
-                                padding: 6,
-                                callback: function(v) {
-                                    if (v >= 10000) return (v / 10000).toFixed(0) + '万';
-                                    if (v >= 1000) return (v / 1000).toFixed(0) + 'k';
-                                    return v;
-                                }
-                            }
-                        },
-                        y1: {
-                            position: 'right',
-                            grid: { display: false },
-                            border: { display: false },
-                            ticks: {
-                                color: '#6366F1',
-                                font: { size: 10 },
-                                padding: 6,
-                                callback: function(v) {
-                                    if (v >= 10000) return (v / 10000).toFixed(0) + '万';
-                                    return v;
-                                }
-                            }
+                tooltip: {
+                    backgroundColor: isDark ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)',
+                    titleColor: isDark ? '#E2E8F0' : '#1A1F2E',
+                    bodyColor: isDark ? '#8B92A5' : '#6B7280',
+                    borderColor: isDark ? '#374151' : '#E2E5EB',
+                    borderWidth: 1,
+                    cornerRadius: 10,
+                    padding: 12,
+                    callbacks: {
+                        label: function(ctx) {
+                            var label = ctx.dataset.label || '';
+                            var val = ctx.raw;
+                            if (currentMetric === 'fees') return label + ': ¥' + formatNumber(val);
+                            return label + ': ' + val;
                         }
                     }
                 }
-            });
-
-            if (chartInstanceRef === 'last') lastMonthChartInstance = chart;
-            if (chartInstanceRef === 'this') thisMonthChartInstance = chart;
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    border: { display: false },
+                    ticks: { color: textColor, font: { size: 10 }, maxTicksLimit: 15 }
+                },
+                y: {
+                    type: 'linear',
+                    position: 'left',
+                    title: { display: true, text: cfg.yTitle, color: cfg.yColor, font: { size: 10 } },
+                    grid: { color: gridColor, drawBorder: false },
+                    border: { display: false },
+                    ticks: {
+                        color: cfg.yColor,
+                        font: { size: 10 },
+                        padding: 6,
+                        callback: function(v) {
+                            if (v >= 10000) return (v / 10000).toFixed(0) + '万';
+                            if (v >= 1000) return (v / 1000).toFixed(0) + 'k';
+                            return v;
+                        }
+                    }
+                }
+            }
         }
     });
 }
@@ -829,19 +894,11 @@ function showPlateDetail(recordId) {
 }
 
 function loadAll() {
-    var now = new Date();
-    var thisYear = now.getFullYear();
-    var thisMonth = now.getMonth() + 1;
-
-    var lastMonth = thisMonth - 1;
-    var lastYear = thisYear;
-    if (lastMonth === 0) { lastMonth = 12; lastYear = thisYear - 1; }
-
     loadOverview();
-    loadTrendChart('lastMonthChart', lastYear, lastMonth, 'last');
-    loadTrendChart('thisMonthChart', thisYear, thisMonth, 'this');
+    loadCompareChart();
     loadTodayRecords(1);
 
+    var now = new Date();
     var h = now.getHours().toString().padStart(2, '0');
     var m = now.getMinutes().toString().padStart(2, '0');
     var s = now.getSeconds().toString().padStart(2, '0');
@@ -876,6 +933,13 @@ $(document).ready(function() {
     $(document).on('click', '.plate-link', function() {
         var id = $(this).data('id');
         showPlateDetail(id);
+    });
+
+    $(document).on('click', '.chart-tab-btn', function() {
+        $('.chart-tab-btn').removeClass('active');
+        $(this).addClass('active');
+        currentMetric = $(this).data('metric');
+        renderCompareChart();
     });
 
     var observer = new MutationObserver(function(mutations) {

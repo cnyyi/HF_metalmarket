@@ -8,5 +8,6 @@
   "default_scale_id": 1,
   "sync_interval": 60,
   "only_finished": true,
+  "change_detection_days": 3,
   "log_level": "INFO"
 }

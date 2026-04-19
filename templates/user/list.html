@@ -76,12 +76,8 @@
                         <td>{{ user.create_time.strftime('%Y-%m-%d %H:%M') }}</td>
                         <td class="table-actions">
                             {% if current_user.has_permission('user_manage') %}
-                            <button type="button" class="btn btn-sm btn-warning" title="编辑" onclick="openEditModal({{ user.user_id }})">
-                                <i class="fa fa-edit"></i>
-                            </button>
-                            <a href="{{ url_for('user.delete', user_id=user.user_id) }}" class="btn btn-sm btn-danger" title="删除" onclick="return confirm('确定要删除这个用户吗？');">
-                                <i class="fa fa-trash"></i>
-                            </a>
+                            <button type="button" class="btn btn-sm btn-warning" title="编辑" onclick="openEditModal({{ user.user_id }})"><i class="fa fa-edit"></i> 编辑</button>
+                            <a href="{{ url_for('user.delete', user_id=user.user_id) }}" class="btn btn-sm btn-danger" title="删除" onclick="return confirm('确定要删除这个用户吗？');"><i class="fa fa-trash"></i> 删除</a>
                             {% endif %}
                         </td>
                     </tr>
@@ -128,7 +124,7 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label fw-bold">用户名</label>
-                            <input type="text" class="form-control" id="edit_username" readonly style="background-color: #e9ecef;">
+                            <input type="text" class="form-control" id="edit_username" readonly>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">真实姓名 <span class="text-danger">*</span></label>

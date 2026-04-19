@@ -184,7 +184,7 @@ $(function() {
                         : '<span class="badge bg-secondary">已退房</span>';
                     var tenantTypeBadge = item.tenant_type === '商户'
                         ? '<span class="badge bg-info">商户</span>'
-                        : '<span class="badge bg-light text-dark">个人</span>';
+                        : '<span class="badge bg-secondary">个人</span>';
                     html += '<tr>' +
                         '<td>' + ((currentPage - 1) * 10 + i + 1) + '</td>' +
                         '<td><strong>' + escapeHtml(item.room_number) + '</strong></td>' +

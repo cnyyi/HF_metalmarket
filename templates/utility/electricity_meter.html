@@ -11,10 +11,10 @@
 
 {% block extra_css %}
 <style>
-.group-odd { background-color: #ffffff; }
-.group-even { background-color: #f8f9fa; }
-.group-odd:hover { background-color: #e9ecef; }
-.group-even:hover { background-color: #e9ecef; }
+.group-odd { background-color: var(--color-bg-card); }
+.group-even { background-color: var(--color-bg-light); }
+.group-odd:hover { background-color: var(--table-hover-bg); }
+.group-even:hover { background-color: var(--table-hover-bg); }
 </style>
 {% endblock %}
 
@@ -111,6 +111,12 @@
         
         if (meterData.length === 0) {
             tbody.html('<tr><td colspan="10" class="text-center text-muted">暂无待抄电表</td></tr>');
+            // 清空并隐藏合计行
+            $('#totalMeterCount').text('0');
+            $('#totalUsage').text('0.00');
+            $('#totalSubtotal').text('¥0.00');
+            $('#totalAmount').text('¥0.00');
+            $('#meterTableFoot').hide();
             return;
         }
         

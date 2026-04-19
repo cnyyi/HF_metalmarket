@@ -416,7 +416,7 @@ class DepositService:
                 # 检查应收存在且属于同一客户
                 cursor.execute("""
                     SELECT ReceivableID, RemainingAmount, CustomerType, CustomerID
-                    FROM Receivable WHERE ReceivableID = ?
+                    FROM Receivable WHERE ReceivableID = ? AND IsActive = 1
                 """, (receivable_id,))
                 rv = cursor.fetchone()
                 if not rv:

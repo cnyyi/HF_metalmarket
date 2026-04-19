@@ -37,7 +37,7 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">合同编号</label>
-                                <input type="text" class="form-control" id="contract_number" readonly style="background-color: #e9ecef;" placeholder="自动生成">
+                                <input type="text" class="form-control" id="contract_number" readonly placeholder="自动生成">
                             </div>
                         </div>
                         
@@ -52,7 +52,7 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">合同状态</label>
-                                <input type="text" class="form-control" value="有效" readonly style="background-color: #e9ecef;">
+                                <input type="text" class="form-control" value="有效" readonly>
                             </div>
                         </div>
                         
@@ -130,7 +130,7 @@
                         <div class="row mb-3">
                             <div class="col-md-4">
                                 <label class="form-label">地块年租金合计(元)</label>
-                                <input type="text" class="form-control" id="total_rent" readonly style="background-color: #e9ecef;" value="0.00">
+                                <input type="text" class="form-control" id="total_rent" readonly value="0.00">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">租金增减(元)</label>
@@ -138,7 +138,7 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">合同租金(元)</label>
-                                <input type="text" class="form-control" id="contract_rent" readonly style="background-color: #e9ecef;" value="0.00">
+                                <input type="text" class="form-control" id="contract_rent" readonly value="0.00">
                                 <small class="text-muted">合同租金 = 地块年租金合计 + 租金增减</small>
                             </div>
                         </div>
@@ -431,15 +431,24 @@ $('#plotSearch').on('input', function() {
     renderPlotTable(filtered);
 });
 
-$('#start_date, #end_date').change(function() {
+$('#start_date').on('blur', function() {
+    var startDate = $(this).val();
+    if (!startDate) return;
+
+    var startObj = new Date(startDate);
+    var defaultEnd = new Date(startObj);
+    defaultEnd.setFullYear(defaultEnd.getFullYear() + 1);
+    var defaultEndStr = defaultEnd.toISOString().slice(0, 10);
+    $('#end_date').val(defaultEndStr);
+});
+
+$(document).on('change', '#end_date', function() {
     var startDate = $('#start_date').val();
-    var endDate = $('#end_date').val();
+    var endDate = $(this).val();
     
     if (startDate && endDate && endDate <= startDate) {
         showToast('warning', '结束日期必须晚于开始日期');
-        if ($(this).attr('id') === 'end_date') {
-            $(this).val('');
-        }
+        $(this).val('');
     }
 });
 

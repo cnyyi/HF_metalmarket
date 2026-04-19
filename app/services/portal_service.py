@@ -28,6 +28,7 @@ class PortalService:
             WHERE (MerchantID = ? OR CustomerID = ?)
               AND CustomerType = 'Merchant'
               AND Status != N'已付款'
+              AND IsActive = 1
         """, (merchant_id, merchant_id), fetch_type='one')
         stats['pending_amount'] = float(row.total) if row else 0
 
@@ -76,6 +77,7 @@ class PortalService:
               AND r.CustomerType = 'Merchant'
               AND r.Status != N'已付款'
               AND r.DueDate < GETDATE()
+              AND r.IsActive = 1
             ORDER BY r.DueDate
         """, (merchant_id, merchant_id), fetch_type='all')
         stats['overdue_receivables'] = [{
@@ -137,7 +139,7 @@ class PortalService:
     @staticmethod
     def get_receivables(merchant_id, page=1, per_page=10, status=None):
         """获取商户的应收/缴费记录"""
-        conditions = ["(r.MerchantID = ? OR r.CustomerID = ?)", "r.CustomerType = 'Merchant'"]
+        conditions = ["(r.MerchantID = ? OR r.CustomerID = ?)", "r.CustomerType = 'Merchant'", "r.IsActive = 1"]
         params = [merchant_id, merchant_id]
 
         if status:
