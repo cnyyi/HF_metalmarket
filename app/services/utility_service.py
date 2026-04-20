@@ -333,10 +333,31 @@ class UtilityService:
                 installation_date = ''
                 if hasattr(row, 'InstallationDate'):
                     if row.InstallationDate:
-                        installation_date = row.InstallationDate.strftime('%Y-%m-%d')
+                        if hasattr(row.InstallationDate, 'strftime'):
+                            installation_date = row.InstallationDate.strftime('%Y-%m-%d')
+                        else:
+                            installation_date = str(row.InstallationDate)
                 else:
                     if row[4]:
-                        installation_date = row[4].strftime('%Y-%m-%d')
+                        if hasattr(row[4], 'strftime'):
+                            installation_date = row[4].strftime('%Y-%m-%d')
+                        else:
+                            installation_date = str(row[4])
+                
+                # 处理create_time
+                create_time = ''
+                if hasattr(row, 'CreateTime'):
+                    if row.CreateTime:
+                        if hasattr(row.CreateTime, 'strftime'):
+                            create_time = row.CreateTime.strftime('%Y-%m-%d')
+                        else:
+                            create_time = str(row.CreateTime)
+                else:
+                    if row[6]:
+                        if hasattr(row[6], 'strftime'):
+                            create_time = row[6].strftime('%Y-%m-%d')
+                        else:
+                            create_time = str(row[6])
                 
                 data.append({
                     'meter_id': row.MeterID if hasattr(row, 'MeterID') else row[0],
@@ -345,7 +366,7 @@ class UtilityService:
                     'meter_multiplier': float(row.MeterMultiplier) if (hasattr(row, 'MeterMultiplier') and row.MeterMultiplier) else float(row[3]) if row[3] else 1,
                     'installation_date': installation_date,
                     'init_reading': float(row.InitReading) if (hasattr(row, 'InitReading') and row.InitReading) else float(row[5]) if row[5] else 0,
-                    'create_time': (row.CreateTime.strftime('%Y-%m-%d') if row.CreateTime else '') if hasattr(row, 'CreateTime') else (row[6].strftime('%Y-%m-%d') if row[6] else ''),
+                    'create_time': create_time,
                     'status': row.Status if hasattr(row, 'Status') else row[7],
                     'is_bound': binding_info['is_bound'],
                     'merchant_name': binding_info['merchant_name'] if binding_info['is_bound'] else '未关联',

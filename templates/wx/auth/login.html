@@ -1,0 +1,27 @@
+{% extends "wx_base.html" %}
+
+{% block title %}登录{% endblock %}
+{% block header_title %}登录{% endblock %}
+{% block tab_bar %}{% endblock %}
+
+{% block content %}
+<div style="padding: 40px 24px; text-align: center;">
+    <div style="margin-bottom: 32px;">
+        <i class="fa fa-industry" style="font-size: 64px; color: #27ae60;"></i>
+        <h4 style="margin-top: 16px; color: #333;">宏发金属交易市场</h4>
+        <p style="color: #999; font-size: 14px;">商户服务平台</p>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger" role="alert">{{ error }}</div>
+    {% endif %}
+
+    <a href="{{ url_for('wx.login') }}" class="wx-btn wx-btn-primary" style="margin-bottom: 16px;">
+        <i class="fa fa-wechat"></i> 微信授权登录
+    </a>
+
+    <p style="color: #999; font-size: 12px; margin-top: 24px;">
+        登录即表示同意《用户协议》和《隐私政策》
+    </p>
+</div>
+{% endblock %}

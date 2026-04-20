@@ -9,5 +9,6 @@
   "sync_interval": 60,
   "only_finished": true,
   "change_detection_days": 3,
-  "log_level": "INFO"
+  "log_level": "INFO",
+  "missing_detection_days": 7
 }

@@ -16,10 +16,10 @@ def get_source_connection():
     """获取源数据库连接 (metalmarket)"""
     conn_str = (
         'DRIVER={ODBC Driver 17 for SQL Server};'
-        'SERVER=yyi.myds.me;'
-        'DATABASE=metalmarket;'
-        'UID=sa;'
-        'PWD=yyI.123212;'
+        f"SERVER={os.environ.get('SOURCE_DB_SERVER', 'localhost')};"
+        f"DATABASE={os.environ.get('SOURCE_DB_DATABASE', 'metalmarket')};"
+        f"UID={os.environ.get('SOURCE_DB_UID', 'sa')};"
+        f"PWD={os.environ.get('SOURCE_DB_PWD', '')};"
         'Encrypt=no;'
         'TrustServerCertificate=yes;'
         'charset=utf-8;'

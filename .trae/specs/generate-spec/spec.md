@@ -43,8 +43,8 @@
 | 合同管理 | 85% | CRUD+文档生成，**存在架构违规（SQL在routes层）** |
 | 水电计费 | 95% | 表管理/抄表/合同绑定/应收生成，架构合理 |
 | 合同文档生成 | 100% | docxtpl模板渲染，支持图片插入，金额大写转换 |
-| 财务管理 | 5% | 仅有空壳页面，无任何业务逻辑 |
-| 磅秤管理 | 5% | 仅有空壳页面，无任何业务逻辑 |
+| 财务管理 | 70% | 应收/应付/现金流水、账户、预收/押金相关功能已实现，但仍有部分查询逻辑滞留在 routes 层 |
+| 磅秤管理 | 55% | 列表、记录查询与看板统计已实现，但新增/编辑/删除与采集写入流程仍待完善 |
 
 ---
 
@@ -95,14 +95,17 @@
 │   │   ├── utility.py            # 水电计费路由 (utility_bp)
 │   │   ├── finance.py            # 财务管理路由 (finance_bp)
 │   │   ├── scale.py              # 磅秤管理路由 (scale_bp)
-│   │   └── receivable_routes.py  # 应收账款路由 (receivable_bp)
+│   │   └── admin.py              # 后台首页与仪表盘路由 (admin_bp)
 │   ├── services/                 # 业务层：业务逻辑
 │   │   ├── auth_service.py       # 认证服务
 │   │   ├── user_service.py       # 用户管理服务
 │   │   ├── merchant_service.py   # 商户管理服务
 │   │   ├── utility_service.py    # 水电计费服务（最完整）
-│   │   ├── contract_doc_service.py # 合同文档生成服务
-│   │   └── [contract_service.py] # [待创建] 合同管理服务
+│   │   ├── plot_service.py       # 地块管理服务
+│   │   ├── contract_service.py   # 合同管理服务
+│   │   ├── finance_service.py    # 财务核心联动服务
+│   │   ├── scale_service.py      # 磅秤查询与看板服务
+│   │   └── contract_doc_service.py # 合同文档生成服务
 │   ├── models/                   # 数据模型层
 │   │   ├── user.py               # 用户模型
 │   │   ├── role.py               # 角色模型
@@ -144,8 +147,7 @@
 #### 2.2.3 蓝图注册
 
 ```python
-# app/__init__.py 中注册的蓝图
-app.register_blueprint(receivable_bp, url_prefix='/receivable')  # 先注册
+# app/__init__.py 中当前注册的主要蓝图（节选）
 app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(user_bp, url_prefix='/user')
 app.register_blueprint(merchant_bp, url_prefix='/merchant')
@@ -154,6 +156,7 @@ app.register_blueprint(finance_bp, url_prefix='/finance')
 app.register_blueprint(plot_bp, url_prefix='/plot')
 app.register_blueprint(scale_bp, url_prefix='/scale')
 app.register_blueprint(utility_bp, url_prefix='/utility')
+app.register_blueprint(admin_bp, url_prefix='/admin')
 ```
 
 #### 2.2.4 架构隔离规则（强制执行）
@@ -877,7 +880,7 @@ END IF
 
 **实现**：✅ 已完成
 
-**根路径**：`GET /` 重定向到 `auth.index`
+**根路径**：`GET /` 重定向到 `admin.index`
 
 ### 7.2 用户管理模块
 
@@ -1171,7 +1174,7 @@ END IF
 
 ### 7.7 财务管理模块
 
-> **状态：仅有空壳页面**，所有业务逻辑待实现。需要创建 `FinanceService`。
+> **状态：已具备主要业务能力**。当前已实现应收/应付/现金流水、账户、直接记账、预收/预付、押金管理，但仍存在部分查询/聚合逻辑位于 routes 层的架构问题。
 
 #### 7.7.1 应收账款管理
 
@@ -1179,7 +1182,7 @@ END IF
 
 **页面**：`templates/finance/receivable.html`
 
-**实现状态**：⬜ 仅有空壳页面
+**实现状态**：✅ 已实现列表、创建、软删除、详情、收款核销及关联查询
 
 **详细需求**：
 
@@ -1213,7 +1216,8 @@ END IF
   - 创建 CashFlow（方向：收入）
 
 **数据接口**：
-- `GET /finance/receivable_data` → 分页列表数据
+- `GET /finance/receivable/list` → 分页列表数据
+- `POST /finance/receivable/create` → 新增应收
 - `POST /finance/receivable/collect/<int:receivable_id>` → 记录收款
 - `GET /finance/receivable/detail/<int:receivable_id>` → 详情
 
@@ -1223,7 +1227,7 @@ END IF
 
 **页面**：`templates/finance/payable.html`
 
-**实现状态**：⬜ 仅有空壳页面
+**实现状态**：✅ 已实现列表、新增、详情、付款核销
 
 **详细需求**：
 
@@ -1263,7 +1267,7 @@ END IF
   - 创建 CashFlow（方向：支出）
 
 **数据接口**：
-- `GET /finance/payable_data` → 分页列表
+- `GET /finance/payable/list` → 分页列表
 - `POST /finance/payable/add` → 新增应付
 - `POST /finance/payable/pay/<int:payable_id>` → 记录付款
 - `GET /finance/payable/detail/<int:payable_id>` → 详情
@@ -1274,7 +1278,7 @@ END IF
 
 **页面**：`templates/finance/cash_flow.html`
 
-**实现状态**：⬜ 仅有空壳页面
+**实现状态**：✅ 已实现列表查询与汇总统计
 
 **详细需求**：
 
@@ -1301,7 +1305,7 @@ END IF
 - 支持手动录入
 
 **数据接口**：
-- `GET /finance/cash_flow_data` → 分页列表+汇总统计
+- `GET /finance/cash_flow/list` → 分页列表+汇总统计
 
 #### 7.7.4 财务管理首页（重定向）
 
@@ -1311,7 +1315,7 @@ END IF
 
 ### 7.8 磅秤管理模块
 
-> **状态：仅有空壳页面**，所有业务逻辑待实现。需要创建 `ScaleService`。
+> **状态：已实现查询与看板，写入流程待完善**。当前已具备磅秤列表、过磅记录列表/详情、日看板与月趋势统计能力。
 
 #### 7.8.1 磅秤列表
 
@@ -1319,7 +1323,7 @@ END IF
 
 **页面**：`templates/scale/list.html`
 
-**实现状态**：⬜ 仅有空壳页面
+**实现状态**：✅ 已实现列表页面和查询接口
 
 **详细需求**：
 
@@ -1353,10 +1357,7 @@ END IF
 | 创建时间 | CreateTime |
 
 **数据接口**：
-- `GET /scale/list_data` → 分页列表
-- `POST /scale/add` → 新增磅秤
-- `POST /scale/edit/<int:scale_id>` → 编辑磅秤
-- `POST /scale/delete/<int:scale_id>` → 删除磅秤
+- `GET /scale/api/list` → 磅秤列表
 
 #### 7.8.2 过磅记录
 
@@ -1364,7 +1365,7 @@ END IF
 
 **页面**：`templates/scale/records.html`
 
-**实现状态**：⬜ 仅有空壳页面
+**实现状态**：✅ 已实现记录列表、详情和看板查询接口
 
 **详细需求**：
 
@@ -1411,9 +1412,11 @@ TotalAmount = NetWeight × UnitPrice
 | 过磅时间 | ScaleTime |
 
 **数据接口**：
-- `GET /scale/records_data` → 分页列表
-- `POST /scale/records/add` → 新增过磅记录
-- `GET /scale/records/detail/<int:record_id>` → 详情
+- `GET /scale/api/records` → 分页列表
+- `GET /scale/api/records/<int:record_id>` → 详情
+- `GET /scale/api/dashboard/overview` → 今日概览
+- `GET /scale/api/dashboard/trend` → 月趋势
+- `GET /scale/api/dashboard/today` → 今日记录
 
 ---
 
@@ -1422,7 +1425,7 @@ TotalAmount = NetWeight × UnitPrice
 ### 8.1 管理端页面
 
 ```
-/                              # 根路径（重定向到 /auth/）
+/                              # 根路径（重定向到 /admin/）
 /auth/                         # 系统首页（仪表盘）
 /auth/login                    # 登录页面
 /auth/register                 # 注册页面
@@ -1449,14 +1452,17 @@ TotalAmount = NetWeight × UnitPrice
 /utility/water_meter           # 水表抄表
 /utility/electricity_meter     # 电表抄表
 
-/receivable/                   # 应收账款（独立蓝图）
-/finance/receivable            # 应收账款（空壳）
-/finance/payable               # 应付账款（空壳）
-/finance/cash_flow             # 现金流水（空壳）
+/finance/receivable            # 应收账款管理
+/finance/payable               # 应付账款管理
+/finance/cash_flow             # 现金流水
 /finance/list                  # 财务首页（重定向）
+/finance/account               # 账户管理
+/finance/direct_entry          # 直接记账
+/finance/prepayment            # 预收/预付管理
+/finance/deposit               # 押金管理
 
-/scale/list                    # 磅秤列表（空壳）
-/scale/records                 # 过磅记录（空壳）
+/scale/list                    # 磅秤列表
+/scale/records                 # 过磅记录
 
 /uploads/<path:filename>       # 上传文件访问（带路径遍历防护）
 ```
@@ -1490,34 +1496,35 @@ base.html                     # 基础母版（Bootstrap5 + jQuery3.6.0 + FA4.7.
 |------|------|------|---------|
 | TD-001 | `app/routes/contract.py` | 整个文件在 routes 层直接使用 `DBConnection` 执行SQL | 创建 `ContractService`，将所有数据库操作迁移 |
 | TD-002 | `app/routes/plot.py` | 整个文件在 routes 层直接使用 `DBConnection` 执行SQL | 创建 `PlotService`，将所有数据库操作迁移 |
-| TD-003 | `app/routes/utility.py` 的 `diagnose_electricity()` | 在路由函数中直接执行SQL查询 | 迁移到 UtilityService |
+| TD-003 | `app/routes/finance.py` | 存在辅助函数直接使用 `DBConnection` 执行 SQL | 迁移到 `FinanceService` 或相关 repository |
+| TD-004 | `app/routes/admin.py` | 仪表盘统计逻辑直接写在 routes 层 | 抽取到独立 dashboard service |
 
 ### 9.2 代码质量 [中优先级]
 
 | 编号 | 文件 | 问题 | 修复方案 |
 |------|------|------|---------|
-| TD-004 | `app/extensions.py` | 死代码，未被任何文件引用 | 删除此文件 |
-| TD-005 | `app/__init__.py` | 重复实例化 LoginManager/CSRFProtect | 统一使用 extensions.py 或删除 extensions.py |
-| TD-006 | `app/routes/utility.py` | 大量 `print()` 调试语句（约15处） | 替换为 `logger.debug()` |
-| TD-007 | `config/development.py` | 数据库密码硬编码 + DEBUG重复定义 | 使用环境变量，移除重复 |
+| TD-005 | `app/extensions.py` | 死代码，未被任何文件引用 | 删除此文件 |
+| TD-006 | `app/__init__.py` | 重复实例化 LoginManager/CSRFProtect | 统一使用 extensions.py 或删除 extensions.py |
+| TD-007 | `app/routes/utility.py` | 大量 `print()` 调试语句（约15处） | 替换为 `logger.debug()` |
+| TD-008 | `README.md` / `.env.example` / `config/*` | 配置说明曾长期分叉，需保持与正式入口一致 | 统一维护启动和环境变量文档 |
 
 ### 9.3 Bug修复 [高优先级]
 
 | 编号 | 文件 | 问题 | 修复方案 |
 |------|------|------|---------|
-| TD-008 | `app/repositories/receivable_repo.py` | 表名错误：使用 `Receivables`（应为 `Receivable`） | 修正表名 |
-| TD-009 | `app/repositories/receivable_repo.py` | 字段名使用 snake_case（如 `merchant_id`），应为 PascalCase（如 `MerchantID`） | 修正所有字段名 |
+| TD-009 | `app/repositories/receivable_repo.py` | 表名错误：使用 `Receivables`（应为 `Receivable`） | 修正表名 |
+| TD-010 | `app/repositories/receivable_repo.py` | 字段名使用 snake_case（如 `merchant_id`），应为 PascalCase（如 `MerchantID`） | 修正所有字段名 |
 
 ### 9.4 功能缺失 [待开发]
 
 | 编号 | 模块 | 缺失内容 | 优先级 |
 |------|------|---------|--------|
-| TD-010 | 财务管理 | FinanceService 完整实现（应收/应付/现金流水） | 高 |
-| TD-011 | 磅秤管理 | ScaleService 完整实现（磅秤CRUD/过磅记录） | 高 |
-| TD-012 | 合同管理 | ContractService 重构（将SQL从routes迁移） | 中 |
-| TD-013 | 地块管理 | PlotService 重构（将SQL从routes迁移） | 中 |
-| TD-014 | 用户管理 | 关联商户选择功能（当前硬编码为"无"） | 低 |
-| TD-015 | 仪表盘 | 首页统计面板（合同数/商户数/应收汇总等） | 低 |
+| TD-011 | 财务管理 | 财务详情查询与聚合逻辑下沉到 service / repository | 高 |
+| TD-012 | 磅秤管理 | 补齐新增/编辑/删除与采集写入流程 | 高 |
+| TD-013 | 合同管理 | ContractService 持续重构（将SQL从routes迁移） | 中 |
+| TD-014 | 地块管理 | PlotService 持续重构（将SQL从routes迁移） | 中 |
+| TD-015 | 用户管理 | 关联商户选择功能（当前硬编码为"无"） | 低 |
+| TD-016 | 文档治理 | Spec 与代码保持同步，避免再次出现“空壳模块”误判 | 低 |
 
 ---
 
@@ -1605,18 +1612,21 @@ base.html                     # 基础母版（Bootstrap5 + jQuery3.6.0 + FA4.7.
 - ✅ 抄表提交 + 应收自动生成
 - ✅ 日期参数支持
 
-### 第八步：财务管理模块 ⬜ 待开发
+### 第八步：财务管理模块 ✅ 已进入可用阶段
 
-- ⬜ FinanceService 实现
-- ⬜ 应收账款管理（列表/收款）
-- ⬜ 应付账款管理（列表/新增/付款）
-- ⬜ 现金流水（列表/汇总）
+- ✅ FinanceService 已实现核心联动逻辑
+- ✅ 应收账款管理（列表/新增/收款/详情/软删除）
+- ✅ 应付账款管理（列表/新增/付款/详情）
+- ✅ 现金流水（列表/汇总）
+- ✅ 账户、直接记账、预收/预付、押金管理已落地
+- ⚠️ **待优化**：详情查询与统计聚合仍有部分逻辑位于 routes 层
 
-### 第九步：磅秤管理模块 ⬜ 待开发
+### 第九步：磅秤管理模块 ✅ 已实现查询与看板
 
-- ⬜ ScaleService 实现
-- ⬜ 磅秤CRUD
-- ⬜ 过磅记录管理
+- ✅ ScaleService 已提供列表、记录、详情、统计能力
+- ✅ 磅秤列表与过磅记录查询页面可用
+- ✅ 今日概览、月趋势、当日记录接口已实现
+- ⚠️ **待开发**：新增/编辑/删除与采集写入流程
 
 ### 第十步：架构重构 ⬜ 待执行
 

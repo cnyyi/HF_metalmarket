@@ -44,12 +44,22 @@ class CashFlowRepository:
                        cf.CreatedBy, u.RealName AS OperatorName,
                        cf.CreateTime,
                        cf.AccountID, ISNULL(a.AccountName, '') AS AccountName,
-                       cf.TransactionNo
+                       cf.TransactionNo,
+                       CASE
+                           WHEN cf.ReferenceType = N'collection_record' THEN cr.ReceivableID
+                           ELSE NULL
+                       END AS LinkedReceivableID,
+                       CASE
+                           WHEN cf.ReferenceType = N'payment_record' THEN pr.PayableID
+                           ELSE NULL
+                       END AS LinkedPayableID
                 FROM CashFlow cf
                 LEFT JOIN Sys_Dictionary sd ON cf.ExpenseTypeID = sd.DictID
                 LEFT JOIN ExpenseType et ON cf.ExpenseTypeID = et.ExpenseTypeID AND sd.DictID IS NULL
                 LEFT JOIN [User] u ON cf.CreatedBy = u.UserID
                 LEFT JOIN Account a ON cf.AccountID = a.AccountID
+                LEFT JOIN CollectionRecord cr ON cf.ReferenceType = N'collection_record' AND cf.ReferenceID = cr.CollectionRecordID
+                LEFT JOIN PaymentRecord pr ON cf.ReferenceType = N'payment_record' AND cf.ReferenceID = pr.PaymentRecordID
             """
 
             count_query = "SELECT COUNT(*) FROM CashFlow cf"

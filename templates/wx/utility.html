@@ -1,0 +1,46 @@
+{% extends "wx_base.html" %}
+
+{% block title %}水电费{% endblock %}
+{% block header_title %}水电费{% endblock %}
+
+{% block content %}
+<div id="utilityList"></div>
+<div id="loadMore" style="text-align:center;padding:16px;display:none;">
+    <button class="wx-btn wx-btn-outline" style="width:auto;padding:8px 24px;font-size:14px;" onclick="loadUtility()">加载更多</button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var page = 1;
+$(document).ready(function() { loadUtility(); });
+
+function loadUtility() {
+    wxGet('{{ url_for("wx.api_utility") }}?page=' + page + '&per_page=10', function(data) {
+        var items = data.items || [];
+        var html = '';
+        for (var i = 0; i < items.length; i++) {
+            var r = items[i];
+            var typeIcon = r.reading_type === '电' ? 'fa-bolt' : 'fa-tint';
+            var typeColor = r.reading_type === '电' ? '#f39c12' : '#3498db';
+            html += '<div class="wx-card">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+            html += '<span><i class="fa ' + typeIcon + '" style="color:' + typeColor + ';"></i> ' + escapeHtml(r.meter_number) + '</span>';
+            html += '<span style="font-weight:600;">¥' + (r.total_amount || 0).toFixed(2) + '</span>';
+            html += '</div>';
+            html += '<div style="margin-top:6px;font-size:13px;color:#666;">';
+            html += '抄表日期：' + r.reading_date + '<br>';
+            html += '用量：' + (r.usage || 0).toFixed(1) + ' | 单价：¥' + (r.unit_price || 0).toFixed(2);
+            html += '</div></div>';
+        }
+        if (page === 1) { $('#utilityList').html(html); } else { $('#utilityList').append(html); }
+        var hasMore = data.current_page < data.total_pages;
+        $('#loadMore').toggle(hasMore);
+        if (hasMore) page++;
+        if (!items.length && page === 1) {
+            $('#utilityList').html('<div class="wx-empty"><i class="fa fa-tint"></i><p>暂无水电费数据</p></div>');
+        }
+    });
+}
+</script>
+{% endblock %}

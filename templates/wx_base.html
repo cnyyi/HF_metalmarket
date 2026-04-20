@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}首页{% endblock %} - 宏发金属交易市场</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@6.5.1/css/all.min.css" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding-bottom: 60px;
+            margin: 0;
+        }
+        .wx-header {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            color: white;
+            padding: 12px 16px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .wx-header .title {
+            font-size: 17px;
+            font-weight: 600;
+        }
+        .wx-header .back-btn {
+            color: white;
+            font-size: 18px;
+            text-decoration: none;
+            margin-right: 12px;
+        }
+        .wx-tab-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            z-index: 100;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .wx-tab-bar .tab-item {
+            flex: 1;
+            text-align: center;
+            padding: 8px 0 4px;
+            color: #999;
+            text-decoration: none;
+            font-size: 11px;
+        }
+        .wx-tab-bar .tab-item i {
+            font-size: 20px;
+            display: block;
+            margin-bottom: 2px;
+        }
+        .wx-tab-bar .tab-item.active {
+            color: #27ae60;
+        }
+        .wx-card {
+            background: white;
+            border-radius: 8px;
+            margin: 12px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .wx-card-title {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #333;
+        }
+        .wx-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+        .wx-empty i {
+            font-size: 48px;
+            margin-bottom: 12px;
+            display: block;
+        }
+        .wx-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            text-align: center;
+            border: none;
+            cursor: pointer;
+        }
+        .wx-btn-primary {
+            background: #27ae60;
+            color: white;
+        }
+        .wx-btn-primary:active {
+            background: #219a52;
+        }
+        .wx-btn-outline {
+            background: white;
+            color: #27ae60;
+            border: 1px solid #27ae60;
+        }
+        .wx-form-group {
+            margin-bottom: 16px;
+        }
+        .wx-form-group label {
+            display: block;
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+        .wx-form-group input,
+        .wx-form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 15px;
+        }
+        .wx-form-group input:focus,
+        .wx-form-group select:focus {
+            border-color: #27ae60;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(39,174,96,0.15);
+        }
+        .wx-toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            z-index: 9999;
+            font-size: 14px;
+        }
+        .wx-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+        .wx-badge-pending { background: #fff3e0; color: #f57c00; }
+        .wx-badge-approved { background: #e8f5e9; color: #2e7d32; }
+        .wx-badge-rejected { background: #ffebee; color: #c62828; }
+        .wx-badge-cancelled { background: #f5f5f5; color: #9e9e9e; }
+        .wx-list-item {
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .wx-list-item:last-child {
+            border-bottom: none;
+        }
+        .wx-stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+        .wx-stat-card .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+        }
+        .wx-stat-card .stat-label {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+        }
+        .wx-merchant-tag {
+            display: inline-flex;
+            align-items: center;
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 13px;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    {% block header %}
+    <div class="wx-header">
+        <div>
+            {% if request.endpoint != 'wx.index' %}
+            <a class="back-btn" href="javascript:history.back()"><i class="fa fa-chevron-left"></i></a>
+            {% endif %}
+            <span class="title">{% block header_title %}宏发金属交易市场{% endblock %}</span>
+        </div>
+        <div>
+            {% if current_user.is_authenticated %}
+            <span style="font-size:13px;">{{ current_user.real_name or '用户' }}</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endblock %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show m-2" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="wx-content">
+        {% block content %}{% endblock %}
+    </div>
+
+    {% block tab_bar %}
+    {% if current_user.is_authenticated %}
+    <div class="wx-tab-bar">
+        <a class="tab-item {% if request.endpoint == 'wx.index' %}active{% endif %}" href="{{ url_for('wx.index') }}">
+            <i class="fa fa-home"></i>首页
+        </a>
+        <a class="tab-item wx-tab-staff {% if request.endpoint == 'wx.contracts' %}active{% endif %}" href="{{ url_for('wx.contracts') }}" style="display:none;">
+            <i class="fa fa-file-text"></i>合同
+        </a>
+        <a class="tab-item wx-tab-finance {% if request.endpoint == 'wx.finance' %}active{% endif %}" href="{{ url_for('wx.finance') }}" style="display:none;">
+            <i class="fa fa-money"></i>缴费
+        </a>
+        <a class="tab-item {% if request.endpoint == 'wx.profile' %}active{% endif %}" href="{{ url_for('wx.profile') }}">
+            <i class="fa fa-user"></i>我的
+        </a>
+    </div>
+    {% endif %}
+    {% endblock %}
+
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    {% if current_user.is_authenticated %}
+    (function() {
+        $.ajax({url: '{{ url_for("wx.api_current_merchant") }}', type: 'GET', success: function(resp) {
+            if (resp.success && resp.data && resp.data.bind_role) {
+                var role = resp.data.bind_role;
+                if (role === 'Boss' || role === 'Staff') { $('.wx-tab-staff').show(); }
+                if (role === 'Boss' || role === 'Finance') { $('.wx-tab-finance').show(); }
+            }
+        }});
+    })();
+    {% endif %}
+    function wxToast(msg, duration) {
+        duration = duration || 2000;
+        var $t = $('<div class="wx-toast"></div>').text(msg);
+        $('body').append($t);
+        setTimeout(function() { $t.remove(); }, duration);
+    }
+    function wxGet(url, callback) {
+        $.ajax({url: url, type: 'GET', success: function(resp) {
+            if (resp.success) { callback(resp.data); } else { wxToast(resp.message || '请求失败'); }
+        }, error: function() { wxToast('网络错误'); }});
+    }
+    function wxPost(url, data, callback) {
+        $.ajax({url: url, type: 'POST', contentType: 'application/json',
+            data: JSON.stringify(data),
+            headers: {'X-CSRFToken': $('meta[name="csrf-token"]').attr('content')},
+            success: function(resp) {
+                if (resp.success) { callback(resp); } else { wxToast(resp.message || '操作失败'); }
+            }, error: function() { wxToast('网络错误'); }});
+    }
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

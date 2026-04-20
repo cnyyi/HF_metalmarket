@@ -92,14 +92,21 @@ pip install -r requirements.txt
 
 ### 2. 配置环境变量
 
-创建.env文件，配置以下环境变量：
+复制 `.env.example` 为 `.env`，并按实际环境填写。推荐使用拆分变量方式配置数据库连接：
 
 ```
 # 数据库配置
-ODBC_CONNECTION_STRING=DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=hf_metalmarket;UID=sa;PWD=password;Encrypt=no;TrustServerCertificate=yes;
+DB_DRIVER={ODBC Driver 17 for SQL Server}
+DB_SERVER=your_sql_server_host
+DB_DATABASE=hf_metalmarket
+DB_UID=your_db_user
+DB_PWD=your_db_password
+
+# 也可以直接提供完整连接串（二选一）
+# ODBC_CONNECTION_STRING=DRIVER={ODBC Driver 17 for SQL Server};SERVER=your_sql_server_host;DATABASE=hf_metalmarket;UID=your_db_user;PWD=your_db_password;Encrypt=no;TrustServerCertificate=yes;charset=utf-8;
 
 # Flask配置
-SECRET_KEY=your-secret-key
+SECRET_KEY=replace_with_a_random_64_char_hex_secret
 FLASK_CONFIG=development
 FLASK_HOST=0.0.0.0
 FLASK_PORT=5000
@@ -115,11 +122,21 @@ SCALE_BAUD_RATE=9600
 
 ### 3. 运行应用
 
+唯一正式启动入口为项目根目录下的 `app.py`。
+
 ```bash
 python app.py
 ```
 
-应用将在 http://localhost:5000 上运行。
+默认运行地址受环境变量控制：
+
+```bash
+FLASK_CONFIG=development
+FLASK_HOST=127.0.0.1
+FLASK_PORT=5000
+```
+
+若未设置，应用默认运行在 `http://127.0.0.1:5000`。
 
 ## 数据库设计
 
@@ -160,6 +177,7 @@ python app.py
 - 使用pyodbc直接连接SQL Server
 - 避免使用SQLAlchemy，防止兼容性问题
 - 所有数据库操作都应该使用参数化查询，防止SQL注入
+- 禁止在仓库中提交任何真实数据库地址、用户名、密码或完整连接串
 
 ## 部署指南
 

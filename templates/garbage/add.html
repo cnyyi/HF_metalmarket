@@ -1,0 +1,247 @@
+{% extends "admin_base.html" %}
+
+{% block title %}新增垃圾清运记录{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<a href="{{ url_for('garbage.index') }}" class="breadcrumb-chip">垃圾清运管理</a>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">新增记录</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-row {
+        margin-bottom: 16px;
+    }
+    .form-label {
+        font-weight: 600;
+    }
+    .info-tip {
+        font-size: 0.85rem;
+        color: var(--color-text-muted);
+    }
+    /* 暗色模式适配 */
+    [data-theme="dark"] .alert-info {
+        background-color: rgba(96, 165, 250, 0.1);
+        border-color: rgba(96, 165, 250, 0.2);
+        color: var(--color-info);
+    }
+    [data-theme="dark"] .alert-info a {
+        color: var(--color-info);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title mb-0"><i class="fa fa-plus-circle"></i> 新增垃圾清运记录</h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info mb-3">
+            <i class="fa fa-info-circle"></i>
+            <strong>说明：</strong>新增垃圾清运记录将同步生成对应的应付账款，可在
+            <a href="{{ url_for('finance.payable_list') }}" target="_blank">应付管理</a> 中查看和核销。
+        </div>
+
+        <form id="garbageForm">
+            <div class="row form-row">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">清运日期 <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="collectionDate" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">供应商（往来客户） <span class="text-danger">*</span></label>
+                    <select class="form-select" id="customerId" required>
+                        <option value="">请选择供应商</option>
+                    </select>
+                    <div class="info-tip mt-1">请在「往来客户」中添加类型为"服务商"的供应商</div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">垃圾类型 <span class="text-danger">*</span></label>
+                    <select class="form-select" id="garbageType" required>
+                        <option value="">请选择垃圾类型</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="row form-row">
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">数量 <span class="text-danger">*</span></label>
+                    <input type="number" class="form-control" id="amount" step="0.01" min="0.01" placeholder="0.00" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">单位 <span class="text-danger">*</span></label>
+                    <select class="form-select" id="unit" required>
+                        <option value="">请选择单位</option>
+                        <option value="吨">吨</option>
+                        <option value="车">车</option>
+                        <option value="立方米">立方米</option>
+                        <option value="KG">KG</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">单价（元） <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="unitPrice" step="0.01" min="0.01" placeholder="0.00" required>
+                        <span class="input-group-text">元</span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">总金额 <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text">¥</span>
+                        <input type="number" class="form-control" id="totalAmount" step="0.01" min="0.01" placeholder="0.00" required>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row form-row">
+                <div class="col-md-12">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" id="description" rows="2" placeholder="请输入备注信息（可选）"></textarea>
+                </div>
+            </div>
+
+            <div class="text-end mt-4">
+                <a href="{{ url_for('garbage.index') }}" class="btn btn-secondary">
+                    <i class="fa fa-arrow-left"></i> 返回列表
+                </a>
+                <button type="submit" class="btn btn-primary ms-2" id="btnSubmit">
+                    <i class="fa fa-check"></i> 保存并生成应付账款
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(function() {
+    // 设置默认日期为今天
+    const today = new Date().toISOString().split('T')[0];
+    $('#collectionDate').val(today);
+
+    // 加载供应商列表
+    function loadVendors() {
+        $.get('{{ url_for("garbage.vendors") }}', function(res) {
+            if (res.success && res.data.length > 0) {
+                let html = '<option value="">请选择供应商</option>';
+                res.data.forEach(function(vendor) {
+                    html += '<option value="' + vendor.vendor_id + '">' + vendor.vendor_name + '</option>';
+                });
+                $('#customerId').html(html);
+            } else if (res.success && res.data.length === 0) {
+                $('#customerId').html('<option value="">暂无可选供应商，请先在往来客户中添加</option>');
+            }
+        }).fail(function() {
+            $('#customerId').html('<option value="">加载失败</option>');
+        });
+    }
+
+    // 加载垃圾类型列表
+    function loadGarbageTypes() {
+        $.get('{{ url_for("garbage.garbage_types") }}', function(res) {
+            if (res.success) {
+                let html = '<option value="">请选择垃圾类型</option>';
+                res.data.forEach(function(type) {
+                    html += '<option value="' + type.value + '">' + type.label + '</option>';
+                });
+                $('#garbageType').html(html);
+            }
+        });
+    }
+
+    // 自动计算总金额
+    function calculateTotal() {
+        const amount = parseFloat($('#amount').val()) || 0;
+        const unitPrice = parseFloat($('#unitPrice').val()) || 0;
+        const total = amount * unitPrice;
+        $('#totalAmount').val(total.toFixed(2));
+    }
+
+    // 数量或单价变化时重新计算总金额
+    $('#amount, #unitPrice').on('input', calculateTotal);
+
+    // 表单提交
+    $('#garbageForm').submit(function(e) {
+        e.preventDefault();
+
+        const data = {
+            collection_date: $('#collectionDate').val(),
+            customer_id: $('#customerId').val(),
+            garbage_type: $('#garbageType').val(),
+            amount: $('#amount').val(),
+            unit: $('#unit').val(),
+            unit_price: $('#unitPrice').val(),
+            total_amount: $('#totalAmount').val(),
+            description: $('#description').val().trim()
+        };
+
+        // 表单验证
+        if (!data.collection_date) {
+            showToast('请选择清运日期', 'danger');
+            return;
+        }
+        if (!data.customer_id) {
+            showToast('请选择供应商', 'danger');
+            return;
+        }
+        if (!data.garbage_type) {
+            showToast('请选择垃圾类型', 'danger');
+            return;
+        }
+        if (!data.amount || parseFloat(data.amount) <= 0) {
+            showToast('数量必须大于0', 'danger');
+            return;
+        }
+        if (!data.unit) {
+            showToast('请选择单位', 'danger');
+            return;
+        }
+        if (!data.unit_price || parseFloat(data.unit_price) <= 0) {
+            showToast('单价必须大于0', 'danger');
+            return;
+        }
+        if (!data.total_amount || parseFloat(data.total_amount) <= 0) {
+            showToast('总金额必须大于0', 'danger');
+            return;
+        }
+
+        const btn = $('#btnSubmit');
+        btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 保存中...');
+
+        $.ajax({
+            url: '{{ url_for("garbage.create_collection") }}',
+            method: 'POST',
+            contentType: 'application/json',
+            headers: { 'X-CSRFToken': getCSRFToken() },
+            data: JSON.stringify(data),
+            success: function(res) {
+                if (res.success) {
+                    showToast(res.message || '创建成功，已同步生成应付账款', 'success');
+                    setTimeout(function() {
+                        window.location.href = '{{ url_for("garbage.index") }}';
+                    }, 1500);
+                } else {
+                    showToast(res.message || '创建失败', 'danger');
+                    btn.prop('disabled', false).html('<i class="fa fa-check"></i> 保存并生成应付账款');
+                }
+            },
+            error: function(xhr) {
+                var msg = '网络错误，请重试';
+                try { msg = xhr.responseJSON.message || msg; } catch(e) {}
+                showToast(msg, 'danger');
+                btn.prop('disabled', false).html('<i class="fa fa-check"></i> 保存并生成应付账款');
+            }
+        });
+    });
+
+    // 初始化
+    loadVendors();
+    loadGarbageTypes();
+});
+</script>
+{% endblock %}

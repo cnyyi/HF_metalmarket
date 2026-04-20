@@ -1,0 +1,58 @@
+{% extends "wx_base.html" %}
+
+{% block title %}绑定状态{% endblock %}
+{% block header_title %}绑定状态{% endblock %}
+
+{% block content %}
+<div id="bindingList"></div>
+
+<div style="text-align: center; padding: 16px;">
+    <a href="{{ url_for('wx.bind_apply') }}" class="wx-btn wx-btn-outline" style="display: inline-block; width: auto; padding: 10px 24px;">
+        <i class="fa fa-plus"></i> 申请绑定新商户
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() { loadBindings(); });
+
+function loadBindings() {
+    wxGet('{{ url_for("wx.api_bindings") }}', function(data) {
+        if (!data || data.length === 0) {
+            $('#bindingList').html('<div class="wx-empty"><i class="fa fa-link"></i><p>暂无绑定记录</p></div>');
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < data.length; i++) {
+            var b = data[i];
+            html += '<div class="wx-card">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+            html += '<div><strong>' + escapeHtml(b.merchant_name) + '</strong></div>';
+            html += '<span class="wx-badge wx-badge-' + b.status.toLowerCase() + '">' + b.status_display + '</span>';
+            html += '</div>';
+            html += '<div style="margin-top:8px;font-size:13px;color:#666;">';
+            html += '身份：' + escapeHtml(b.bind_role_display) + '<br>';
+            html += '申请时间：' + b.apply_time;
+            if (b.reject_reason) {
+                html += '<br><span style="color:#c62828;">驳回原因：' + escapeHtml(b.reject_reason) + '</span>';
+            }
+            html += '</div>';
+            if (b.status === 'Pending') {
+                html += '<button class="wx-btn wx-btn-outline" style="margin-top:10px;font-size:13px;padding:8px;" onclick="cancelBinding(' + b.binding_id + ')">取消申请</button>';
+            }
+            html += '</div>';
+        }
+        $('#bindingList').html(html);
+    });
+}
+
+function cancelBinding(bindingId) {
+    if (!confirm('确定取消此绑定申请？')) return;
+    wxPost('{{ url_for("wx.api_bind_cancel") }}', {binding_id: bindingId}, function(resp) {
+        wxToast(resp.message);
+        if (resp.success) loadBindings();
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}{% endblock %} - 宏发金属交易市场管理系统</title>
+    
+    <script>
+    (function(){var s=localStorage.getItem('hf-theme')||(window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',s)})();
+    </script>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome 6 (含v4兼容层) -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@6.5.1/css/all.min.css" rel="stylesheet">
+    <!-- 后台管理全局样式（工业金属美学） -->
+    <link href="{{ url_for('static', filename='css/admin.css') }}" rel="stylesheet">
+    
+    <!-- 页面特定CSS -->
+    {% block extra_css %}{% endblock %}
+
+    <!-- jQuery 3.7.1 -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+
+    {% block extra_js_head %}{% endblock %}
+</head>
+<body>
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- ===== 侧边栏 ===== -->
+    <aside class="sidebar" id="sidebar">
+        <!-- 品牌 Logo -->
+        <a class="sidebar-brand" href="{{ url_for('admin.index') }}">
+            <div class="sidebar-brand-icon">
+                <i class="fa fa-industry"></i>
+            </div>
+            <div class="sidebar-brand-text">
+                宏发金属市场
+                <small>管理系统</small>
+            </div>
+        </a>
+
+        <!-- 导航菜单 -->
+        <nav class="sidebar-nav">
+            <!-- 工作台 -->
+            <div class="sidebar-section">
+                <a class="sidebar-item {% if request.endpoint == 'admin.index' %}active{% endif %}" href="{{ url_for('admin.index') }}">
+                    <i class="fa fa-tachometer-alt"></i>
+                    <span class="sidebar-item-text">工作台</span>
+                </a>
+            </div>
+
+            {% if current_user.is_authenticated %}
+            <!-- 市场管理 -->
+            {% if current_user.has_permission('plot_manage') or current_user.has_permission('merchant_manage') or current_user.has_permission('contract_manage') or current_user.has_permission('utility_manage') or current_user.has_permission('scale_manage') or current_user.has_permission('dorm_manage') or current_user.has_permission('expense_manage') %}
+            <div class="sidebar-section">
+                <div class="sidebar-section-title">市场管理</div>
+                {% if current_user.has_permission('plot_manage') %}
+                <a class="sidebar-item {% if request.endpoint == 'plot.plot_list' %}active{% endif %}" href="{{ url_for('plot.plot_list') }}">
+                    <i class="fa fa-map-marker"></i>
+                    <span class="sidebar-item-text">地块管理</span>
+                </a>
+                {% endif %}
+                {% if current_user.has_permission('merchant_manage') %}
+                <a class="sidebar-item {% if request.endpoint == 'merchant.merchant_list' or request.endpoint == 'merchant.add' or request.endpoint == 'merchant.edit' %}active{% endif %}" href="{{ url_for('merchant.merchant_list') }}">
+                    <i class="fa fa-building"></i>
+                    <span class="sidebar-item-text">商户管理</span>
+                </a>
+                {% endif %}
+                {% if current_user.has_permission('contract_manage') %}
+                <a class="sidebar-item {% if request.endpoint == 'contract.contract_list' %}active{% endif %}" href="{{ url_for('contract.contract_list') }}">
+                    <i class="fa fa-file-text"></i>
+                    <span class="sidebar-item-text">合同管理</span>
+                </a>
+                {% endif %}
+                {% if current_user.has_permission('utility_manage') %}
+                <a class="sidebar-item {% if request.endpoint and 'utility' in request.endpoint %}active{% endif %}" href="{{ url_for('utility.utility_list') }}">
+                    <i class="fa fa-tint"></i>
+                    <span class="sidebar-item-text">水电计费</span>
+                </a>
+                {% endif %}
+                {% if current_user.has_permission('scale_manage') %}
+                <a class="sidebar-item {% if request.endpoint and 'scale' in request.endpoint %}active{% endif %}" href="{{ url_for('scale.scale_list') }}">
+                    <i class="fa fa-balance-scale"></i>
+                    <span class="sidebar-item-text">磅秤数据</span>
+                </a>
+                {% endif %}
+                {% if current_user.has_permission('expense_manage') %}
+                <a class="sidebar-item {% if request.endpoint and 'expense' in request.endpoint %}active{% endif %}" href="{{ url_for('expense.index') }}">
+                    <i class="fa fa-file-invoice-dollar"></i>
+                    <span class="sidebar-item-text">费用单</span>
+                </a>
+                {% endif %}
+                {% if current_user.has_permission('dorm_manage') %}
+                <div class="sidebar-divider"></div>
+                <a class="sidebar-item {% if request.endpoint == 'dorm.rooms' %}active{% endif %}" href="{{ url_for('dorm.rooms') }}">
+                    <i class="fa fa-bed"></i>
+                    <span class="sidebar-item-text">宿舍房间</span>
+                </a>
+                <a class="sidebar-item {% if request.endpoint == 'dorm.occupancy' %}active{% endif %}" href="{{ url_for('dorm.occupancy') }}">
+                    <i class="fa fa-sign-in"></i>
+                    <span class="sidebar-item-text">入住管理</span>
+                </a>
+                <a class="sidebar-item {% if request.endpoint == 'dorm.reading' %}active{% endif %}" href="{{ url_for('dorm.reading') }}">
+                    <i class="fa fa-bolt"></i>
+                    <span class="sidebar-item-text">电表抄表</span>
+                </a>
+                <a class="sidebar-item {% if request.endpoint == 'dorm.bill' %}active{% endif %}" href="{{ url_for('dorm.bill') }}">
+                    <i class="fa fa-file-invoice"></i>
+                    <span class="sidebar-item-text">宿舍账单</span>
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- 财务管理 -->
+            {% if current_user.has_permission('finance_manage') or current_user.has_permission('salary_manage') or current_user.has_permission('prepayment_manage') or current_user.has_permission('deposit_manage') %}
+            <div class="sidebar-section">
+                <div class="sidebar-section-title">财务管理</div>
+                {% if current_user.has_permission('finance_manage') %}
+                <a class="sidebar-item {% if request.endpoint == 'finance.receivable' %}active{% endif %}" href="{{ url_for('finance.receivable') }}">
+                    <i class="fa fa-arrow-circle-down"></i>
+                    <span class="sidebar-item-text">应收账款</span>
+                </a>
+                <a class="sidebar-item {% if request.endpoint == 'finance.payable' %}active{% endif %}" href="{{ url_for('finance.payable') }}">
+                    <i class="fa fa-arrow-circle-up"></i>
+                    <span class="sidebar-item-text">应付账款</span>
+                </a>
+                <a class="sidebar-item {% if request.endpoint == 'finance.cash_flow' %}active{% endif %}" href="{{ url_for('finance.cash_flow') }}">
+                    <i class="fa fa-exchange"></i>
+                    <span class="sidebar-item-text">资金流水</span>
+                </a>
+                <div class="sidebar-divider"></div>
+                <a class="sidebar-item {% if request.endpoint == 'finance.account' %}active{% endif %}" href="{{ url_for('finance.account') }}">
+                    <i class="fa fa-university"></i>
+                    <span class="sidebar-item-text">账户管理</span>
+                </a>
+                <a class="sidebar-item {% if request.endpoint == 'finance.direct_entry' %}active{% endif %}" href="{{ url_for('finance.direct_entry') }}">
+                    <i class="fa fa-pencil-square-o"></i>
+                    <span class="sidebar-item-text">直接记账</span>
+                </a>
+                {% endif %}
+                {% if current_user.has_permission('prepayment_manage') or current_user.has_permission('deposit_manage') %}
+                <div class="sidebar-divider"></div>
+                {% if current_user.has_permission('prepayment_manage') %}
+                <a class="sidebar-item {% if request.endpoint == 'finance.prepayment' %}active{% endif %}" href="{{ url_for('finance.prepayment') }}">
+                    <i class="fa fa-exchange"></i>
+                    <span class="sidebar-item-text">预收预付</span>
+                </a>
+                {% endif %}
+                {% if current_user.has_permission('deposit_manage') %}
+                <a class="sidebar-item {% if request.endpoint == 'finance.deposit' %}active{% endif %}" href="{{ url_for('finance.deposit') }}">
+                    <i class="fa fa-shield"></i>
+                    <span class="sidebar-item-text">押金管理</span>
+                </a>
+                {% endif %}
+                {% endif %}
+                {% if current_user.has_permission('finance_manage') %}
+                <div class="sidebar-divider"></div>
+                <a class="sidebar-item {% if request.endpoint == 'customer.customer_list' %}active{% endif %}" href="{{ url_for('customer.customer_list') }}">
+                    <i class="fa fa-address-book-o"></i>
+                    <span class="sidebar-item-text">往来客户</span>
+                </a>
+                {% endif %}
+                {% if current_user.has_permission('salary_manage') %}
+                <div class="sidebar-divider"></div>
+                <a class="sidebar-item {% if request.endpoint == 'salary.profile' %}active{% endif %}" href="{{ url_for('salary.profile') }}">
+                    <i class="fa fa-id-card-o"></i>
+                    <span class="sidebar-item-text">工资档案</span>
+                </a>
+                <a class="sidebar-item {% if request.endpoint == 'salary.monthly' %}active{% endif %}" href="{{ url_for('salary.monthly') }}">
+                    <i class="fa fa-calculator"></i>
+                    <span class="sidebar-item-text">月度工资</span>
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- 系统管理 -->
+            {% if current_user.has_permission('user_manage') or current_user.has_permission('dict_manage') %}
+            <div class="sidebar-section">
+                <div class="sidebar-section-title">系统管理</div>
+                {% if current_user.has_permission('user_manage') %}
+                <a class="sidebar-item {% if request.endpoint and 'user' in request.endpoint %}active{% endif %}" href="{{ url_for('user.user_list') }}">
+                    <i class="fa fa-users"></i>
+                    <span class="sidebar-item-text">用户管理</span>
+                </a>
+                {% endif %}
+                {% if current_user.has_permission('dict_manage') %}
+                <a class="sidebar-item {% if request.endpoint and 'dict' in request.endpoint %}active{% endif %}" href="{{ url_for('dict.dict_list') }}">
+                    <i class="fa fa-book"></i>
+                    <span class="sidebar-item-text">字典管理</span>
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endif %}
+        </nav>
+    </aside>
+
+    <!-- 移动端侧边栏遮罩 -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- ===== 顶部栏 ===== -->
+    <header class="topbar" id="topbar">
+        <div class="topbar-left">
+            <!-- 移动端侧边栏切换按钮 -->
+            <button class="sidebar-toggle" id="sidebarToggle" aria-label="切换菜单">
+                <i class="fa fa-bars"></i>
+            </button>
+            <!-- 内联面包屑 -->
+            <nav class="topbar-breadcrumb" id="topbarBreadcrumb" aria-label="面包屑导航">
+                <a href="{{ url_for('admin.index') }}" class="breadcrumb-home"><i class="fa fa-home"></i> 工作台</a>
+                {% block breadcrumb %}{% endblock %}
+            </nav>
+        </div>
+        <div class="topbar-right">
+            <!-- 暗色模式切换 -->
+            <button class="theme-toggle" id="themeToggle" title="切换主题">
+                <i class="fa fa-moon"></i>
+            </button>
+            <!-- 用户菜单 -->
+            {% if current_user.is_authenticated %}
+            <div class="dropdown">
+                <a class="topbar-user" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <div class="topbar-user-avatar">{{ current_user.real_name[:1] }}</div>
+                    <span class="topbar-user-name">{{ current_user.real_name }}</span>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="#"><i class="fa fa-user me-2"></i>个人信息</a></li>
+                    <li><a class="dropdown-item" href="{{ url_for('salary.payslip') }}"><i class="fa fa-file-text-o me-2"></i>我的工资条</a></li>
+                    <li><a class="dropdown-item" href="{{ url_for('user.change_password') }}"><i class="fa fa-key me-2"></i>修改密码</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}"><i class="fa fa-sign-out me-2"></i>退出登录</a></li>
+                </ul>
+            </div>
+            {% else %}
+            <a class="topbar-user" href="{{ url_for('auth.login') }}">
+                <i class="fa fa-sign-in"></i> 登录
+            </a>
+            {% endif %}
+        </div>
+    </header>
+
+    <!-- Toast 通知容器 -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- 全局 Loading 遮罩 -->
+    <div class="global-loading-overlay" id="globalLoadingOverlay">
+        <div class="global-loading-spinner">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <div class="loading-text" id="globalLoadingText">加载中...</div>
+        </div>
+    </div>
+
+    <!-- ===== 主内容区 ===== -->
+    <main class="main-content">
+        <div class="main-content-inner">
+            <!-- Flash 消息数据（供 admin.js 解析） -->
+            <script type="application/json" id="flashMessagesData">{{ get_flashed_messages(with_categories=true) | tojson }}</script>
+            
+            <!-- 页面内容区域 -->
+            {% block content %}{% endblock %}
+        </div>
+
+        <!-- 页脚 -->
+        <footer class="footer">
+            <div class="container-fluid text-center">
+                <p class="text-muted mb-0" style="font-size: var(--font-size-xs);">
+                    <i class="fa fa-copyright"></i> 2026 宏发金属交易市场管理系统. 保留所有权利.
+                </p>
+            </div>
+        </footer>
+    </main>
+
+    <!-- 后台管理全局JS -->
+    <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+
+    <!-- 页面特定JS -->
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

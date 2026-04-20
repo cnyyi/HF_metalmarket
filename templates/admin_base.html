@@ -93,6 +93,12 @@
                     <span class="sidebar-item-text">费用单</span>
                 </a>
                 {% endif %}
+                {% if current_user.has_permission('garbage_manage') %}
+                <a class="sidebar-item {% if request.endpoint and 'garbage' in request.endpoint %}active{% endif %}" href="{{ url_for('garbage.index') }}">
+                    <i class="fa fa-trash-o"></i>
+                    <span class="sidebar-item-text">垃圾清运</span>
+                </a>
+                {% endif %}
                 {% if current_user.has_permission('dorm_manage') %}
                 <div class="sidebar-divider"></div>
                 <a class="sidebar-item {% if request.endpoint == 'dorm.rooms' %}active{% endif %}" href="{{ url_for('dorm.rooms') }}">

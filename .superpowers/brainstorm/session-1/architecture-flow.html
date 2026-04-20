@@ -1,0 +1,71 @@
+<h2>微信门户 — 整体架构流程</h2>
+<p class="subtitle">从用户进入微信到查看商户数据的完整链路</p>
+
+<div class="mockup">
+  <div class="mockup-header">微信门户用户旅程</div>
+  <div class="mockup-body" style="padding: 24px;">
+    <div style="display: flex; flex-direction: column; gap: 16px; align-items: center;">
+      
+      <div style="background: #1a73e8; color: white; padding: 12px 24px; border-radius: 8px; font-weight: bold; width: 280px; text-align: center;">
+        微信公众号菜单 / 扫码
+      </div>
+      
+      <div style="font-size: 24px; color: #666;">↓</div>
+      
+      <div style="background: #34a853; color: white; padding: 12px 24px; border-radius: 8px; font-weight: bold; width: 280px; text-align: center;">
+        微信授权登录（OAuth2.0）
+      </div>
+      
+      <div style="font-size: 24px; color: #666;">↓</div>
+      
+      <div style="display: flex; gap: 24px; width: 100%; justify-content: center;">
+        <div style="border: 2px solid #ea4335; border-radius: 8px; padding: 16px; width: 200px; text-align: center;">
+          <div style="font-weight: bold; color: #ea4335; margin-bottom: 8px;">新用户</div>
+          <div style="font-size: 13px; color: #555;">注册账号 → 填写基本信息</div>
+        </div>
+        <div style="border: 2px solid #34a853; border-radius: 8px; padding: 16px; width: 200px; text-align: center;">
+          <div style="font-weight: bold; color: #34a853; margin-bottom: 8px;">已有账号</div>
+          <div style="font-size: 13px; color: #555;">自动关联 OpenID → 直接登录</div>
+        </div>
+      </div>
+      
+      <div style="font-size: 24px; color: #666;">↓</div>
+      
+      <div style="border: 2px dashed #fbbc04; border-radius: 8px; padding: 16px; width: 320px; text-align: center;">
+        <div style="font-weight: bold; color: #fbbc04; margin-bottom: 8px;">⏳ 待绑定商户</div>
+        <div style="font-size: 13px; color: #555;">选择商户 + 选择身份（老板/员工/财务）<br>提交绑定申请</div>
+      </div>
+      
+      <div style="font-size: 24px; color: #666;">↓</div>
+      
+      <div style="border: 2px dashed #ea4335; border-radius: 8px; padding: 16px; width: 320px; text-align: center;">
+        <div style="font-weight: bold; color: #ea4335; margin-bottom: 8px;">🚫 等待审批</div>
+        <div style="font-size: 13px; color: #555;">管理员审核绑定申请<br>通过 / 驳回</div>
+      </div>
+      
+      <div style="font-size: 24px; color: #666;">↓</div>
+      
+      <div style="background: #34a853; color: white; padding: 16px 24px; border-radius: 8px; font-weight: bold; width: 320px; text-align: center;">
+        ✅ 已绑定 — 进入商户门户
+      </div>
+      
+      <div style="display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; justify-content: center;">
+        <div style="background: #e8f0fe; color: #1a73e8; padding: 8px 16px; border-radius: 6px; font-size: 13px;">电费</div>
+        <div style="background: #e8f0fe; color: #1a73e8; padding: 8px 16px; border-radius: 6px; font-size: 13px;">水费</div>
+        <div style="background: #e8f0fe; color: #1a73e8; padding: 8px 16px; border-radius: 6px; font-size: 13px;">合同</div>
+        <div style="background: #e8f0fe; color: #1a73e8; padding: 8px 16px; border-radius: 6px; font-size: 13px;">过磅数据</div>
+        <div style="background: #e8f0fe; color: #1a73e8; padding: 8px 16px; border-radius: 6px; font-size: 13px;">磅费</div>
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+<div style="margin-top: 24px; padding: 16px; background: #fff3e0; border-radius: 8px; border-left: 4px solid #ff9800;">
+  <strong>关键设计问题：</strong>这个流程是否符合你的预期？特别注意以下决策点：
+  <ul style="margin-top: 8px; padding-left: 20px;">
+    <li>微信授权登录 vs 手机号+验证码登录？</li>
+    <li>注册和绑定是否分两步，还是合并为一步？</li>
+    <li>一个微信用户能否绑定多个商户？</li>
+  </ul>
+</div>

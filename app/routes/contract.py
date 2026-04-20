@@ -4,6 +4,7 @@
 """
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, send_file
 from flask_login import login_required
+from app.api_response import success_response, error_response
 from app.services.contract_service import ContractService
 
 contract_bp = Blueprint('contract', __name__)
@@ -25,12 +26,9 @@ def list_data():
         
         success, result = ContractService.get_contract_list(page, per_page, search)
         if not success:
-            return jsonify({'success': False, 'message': result})
+            return error_response(result)
         
-        return jsonify({
-            'success': True,
-            'data': result
-        })
+        return success_response(result)
         
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
@@ -138,27 +136,31 @@ def add():
         description = data.get('description', '')
         
         if not period:
-            return jsonify({'success': False, 'message': '请选择合同期年'})
+            return error_response('请选择合同期年')
         if not merchant_id:
-            return jsonify({'success': False, 'message': '请选择商户'})
+            return error_response('请选择商户')
         if not plot_ids:
-            return jsonify({'success': False, 'message': '请选择地块'})
+            return error_response('请选择地块')
         if not start_date:
-            return jsonify({'success': False, 'message': '请选择开始日期'})
+            return error_response('请选择开始日期')
         if not end_date:
-            return jsonify({'success': False, 'message': '请选择结束日期'})
+            return error_response('请选择结束日期')
         
         success, result = ContractService.add_contract(
             period, merchant_id, plot_ids, start_date, end_date, rent_adjust, description
         )
         
         if not success:
-            return jsonify({'success': False, 'message': result})
+            return error_response(result)
         
-        return jsonify({'success': True, 'message': '合同添加成功', 'contract_number': result})
+        return success_response(
+            {'contract_number': result},
+            message='合同添加成功',
+            contract_number=result
+        )
             
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        return error_response(str(e), status=500)
 
 
 @contract_bp.route('/detail/<int:contract_id>', methods=['GET'])
@@ -167,12 +169,12 @@ def detail(contract_id):
     try:
         success, result = ContractService.get_contract_detail(contract_id)
         if not success:
-            return jsonify({'success': False, 'message': result})
+            return error_response(result)
         
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
         
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        return error_response(str(e), status=500)
 
 
 @contract_bp.route('/edit/<int:contract_id>', methods=['GET', 'POST'])
@@ -193,21 +195,21 @@ def edit(contract_id):
         plot_ids = data.get('plot_ids', [])
         
         if not start_date:
-            return jsonify({'success': False, 'message': '请选择开始日期'})
+            return error_response('请选择开始日期')
         if not end_date:
-            return jsonify({'success': False, 'message': '请选择结束日期'})
+            return error_response('请选择结束日期')
         
         success, message = ContractService.update_contract(
             contract_id, start_date, end_date, rent_adjust, description, status, plot_ids
         )
         
         if not success:
-            return jsonify({'success': False, 'message': message})
+            return error_response(message)
         
-        return jsonify({'success': True, 'message': message})
+        return success_response(message=message)
             
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        return error_response(str(e), status=500)
 
 
 @contract_bp.route('/delete/<int:contract_id>', methods=['POST'])
@@ -216,9 +218,9 @@ def delete(contract_id):
     try:
         success, message = ContractService.delete_contract(contract_id)
         if not success:
-            return jsonify({'success': False, 'message': message})
+            return error_response(message)
         
-        return jsonify({'success': True, 'message': message})
+        return success_response(message=message)
         
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        return error_response(str(e), status=500)

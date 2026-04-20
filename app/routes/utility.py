@@ -1,4 +1,6 @@
 # 水电计费相关路由
+import logging
+
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from app.services.utility_service import UtilityService
@@ -8,6 +10,7 @@ utility_bp = Blueprint('utility', __name__)
 
 # 初始化服务
 utility_service = UtilityService()
+logger = logging.getLogger(__name__)
 
 
 @utility_bp.route('/list')
@@ -70,24 +73,19 @@ def create():
     """
     新增水电表
     """
-    # 标记：这是最新版本的代码 2026-04-02
-    print("=" * 50)
-    print("进入 /utility/create 路由")
-    print("=" * 50)
-    
     try:
         data = request.get_json()
-        print(f"接收到的数据：{data}")
+        logger.debug("进入 /utility/create 路由，接收到数据: %s", data)
 
         if not data:
-            print("错误：没有接收到数据")
+            logger.warning("/utility/create 未接收到 JSON 数据")
             return jsonify({
                 'success': False,
                 'message': '[CREATE_V3] 请求数据格式错误，需要JSON格式'
             }), 400
 
         meter_type = data.get('meter_type', '').strip()
-        print(f"表类型：{meter_type}")
+        logger.debug("/utility/create 表类型: %s", meter_type)
 
         if not meter_type or meter_type not in ['water', 'electricity']:
             return jsonify({
@@ -96,27 +94,25 @@ def create():
             }), 400
 
         required_fields = ['meter_number', 'meter_type']
-        print(f"必填字段：{required_fields}")
+        logger.debug("/utility/create 必填字段: %s", required_fields)
 
         for field in required_fields:
             field_value = data.get(field)
-            print(f"检查字段 '{field}': {field_value}")
+            logger.debug("/utility/create 检查字段 %s: %s", field, field_value)
             if field not in data or not str(data[field]).strip():
-                print(f"验证失败：字段 '{field}' 为空")
+                logger.warning("/utility/create 验证失败，字段为空: %s", field)
                 return jsonify({
                     'success': False,
                     'message': f'[CREATE_V3] 缺少必填字段：{field}'
                 }), 400
 
-        print("所有验证通过，调用 service.create_meter")
+        logger.debug("/utility/create 参数校验通过，开始调用 utility_service.create_meter")
         result = utility_service.create_meter(meter_type, data)
-        print(f"service 返回结果：{result}")
+        logger.debug("/utility/create service 返回结果: %s", result)
         return jsonify(result)
 
     except Exception as e:
-        import traceback
-        print(f"异常：{e}")
-        print(f"堆栈：{traceback.format_exc()}")
+        logger.exception("/utility/create 创建失败: %s", e)
         return jsonify({
             'success': False,
             'message': f'[CREATE_V3] 创建失败：{str(e)}'

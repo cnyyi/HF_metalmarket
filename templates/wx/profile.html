@@ -1,0 +1,33 @@
+{% extends "wx_base.html" %}
+
+{% block title %}我的{% endblock %}
+{% block header_title %}我的{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 24px; background: white; margin-bottom: 12px;">
+    <div style="width: 64px; height: 64px; border-radius: 50%; background: #e8f5e9; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center;">
+        <i class="fa fa-user" style="font-size: 28px; color: #27ae60;"></i>
+    </div>
+    <h5>{{ current_user.real_name or '微信用户' }}</h5>
+    <p style="color: #999; font-size: 13px; margin: 0;">{{ current_user.phone or '未绑定手机号' }}</p>
+</div>
+
+<div class="wx-card" style="padding: 0;">
+    <a href="{{ url_for('wx.bind_status') }}" style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;text-decoration:none;color:#333;border-bottom:1px solid #f0f0f0;">
+        <span><i class="fa fa-link" style="color:#27ae60;margin-right:10px;"></i>绑定状态</span>
+        <i class="fa fa-chevron-right" style="color:#ccc;"></i>
+    </a>
+    <a href="{{ url_for('wx.switch') }}" style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;text-decoration:none;color:#333;border-bottom:1px solid #f0f0f0;">
+        <span><i class="fa fa-exchange-alt" style="color:#3498db;margin-right:10px;"></i>切换商户</span>
+        <i class="fa fa-chevron-right" style="color:#ccc;"></i>
+    </a>
+    <a href="{{ url_for('wx.phone_page') }}" style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;text-decoration:none;color:#333;border-bottom:1px solid #f0f0f0;">
+        <span><i class="fa fa-phone" style="color:#f39c12;margin-right:10px;"></i>绑定手机号</span>
+        <i class="fa fa-chevron-right" style="color:#ccc;"></i>
+    </a>
+</div>
+
+<div style="padding: 16px;">
+    <a href="{{ url_for('auth.logout') }}" class="wx-btn" style="background:#fff0f0;color:#c62828;border:1px solid #ffcdd2;">退出登录</a>
+</div>
+{% endblock %}

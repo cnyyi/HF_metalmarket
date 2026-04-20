@@ -5,6 +5,7 @@
 import logging
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
 from flask_login import login_required
+from app.api_response import success_response, error_response
 from app.services.plot_service import PlotService
 
 logger = logging.getLogger(__name__)
@@ -127,15 +128,15 @@ def edit(plot_id):
         image_path = data.get('image_path', '').strip() if data.get('image_path') else None
         
         if not plot_number:
-            return jsonify({'success': False, 'message': '地块编号不能为空'})
+            return error_response('地块编号不能为空')
         if not plot_name:
-            return jsonify({'success': False, 'message': '地块名称不能为空'})
+            return error_response('地块名称不能为空')
         if not plot_type:
-            return jsonify({'success': False, 'message': '地块类型不能为空'})
+            return error_response('地块类型不能为空')
         if not area:
-            return jsonify({'success': False, 'message': '面积不能为空'})
+            return error_response('面积不能为空')
         if not unit_price:
-            return jsonify({'success': False, 'message': '单价不能为空'})
+            return error_response('单价不能为空')
         
         area = float(area)
         unit_price = float(unit_price)
@@ -146,13 +147,13 @@ def edit(plot_id):
         )
         
         if not success:
-            return jsonify({'success': False, 'message': message})
+            return error_response(message)
         
-        return jsonify({'success': True, 'message': message})
+        return success_response(message=message)
         
     except Exception as e:
         logger.error(f"更新地块失败: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': '更新失败，请稍后重试'})
+        return error_response('更新失败，请稍后重试', status=500)
 
 
 @plot_bp.route('/upload_image/<int:plot_id>', methods=['POST'])
@@ -161,21 +162,25 @@ def upload_image(plot_id):
     try:
         file = request.files.get('image')
         if not file or file.filename == '':
-            return jsonify({'success': False, 'message': '请选择图片文件'})
+            return error_response('请选择图片文件')
         
         image_path = PlotService.save_uploaded_file(file)
         if not image_path:
-            return jsonify({'success': False, 'message': '图片上传失败'})
+            return error_response('图片上传失败')
         
         success, message = PlotService.upload_image(plot_id, image_path)
         if not success:
-            return jsonify({'success': False, 'message': message})
+            return error_response(message)
         
-        return jsonify({'success': True, 'message': message, 'image_path': image_path})
+        return success_response(
+            {'image_path': image_path},
+            message=message,
+            image_path=image_path
+        )
         
     except Exception as e:
         logger.error(f"上传图片失败: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': '上传失败，请稍后重试'})
+        return error_response('上传失败，请稍后重试', status=500)
 
 
 @plot_bp.route('/delete/<int:plot_id>', methods=['POST'])
@@ -184,13 +189,13 @@ def delete(plot_id):
     try:
         success, message = PlotService.delete_plot(plot_id)
         if not success:
-            return jsonify({'success': False, 'message': message})
+            return error_response(message)
         
-        return jsonify({'success': True, 'message': message})
+        return success_response(message=message)
         
     except Exception as e:
         logger.error(f"删除地块失败: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': '删除失败，请稍后重试'})
+        return error_response('删除失败，请稍后重试', status=500)
 
 
 @plot_bp.route('/detail/<int:plot_id>', methods=['GET'])
@@ -199,13 +204,13 @@ def detail(plot_id):
     try:
         success, result = PlotService.get_plot_detail(plot_id)
         if not success:
-            return jsonify({'success': False, 'message': result})
+            return error_response(result)
         
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
         
     except Exception as e:
         logger.error(f"获取地块详情失败: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': '获取失败，请稍后重试'})
+        return error_response('获取失败，请稍后重试', status=500)
 
 
 @plot_bp.route('/list_data', methods=['GET'])
@@ -226,13 +231,10 @@ def list_data():
         )
         
         if not success:
-            return jsonify({'success': False, 'message': result})
+            return error_response(result)
         
-        return jsonify({
-            'success': True,
-            'data': result
-        })
+        return success_response(result)
         
     except Exception as e:
         logger.error(f"获取地块列表失败: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': '获取失败，请稍后重试'})
+        return error_response('获取失败，请稍后重试', status=500)

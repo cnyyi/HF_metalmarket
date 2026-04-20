@@ -2,7 +2,27 @@
 
 {% block title %}现金流水{% endblock %}
 
-{% block extra_css %}{% endblock %}
+{% block extra_css %}
+<style>
+.summary-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    cursor: pointer;
+    border-bottom: 1px dashed var(--color-primary);
+    transition: all var(--transition-fast);
+}
+.summary-link:hover {
+    color: var(--color-primary);
+    border-bottom-style: solid;
+    text-decoration: none;
+}
+.detail-section { margin-bottom: 16px; }
+.detail-section h6 { border-bottom: 1px solid var(--color-border); padding-bottom: 6px; margin-bottom: 10px; }
+.detail-field { margin-bottom: 6px; }
+.detail-field .label { color: var(--color-text-muted); font-size: 13px; }
+.detail-field .value { font-weight: 500; }
+</style>
+{% endblock %}
 
 {% block breadcrumb %}
 <span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
@@ -121,6 +141,36 @@
         </nav>
     </div>
 </div>
+
+<!-- 应收详情弹窗 -->
+<div class="modal fade" id="receivableDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa fa-file-text-o"></i> 应收详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="receivableDetailContent">
+                <p class="text-center text-muted">加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 应付详情弹窗 -->
+<div class="modal fade" id="payableDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa fa-file-text-o"></i> 应付详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="payableDetailContent">
+                <p class="text-center text-muted">加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -214,7 +264,18 @@ function renderTable(data) {
         html += '<td>' + escapeHtml(item.account_name || '-') + '</td>';
         html += '<td>' + escapeHtml(item.expense_type_name) + '</td>';
         html += '<td class="text-end ' + dirClass + '">' + amountPrefix + '¥' + formatNumber(item.amount) + '</td>';
-        html += '<td>' + escapeHtml(item.description) + '</td>';
+
+        var descHtml = '';
+        var descText = escapeHtml(item.description);
+        if (item.linked_receivable_id) {
+            descHtml = '<a class="summary-link" href="#" data-type="receivable" data-id="' + item.linked_receivable_id + '">' + descText + '</a>';
+        } else if (item.linked_payable_id) {
+            descHtml = '<a class="summary-link" href="#" data-type="payable" data-id="' + item.linked_payable_id + '">' + descText + '</a>';
+        } else {
+            descHtml = descText;
+        }
+        html += '<td>' + descHtml + '</td>';
+
         html += '<td>' + escapeHtml(item.operator_name) + '</td>';
         html += '</tr>';
     }
@@ -287,6 +348,98 @@ function loadAccountFilter() {
     });
 }
 
+function openReceivableDetailModal(id) {
+    $('#receivableDetailContent').html('<p class="text-center text-muted">加载中...</p>');
+    var modal = new bootstrap.Modal(document.getElementById('receivableDetailModal'));
+    modal.show();
+
+    $.ajax({
+        url: '/finance/receivable/detail/' + id,
+        type: 'GET',
+        success: function(resp) {
+            if (!resp.success) { showToast('error', resp.message); return; }
+            var d = resp.data;
+            var html = '<div class="detail-section"><h6><i class="fa fa-info-circle"></i> 基本信息</h6><div class="row">';
+            html += '<div class="col-md-6 detail-field"><span class="label">商户：</span><span class="value">' + escapeHtml(d.merchant_name) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">费用类型：</span><span class="value">' + escapeHtml(d.expense_type_name) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">应收金额：</span><span class="value">¥' + formatNumber(d.amount) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">已收金额：</span><span class="value text-success">¥' + formatNumber(d.paid_amount) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">剩余金额：</span><span class="value text-danger">¥' + formatNumber(d.remaining_amount) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">到期日期：</span><span class="value">' + d.due_date + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">状态：</span><span class="value">' + escapeHtml(d.status) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">创建时间：</span><span class="value">' + d.create_time + '</span></div>';
+            if (d.description) {
+                html += '<div class="col-md-12 detail-field"><span class="label">备注：</span><span class="value">' + escapeHtml(d.description) + '</span></div>';
+            }
+            html += '</div></div>';
+
+            if (d.collection_records && d.collection_records.length > 0) {
+                html += '<div class="detail-section"><h6><i class="fa fa-history"></i> 收款历史</h6>';
+                html += '<div class="table-responsive"><table class="table table-sm table-striped">';
+                html += '<thead><tr><th>日期</th><th>金额</th><th>方式</th><th>备注</th></tr></thead><tbody>';
+                d.collection_records.forEach(function(r) {
+                    html += '<tr>';
+                    html += '<td>' + r.transaction_date + '</td>';
+                    html += '<td class="text-end">¥' + formatNumber(r.amount) + '</td>';
+                    html += '<td>' + escapeHtml(r.payment_method) + '</td>';
+                    html += '<td>' + escapeHtml(r.description || '') + '</td>';
+                    html += '</tr>';
+                });
+                html += '</tbody></table></div></div>';
+            }
+
+            $('#receivableDetailContent').html(html);
+        },
+        error: function() { showToast('error', '获取应收详情失败'); }
+    });
+}
+
+function openPayableDetailModal(id) {
+    $('#payableDetailContent').html('<p class="text-center text-muted">加载中...</p>');
+    var modal = new bootstrap.Modal(document.getElementById('payableDetailModal'));
+    modal.show();
+
+    $.ajax({
+        url: '/finance/payable/detail/' + id,
+        type: 'GET',
+        success: function(resp) {
+            if (!resp.success) { showToast('error', resp.message); return; }
+            var d = resp.data;
+            var html = '<div class="detail-section"><h6><i class="fa fa-info-circle"></i> 基本信息</h6><div class="row">';
+            html += '<div class="col-md-6 detail-field"><span class="label">名称：</span><span class="value">' + escapeHtml(d.customer_name || d.vendor_name) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">费用类型：</span><span class="value">' + escapeHtml(d.expense_type_name) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">应付金额：</span><span class="value">¥' + formatNumber(d.amount) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">已付金额：</span><span class="value text-success">¥' + formatNumber(d.paid_amount) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">剩余金额：</span><span class="value text-danger">¥' + formatNumber(d.remaining_amount) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">到期日期：</span><span class="value">' + d.due_date + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">状态：</span><span class="value">' + escapeHtml(d.status) + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">创建时间：</span><span class="value">' + d.create_time + '</span></div>';
+            if (d.description) {
+                html += '<div class="col-md-12 detail-field"><span class="label">描述：</span><span class="value">' + escapeHtml(d.description) + '</span></div>';
+            }
+            html += '</div></div>';
+
+            if (d.payment_records && d.payment_records.length > 0) {
+                html += '<div class="detail-section"><h6><i class="fa fa-history"></i> 付款历史</h6>';
+                html += '<div class="table-responsive"><table class="table table-sm table-striped">';
+                html += '<thead><tr><th>日期</th><th>金额</th><th>方式</th><th>备注</th></tr></thead><tbody>';
+                d.payment_records.forEach(function(r) {
+                    html += '<tr>';
+                    html += '<td>' + r.transaction_date + '</td>';
+                    html += '<td class="text-end">¥' + formatNumber(r.amount) + '</td>';
+                    html += '<td>' + escapeHtml(r.payment_method) + '</td>';
+                    html += '<td>' + escapeHtml(r.description || '') + '</td>';
+                    html += '</tr>';
+                });
+                html += '</tbody></table></div></div>';
+            }
+
+            $('#payableDetailContent').html(html);
+        },
+        error: function() { showToast('error', '获取应付详情失败'); }
+    });
+}
+
 $(document).ready(function() {
     loadCashFlows(1);
     loadExpenseTypes();
@@ -309,6 +462,17 @@ $(document).ready(function() {
     });
 
     $('#btnExportExcel').on('click', function() { showToast('info', '导出功能开发中'); });
+
+    $(document).on('click', '.summary-link', function(e) {
+        e.preventDefault();
+        var type = $(this).data('type');
+        var id = $(this).data('id');
+        if (type === 'receivable') {
+            openReceivableDetailModal(id);
+        } else if (type === 'payable') {
+            openPayableDetailModal(id);
+        }
+    });
 });
 </script>
 {% endblock %}

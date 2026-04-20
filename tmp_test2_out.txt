@@ -1,0 +1,81 @@
+[\u26a0\ufe0f ���þ���] �������� SECRET_KEY δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+[\u26a0\ufe0f ���þ���] �������� DB_SERVER δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+[\u26a0\ufe0f ���þ���] �������� DB_DATABASE δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+[\u26a0\ufe0f ���þ���] �������� DB_UID δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+[\u26a0\ufe0f ���þ���] �������� DB_PWD δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+[\u26a0\ufe0f ���þ���] �������� DB_SERVER δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+[\u26a0\ufe0f ���þ���] �������� DB_DATABASE δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+[\u26a0\ufe0f ���þ���] �������� DB_UID δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+[\u26a0\ufe0f ���þ���] �������� DB_PWD δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+INFO:app:��ͼ auth_bp ע��ɹ� (prefix=/auth)
+INFO:app:��ͼ user_bp ע��ɹ� (prefix=/user)
+INFO:app:��ͼ merchant_bp ע��ɹ� (prefix=/merchant)
+INFO:app:��ͼ contract_bp ע��ɹ� (prefix=/contract)
+INFO:app:��ͼ finance_bp ע��ɹ� (prefix=/finance)
+INFO:app:��ͼ plot_bp ע��ɹ� (prefix=/plot)
+INFO:app:��ͼ scale_bp ע��ɹ� (prefix=/scale)
+INFO:app:��ͼ utility_bp ע��ɹ� (prefix=/utility)
+INFO:app:��ͼ customer_bp ע��ɹ� (prefix=/customer)
+INFO:app:��ͼ dict_bp ע��ɹ� (prefix=/dict)
+INFO:app:��ͼ portal_bp ע��ɹ� (prefix=��)
+INFO:app:��ͼ salary_bp ע��ɹ� (prefix=/salary)
+INFO:app:��ͼ dorm_bp ע��ɹ� (prefix=/dorm)
+INFO:app:��ͼ expense_bp ע��ɹ� (prefix=/expense)
+INFO:app:��ͼ garbage_bp ע��ɹ� (prefix=/garbage)
+INFO:app:��ͼ admin_bp ע��ɹ� (prefix=��)
+INFO:app:��ͼע���������
+开始初始化合同文档服务...
+合同文档服务初始化成功！
+INFO:flask_wtf.csrf:The CSRF token is missing.
+登录后状态: 400
+GET /garbage/vendors: 302
+非JSON: b'<!doctype html>\n<html lang=en>\n<title>Redirecting...</title>\n<h1>Redirecting...</h1>\n<p>You should b'
+
+GET /garbage/garbage-types: 302
+非JSON: b'<!doctype html>\n<html lang=en>\n<title>Redirecting...</title>\n<h1>Redirecting...</h1>\n<p>You should b'
+
+GET /garbage/create: 302
+
+
+=== 数据库状态 ===
+ERROR:utils.database:��ȡ���ݿ�����ʧ��: ('08001', '[08001] [Microsoft][ODBC Driver 17 for SQL Server]Named Pipes Provider: Could not open a connection to SQL Server [2].  (2) (SQLDriverConnect); [08001] [Microsoft][ODBC Driver 17 for SQL Server]Login timeout expired (0); [08001] [Microsoft][ODBC Driver 17 for SQL Server]A network-related or instance-specific error has occurred while establishing a connection to SQL Server. Server is not found or not accessible. Check if instance name is correct and if SQL Server is configured to allow remote connections. For more information see SQL Server Books Online. (2)')
+Traceback (most recent call last):
+  File "C:\Users\iyang\AppData\Roaming\Python\Python314\site-packages\flask\ctx.py", line 420, in pop
+    self.app.do_teardown_request(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\iyang\AppData\Roaming\Python\Python314\site-packages\flask\app.py", line 1353, in do_teardown_request
+    for name in chain(request.blueprints, (None,)):
+                      ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\iyang\AppData\Roaming\Python\Python314\site-packages\werkzeug\local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "C:\Users\iyang\AppData\Roaming\Python\Python314\site-packages\werkzeug\local.py", line 519, in _get_current_object
+    raise RuntimeError(unbound_message) from None
+RuntimeError: Working outside of request context.
+
+This typically means that you attempted to use functionality that needed
+an active HTTP request. Consult the documentation on testing for
+information about how to avoid this problem.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\BaiduSyncdisk\HF_metalmarket\tmp_test2.py", line 11, in <module>
+    with app.test_client() as client:
+         ~~~~~~~~~~~~~~~^^
+  File "C:\Users\iyang\AppData\Roaming\Python\Python314\site-packages\flask\testing.py", line 262, in __exit__
+    self._context_stack.close()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\contextlib.py", line 627, in close
+    self.__exit__(None, None, None)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\contextlib.py", line 619, in __exit__
+    raise exc
+  File "C:\Python314\Lib\contextlib.py", line 604, in __exit__
+    if cb(*exc_details):
+       ~~^^^^^^^^^^^^^^
+  File "C:\Users\iyang\AppData\Roaming\Python\Python314\site-packages\flask\ctx.py", line 453, in __exit__
+    self.pop(exc_value)
+    ~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\iyang\AppData\Roaming\Python\Python314\site-packages\flask\ctx.py", line 426, in pop
+    ctx = _cv_request.get()
+LookupError: <ContextVar name='flask.request_ctx' at 0x000002B0640FB4C0>

@@ -44,7 +44,7 @@ class DBConnection:
         return False
 
 
-def get_connection():
+def get_connection(connection_string=None):
     """
     获取数据库连接
     
@@ -53,7 +53,11 @@ def get_connection():
         with DBConnection() as conn: ...
     """
     try:
-        conn = pyodbc.connect(current_app.config['ODBC_CONNECTION_STRING'])
+        if connection_string:
+            conn = pyodbc.connect(connection_string)
+        else:
+            from flask import current_app
+            conn = pyodbc.connect(current_app.config['ODBC_CONNECTION_STRING'])
         return conn
     except Exception as e:
         logger.error(f"获取数据库连接失败: {e}")

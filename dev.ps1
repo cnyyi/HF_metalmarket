@@ -40,6 +40,6 @@ if ($connections) {
     Write-Host "端口 $Port 空闲" -ForegroundColor Green
 }
 
-# 启动 Flask
-Write-Host "`n启动开发服务器 (端口 $Port)..." -ForegroundColor Cyan
+# 启动正式开发入口 app.py
+Write-Host "`n启动开发服务器 (正式入口: app.py, 端口 $Port)..." -ForegroundColor Cyan
 python app.py

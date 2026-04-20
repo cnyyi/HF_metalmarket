@@ -1,0 +1,52 @@
+{% extends "wx_base.html" %}
+
+{% block title %}切换商户{% endblock %}
+{% block header_title %}切换商户{% endblock %}
+
+{% block content %}
+<div id="merchantList" style="padding: 12px;"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() { loadMerchants(); });
+
+function loadMerchants() {
+    wxGet('{{ url_for("wx.api_bindings") }}', function(data) {
+        var approved = data.filter(function(b) { return b.status === 'Approved'; });
+        if (!approved.length) {
+            $('#merchantList').html('<div class="wx-empty"><i class="fa fa-store"></i><p>暂无已绑定的商户</p></div>');
+            return;
+        }
+        wxGet('{{ url_for("wx.api_current_merchant") }}', function(current) {
+            var html = '';
+            for (var i = 0; i < approved.length; i++) {
+                var b = approved[i];
+                var isCurrent = current && current.merchant_id === b.merchant_id;
+                html += '<div class="wx-card" style="' + (isCurrent ? 'border: 2px solid #27ae60;' : '') + '">';
+                html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+                html += '<div>';
+                html += '<strong>' + escapeHtml(b.merchant_name) + '</strong>';
+                if (isCurrent) html += ' <span class="wx-badge wx-badge-approved">当前</span>';
+                html += '<div style="font-size:13px;color:#666;margin-top:4px;">身份：' + escapeHtml(b.bind_role_display) + '</div>';
+                html += '</div>';
+                if (!isCurrent) {
+                    html += '<button class="wx-btn wx-btn-outline" style="width:auto;padding:8px 16px;font-size:13px;" onclick="switchTo(' + b.merchant_id + ')">切换</button>';
+                }
+                html += '</div></div>';
+            }
+            $('#merchantList').html(html);
+        });
+    });
+}
+
+function switchTo(merchantId) {
+    wxPost('{{ url_for("wx.api_switch") }}', {merchant_id: merchantId}, function(resp) {
+        wxToast(resp.message);
+        if (resp.success) {
+            setTimeout(function() { window.location.href = '{{ url_for("wx.index") }}'; }, 1000);
+        }
+    });
+}
+</script>
+{% endblock %}

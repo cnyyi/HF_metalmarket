@@ -1,0 +1,74 @@
+[\u26a0\ufe0f ���þ���] �������� SECRET_KEY δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+[\u26a0\ufe0f ���þ���] �������� DB_SERVER δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+[\u26a0\ufe0f ���þ���] �������� DB_DATABASE δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+[\u26a0\ufe0f ���þ���] �������� DB_UID δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+[\u26a0\ufe0f ���þ���] �������� DB_PWD δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+[\u26a0\ufe0f ���þ���] �������� DB_SERVER δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+[\u26a0\ufe0f ���þ���] �������� DB_DATABASE δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+[\u26a0\ufe0f ���þ���] �������� DB_UID δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+[\u26a0\ufe0f ���þ���] �������� DB_PWD δ���ã�ʹ��Ĭ��ֵ������������������ô˱�����
+INFO:app:��ͼ auth_bp ע��ɹ� (prefix=/auth)
+INFO:app:��ͼ user_bp ע��ɹ� (prefix=/user)
+INFO:app:��ͼ merchant_bp ע��ɹ� (prefix=/merchant)
+INFO:app:��ͼ contract_bp ע��ɹ� (prefix=/contract)
+INFO:app:��ͼ finance_bp ע��ɹ� (prefix=/finance)
+INFO:app:��ͼ plot_bp ע��ɹ� (prefix=/plot)
+INFO:app:��ͼ scale_bp ע��ɹ� (prefix=/scale)
+INFO:app:��ͼ utility_bp ע��ɹ� (prefix=/utility)
+INFO:app:��ͼ customer_bp ע��ɹ� (prefix=/customer)
+INFO:app:��ͼ dict_bp ע��ɹ� (prefix=/dict)
+INFO:app:��ͼ portal_bp ע��ɹ� (prefix=��)
+INFO:app:��ͼ salary_bp ע��ɹ� (prefix=/salary)
+INFO:app:��ͼ dorm_bp ע��ɹ� (prefix=/dorm)
+INFO:app:��ͼ expense_bp ע��ɹ� (prefix=/expense)
+INFO:app:��ͼ garbage_bp ע��ɹ� (prefix=/garbage)
+INFO:app:��ͼ admin_bp ע��ɹ� (prefix=��)
+INFO:app:��ͼע���������
+开始初始化合同文档服务...
+合同文档服务初始化成功！
+INFO:flask_wtf.csrf:The CSRF token is missing.
+登录状态: 400
+Location: 无
+
+GET /garbage/vendors: 302
+HTML 返回（可能未登录）: b'<!doctype html>\n<html lang=en>\n<title>Redirecting...</title>\n<h1>Redirecting...</h1>\n<p>You should be redirected automatically to the target URL: <a href="/auth/login?next=%2Fgarbage%2Fvendors">/auth/'
+
+GET /garbage/garbage-types: 302
+HTML 返回: b'<!doctype html>\n<html lang=en>\n<title>Redirecting...</title>\n<h1>Redirecting...</h1>\n<p>You should be redirected automatically to the target URL: <a href="/auth/login?next=%2Fgarbage%2Fgarbage-types">'
+
+CSRF token: 无
+INFO:flask_wtf.csrf:The CSRF token is missing.
+
+POST /garbage/create: 400
+返回内容: b'<!doctype html>\n<html lang=en>\n<title>400 Bad Request</title>\n<h1>Bad Request</h1>\n<p>The CSRF token is missing.</p>\n'
+INFO:flask_wtf.csrf:The CSRF token is missing.
+
+POST /garbage/create (无CSRF): 400
+返回内容: b'<!doctype html>\n<html lang=en>\n<title>400 Bad Request</title>\n<h1>Bad Request</h1>\n<p>The CSRF token is missing.</p>\n'
+
+
+=== 数据库验证 ===
+ERROR:utils.database:��ȡ���ݿ�����ʧ��: Working outside of application context.
+
+This typically means that you attempted to use functionality that needed
+the current application. To solve this, set up an application context
+with app.app_context(). See the documentation for more information.
+Traceback (most recent call last):
+  File "D:\BaiduSyncdisk\HF_metalmarket\tmp_test_flask.py", line 79, in <module>
+    with DBConnection() as conn:
+         ~~~~~~~~~~~~^^
+  File "D:\BaiduSyncdisk\HF_metalmarket\utils\database.py", line 31, in __enter__
+    self._conn = get_connection()
+                 ~~~~~~~~~~~~~~^^
+  File "D:\BaiduSyncdisk\HF_metalmarket\utils\database.py", line 60, in get_connection
+    conn = pyodbc.connect(current_app.config['ODBC_CONNECTION_STRING'])
+                          ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\iyang\AppData\Roaming\Python\Python314\site-packages\werkzeug\local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "C:\Users\iyang\AppData\Roaming\Python\Python314\site-packages\werkzeug\local.py", line 519, in _get_current_object
+    raise RuntimeError(unbound_message) from None
+RuntimeError: Working outside of application context.
+
+This typically means that you attempted to use functionality that needed
+the current application. To solve this, set up an application context
+with app.app_context(). See the documentation for more information.

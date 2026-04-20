@@ -1,0 +1,63 @@
+{% extends "wx_base.html" %}
+
+{% block title %}缴费记录{% endblock %}
+{% block header_title %}缴费记录{% endblock %}
+
+{% block content %}
+<div style="padding: 12px; display: flex; gap: 8px;">
+    <button class="wx-btn wx-btn-outline filter-btn active" data-status="" onclick="filterStatus(this)" style="flex:1;padding:8px;font-size:13px;">全部</button>
+    <button class="wx-btn wx-btn-outline filter-btn" data-status="待付款" onclick="filterStatus(this)" style="flex:1;padding:8px;font-size:13px;">待付款</button>
+    <button class="wx-btn wx-btn-outline filter-btn" data-status="已付款" onclick="filterStatus(this)" style="flex:1;padding:8px;font-size:13px;">已付款</button>
+</div>
+<div id="receivableList"></div>
+<div id="loadMore" style="text-align:center;padding:16px;display:none;">
+    <button class="wx-btn wx-btn-outline" style="width:auto;padding:8px 24px;font-size:14px;" onclick="loadReceivables()">加载更多</button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var page = 1;
+var currentStatus = '';
+
+$(document).ready(function() { loadReceivables(); });
+
+function filterStatus(el) {
+    $('.filter-btn').removeClass('active').css({'background':'white','color':'#27ae60'});
+    $(el).addClass('active').css({'background':'#27ae60','color':'white'});
+    currentStatus = $(el).data('status');
+    page = 1;
+    loadReceivables();
+}
+
+function loadReceivables() {
+    var url = '{{ url_for("wx.api_receivables") }}?page=' + page + '&per_page=10';
+    if (currentStatus) url += '&status=' + encodeURIComponent(currentStatus);
+    wxGet(url, function(data) {
+        var items = data.items || [];
+        var html = '';
+        for (var i = 0; i < items.length; i++) {
+            var r = items[i];
+            var statusClass = r.status === '已付款' ? 'wx-badge-approved' : 'wx-badge-pending';
+            html += '<div class="wx-card">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+            html += '<span>' + escapeHtml(r.expense_type_name) + '</span>';
+            html += '<span class="wx-badge ' + statusClass + '">' + escapeHtml(r.status) + '</span>';
+            html += '</div>';
+            html += '<div style="margin-top:6px;font-size:13px;color:#666;">';
+            html += '金额：¥' + (r.amount || 0).toFixed(2);
+            if (r.remaining_amount > 0) html += ' | 剩余：¥' + r.remaining_amount.toFixed(2);
+            html += '<br>到期：' + r.due_date;
+            html += '</div></div>';
+        }
+        if (page === 1) { $('#receivableList').html(html); } else { $('#receivableList').append(html); }
+        var hasMore = data.current_page < data.total_pages;
+        $('#loadMore').toggle(hasMore);
+        if (hasMore) page++;
+        if (!items.length && page === 1) {
+            $('#receivableList').html('<div class="wx-empty"><i class="fa fa-money"></i><p>暂无缴费记录</p></div>');
+        }
+    });
+}
+</script>
+{% endblock %}

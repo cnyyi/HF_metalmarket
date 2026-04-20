@@ -173,11 +173,13 @@ class ContractDocService:
     @property
     def generated_docs_dir(self):
         """获取生成文档目录"""
+        from flask import current_app
         return Path(current_app.root_path) / 'generated_docs'
     
     @property
     def template_dir(self):
         """获取模板目录"""
+        from flask import current_app
         return Path(current_app.root_path) / 'templates'
     
     def allowed_file(self, filename):
@@ -207,6 +209,7 @@ class ContractDocService:
             from docx import Document
             from docx.shared import Cm
             import time
+            from flask import current_app
             
             # 等待文件写入完成（关键）
             time.sleep(0.2)
@@ -269,6 +272,7 @@ class ContractDocService:
             doc.save(file_path)
             
         except Exception as e:
+            from flask import current_app
             current_app.logger.error(f'插入地块图片失败：{str(e)}')
     
     def get_contract_data(self, contract_id):
@@ -423,6 +427,7 @@ class ContractDocService:
             }
             
         except Exception as e:
+            from flask import current_app
             current_app.logger.error(f'生成合同文档失败：{str(e)}')
             return {
                 'success': False,
@@ -471,6 +476,7 @@ class ContractDocService:
             int: 清理的文件数量
         """
         try:
+            from flask import current_app
             cleaned_count = 0
             cutoff_time = datetime.now().timestamp() - (days * 24 * 60 * 60)
             
@@ -486,6 +492,7 @@ class ContractDocService:
             return cleaned_count
             
         except Exception as e:
+            from flask import current_app
             current_app.logger.error(f'清理过期文件失败：{str(e)}')
             return 0
     

@@ -1,13 +1,17 @@
+import os
 import pyodbc
 
 conn = pyodbc.connect(
-    'DRIVER={ODBC Driver 17 for SQL Server};'
-    'SERVER=yyi.myds.me;'
-    'DATABASE=hf_metalmarket;'
-    'UID=sa;'
-    'PWD=yyI.123212;'
-    'Encrypt=no;'
-    'TrustServerCertificate=yes;'
+    os.environ.get(
+        'ODBC_CONNECTION_STRING',
+        'DRIVER={ODBC Driver 17 for SQL Server};'
+        'SERVER=localhost;'
+        'DATABASE=hf_metalmarket;'
+        'UID=sa;'
+        'PWD=;'
+        'Encrypt=no;'
+        'TrustServerCertificate=yes;'
+    )
 )
 cursor = conn.cursor()
 

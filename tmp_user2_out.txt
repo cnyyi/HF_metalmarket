@@ -1,0 +1,18 @@
+用户相关表:
+   User
+   UserRole
+
+User 表字段:
+  UserID (int)
+  Username (nvarchar)
+  Password (nvarchar)
+  RealName (nvarchar)
+  Phone (nvarchar)
+  Email (nvarchar)
+  IsActive (bit)
+  CreateTime (datetime)
+  UpdateTime (datetime)
+  LastLoginTime (datetime)
+  WeChatOpenID (nvarchar)
+  MerchantID (int)
+  UserType (nvarchar)

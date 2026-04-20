@@ -1,0 +1,47 @@
+{% extends "wx_base.html" %}
+
+{% block title %}我的合同{% endblock %}
+{% block header_title %}我的合同{% endblock %}
+
+{% block content %}
+<div id="contractList"></div>
+<div id="loadMore" style="text-align:center;padding:16px;display:none;">
+    <button class="wx-btn wx-btn-outline" style="width:auto;padding:8px 24px;font-size:14px;" onclick="loadContracts()">加载更多</button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var page = 1;
+var hasMore = true;
+
+$(document).ready(function() { loadContracts(); });
+
+function loadContracts() {
+    wxGet('{{ url_for("wx.api_contracts") }}?page=' + page + '&per_page=10', function(data) {
+        var items = data.items || [];
+        var html = '';
+        for (var i = 0; i < items.length; i++) {
+            var c = items[i];
+            html += '<div class="wx-card">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+            html += '<strong>' + escapeHtml(c.contract_name) + '</strong>';
+            html += '<span class="wx-badge ' + (c.status === '有效' ? 'wx-badge-approved' : 'wx-badge-rejected') + '">' + escapeHtml(c.status) + '</span>';
+            html += '</div>';
+            html += '<div style="margin-top:8px;font-size:13px;color:#666;">';
+            html += '编号：' + escapeHtml(c.contract_number) + '<br>';
+            html += '期限：' + c.start_date + ' 至 ' + c.end_date + '<br>';
+            html += '金额：¥' + (c.actual_amount || 0).toFixed(0);
+            html += '</div></div>';
+        }
+        if (page === 1) { $('#contractList').html(html); } else { $('#contractList').append(html); }
+        hasMore = data.current_page < data.total_pages;
+        $('#loadMore').toggle(hasMore);
+        if (hasMore) page++;
+        if (!items.length && page === 1) {
+            $('#contractList').html('<div class="wx-empty"><i class="fa fa-file-text"></i><p>暂无合同数据</p></div>');
+        }
+    });
+}
+</script>
+{% endblock %}

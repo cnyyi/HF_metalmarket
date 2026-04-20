@@ -1,8 +1,9 @@
 # 商户管理相关路由
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
-from flask_login import login_required
+from flask_login import login_required, current_user
 from app.forms.merchant_form import MerchantAddForm, MerchantEditForm
 from app.services.merchant_service import MerchantService
+from app.routes.user import check_permission
 
 # 创建蓝图
 merchant_bp = Blueprint('merchant', __name__)
@@ -163,3 +164,56 @@ def reset_portal_password(merchant_id):
     if result['success']:
         return jsonify(result)
     return jsonify(result), 400
+
+
+# ==================== 商户绑定审批 ====================
+
+@merchant_bp.route('/bind-requests')
+@login_required
+@check_permission('merchant_manage')
+def bind_requests():
+    return render_template('merchant/bind_requests.html')
+
+
+@merchant_bp.route('/api/bind-requests')
+@login_required
+@check_permission('merchant_manage')
+def api_bind_requests():
+    from app.services.wx_bind_service import WxBindService
+    try:
+        items = WxBindService.get_pending_requests()
+        return jsonify({'success': True, 'data': items})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@merchant_bp.route('/api/bind-approve/<int:binding_id>', methods=['POST'])
+@login_required
+@check_permission('merchant_manage')
+def api_bind_approve(binding_id):
+    from app.services.wx_bind_service import WxBindService
+    from app.services.wx_notify_service import WxNotifyService
+    try:
+        result = WxBindService.approve_binding(binding_id, current_user.user_id)
+        if result.get('success') and result.get('openid'):
+            WxNotifyService.send_bind_approved(result['openid'], result['merchant_name'], result['bind_role'])
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@merchant_bp.route('/api/bind-reject/<int:binding_id>', methods=['POST'])
+@login_required
+@check_permission('merchant_manage')
+def api_bind_reject(binding_id):
+    from app.services.wx_bind_service import WxBindService
+    from app.services.wx_notify_service import WxNotifyService
+    data = request.get_json() or {}
+    reason = data.get('reason', '').strip()
+    try:
+        result = WxBindService.reject_binding(binding_id, current_user.user_id, reason)
+        if result.get('success') and result.get('openid'):
+            WxNotifyService.send_bind_rejected(result['openid'], result['merchant_name'], result.get('reason', ''))
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500

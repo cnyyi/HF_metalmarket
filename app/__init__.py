@@ -1,18 +1,12 @@
 # 应用初始化文件
 import logging
-from flask import Flask, redirect, url_for, render_template, send_from_directory
-from flask_login import LoginManager, login_required
-from flask_wtf.csrf import CSRFProtect
+from flask import Flask, redirect, url_for, send_from_directory
+
 from config import Config
+from app.extensions import login_manager, csrf
 
 # 配置日志（替代 print 调试语句）
 logger = logging.getLogger(__name__)
-
-# 初始化登录管理器
-login_manager = LoginManager()
-
-# 初始化CSRF保护
-csrf = CSRFProtect()
 
 
 def create_app(config_class=Config):
@@ -36,9 +30,11 @@ def create_app(config_class=Config):
         ('app.routes.customer', 'customer_bp', '/customer', False),
         ('app.routes.dict', 'dict_bp', '/dict', False),
         ('app.routes.portal', 'portal_bp', None, False),
+        ('app.routes.wx', 'wx_bp', '/wx', False),
         ('app.routes.salary', 'salary_bp', '/salary', False),
         ('app.routes.dorm', 'dorm_bp', '/dorm', False),
         ('app.routes.expense', 'expense_bp', '/expense', False),
+        ('app.routes.garbage', 'garbage_bp', '/garbage', False),
         ('app.routes.admin', 'admin_bp', None, False),
     ]
 
@@ -71,8 +67,15 @@ def create_app(config_class=Config):
     csrf.init_app(app)
     
     # 初始化合同文档服务
-    from app.services.contract_doc_service import contract_doc_service
-    contract_doc_service.init_app(app)
+    print("开始初始化合同文档服务...")
+    try:
+        from app.services.contract_doc_service import contract_doc_service
+        contract_doc_service.init_app(app)
+        print("合同文档服务初始化成功！")
+    except Exception as e:
+        print(f"合同文档服务初始化失败：{str(e)}")
+        import traceback
+        traceback.print_exc()
     
     # 未登录重定向
     login_manager.login_view = 'auth.login'

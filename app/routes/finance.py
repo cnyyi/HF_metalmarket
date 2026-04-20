@@ -1,6 +1,7 @@
 # 财务管理相关路由
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
+from app.api_response import success_response, error_response
 from app.services.receivable_service import ReceivableService
 from app.services.finance_service import FinanceService
 from app.services.customer_service import CustomerService
@@ -43,9 +44,9 @@ def receivable_list():
             expense_type_id=expense_type_id
         )
 
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return error_response(f'获取数据失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/receivable/create', methods=['POST'])
@@ -71,11 +72,11 @@ def receivable_create():
             unit_price=data.get('unit_price')
         )
 
-        return jsonify({'success': True, 'message': '添加成功', 'id': new_id})
+        return success_response({'id': new_id}, message='添加成功', id=new_id)
     except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
+        return error_response(str(e))
     except Exception as e:
-        return jsonify({'success': False, 'message': f'添加失败：{str(e)}'}), 500
+        return error_response(f'添加失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/receivable/delete/<int:receivable_id>', methods=['POST'])
@@ -88,7 +89,7 @@ def receivable_delete(receivable_id):
         delete_reason = data.get('delete_reason', '').strip() if data else ''
 
         if not delete_reason:
-            return jsonify({'success': False, 'message': '请填写删除原因'}), 400
+            return error_response('请填写删除原因')
 
         result = receivable_svc.soft_delete(
             receivable_id=receivable_id,
@@ -97,12 +98,14 @@ def receivable_delete(receivable_id):
         )
 
         if result['success']:
-            return jsonify(result)
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return success_response(result_data or None, message=result.get('message', '操作成功'), **result_data)
         else:
-            return jsonify(result), 400
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return error_response(result.get('message', '操作失败'), data=result_data or None, status=400, **result_data)
 
     except Exception as e:
-        return jsonify({'success': False, 'message': f'删除失败：{str(e)}'}), 500
+        return error_response(f'删除失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/receivable/expense_types', methods=['GET'])
@@ -118,9 +121,9 @@ def receivable_expense_types():
             'expense_direction': '收入',
             'description': ''
         } for item in items]
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取费用类型失败：{str(e)}'}), 500
+        return error_response(f'获取费用类型失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/receivable/unit_types', methods=['GET'])
@@ -134,9 +137,9 @@ def receivable_unit_types():
             'unit_name': item['dict_name'],
             'unit_code': item['dict_code'],
         } for item in items]
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取单位类型失败：{str(e)}'}), 500
+        return error_response(f'获取单位类型失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/receivable/search_merchants', methods=['GET'])
@@ -145,12 +148,12 @@ def receivable_search_merchants():
     try:
         keyword = request.args.get('keyword', '').strip()
         if not keyword:
-            return jsonify({'success': True, 'data': []})
+            return success_response([])
 
         result = ReceivableService.search_merchants(keyword)
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'搜索商户失败：{str(e)}'}), 500
+        return error_response(f'搜索商户失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/receivable/search_customers', methods=['GET'])
@@ -160,12 +163,12 @@ def receivable_search_customers():
     try:
         keyword = request.args.get('keyword', '').strip()
         if not keyword:
-            return jsonify({'success': True, 'data': []})
+            return success_response([])
 
         result = customer_svc.search_customers(keyword)
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'搜索客户失败：{str(e)}'}), 500
+        return error_response(f'搜索客户失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/receivable/collect/<int:receivable_id>', methods=['POST'])
@@ -184,11 +187,13 @@ def receivable_collect(receivable_id):
             account_id=data.get('account_id')
         )
         if result['success']:
-            return jsonify(result)
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return success_response(result_data or None, message=result.get('message', '操作成功'), **result_data)
         else:
-            return jsonify(result), 400
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return error_response(result.get('message', '操作失败'), data=result_data or None, status=400, **result_data)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'收款失败：{str(e)}'}), 500
+        return error_response(f'收款失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/receivable/detail/<int:receivable_id>', methods=['GET'])
@@ -196,253 +201,12 @@ def receivable_collect(receivable_id):
 def receivable_detail(receivable_id):
     """应收详情（含收款历史、关联合同/抄表数据）"""
     try:
-        receivable = receivable_svc.repo.get_by_id(receivable_id)
-        if not receivable:
-            return jsonify({'success': False, 'message': '记录不存在'}), 404
-
-        # 收款历史
-        records = finance_svc.collection_repo.get_by_receivable_id(receivable_id)
-        collection_list = []
-        for r in records:
-            collection_list.append({
-                'collection_record_id': r.CollectionRecordID,
-                'amount': float(r.Amount),
-                'payment_method': r.PaymentMethod,
-                'transaction_date': r.TransactionDate.strftime('%Y-%m-%d') if r.TransactionDate else '',
-                'description': r.Description or '',
-                'operator_name': r.OperatorName or '',
-                'create_time': r.CreateTime.strftime('%Y-%m-%d %H:%M') if r.CreateTime else '',
-            })
-
-        data = {
-            'receivable_id': receivable.ReceivableID,
-            'merchant_id': receivable.MerchantID,
-            'merchant_name': receivable.CustomerName or '',
-            'customer_type': receivable.CustomerType or 'Merchant',
-            'customer_id': receivable.CustomerID or receivable.MerchantID,
-            'expense_type_id': receivable.ExpenseTypeID,
-            'expense_type_name': receivable.ExpenseTypeName,
-            'amount': float(receivable.Amount),
-            'paid_amount': float(receivable.PaidAmount),
-            'remaining_amount': float(receivable.RemainingAmount),
-            'product_name': receivable.ProductName or '',
-            'specification': receivable.Specification or '',
-            'quantity': float(receivable.Quantity) if receivable.Quantity else None,
-            'unit_id': receivable.UnitID,
-            'unit_name': receivable.UnitName or '',
-            'unit_price': float(receivable.UnitPrice) if receivable.UnitPrice else None,
-            'due_date': receivable.DueDate.strftime('%Y-%m-%d') if receivable.DueDate else '',
-            'status': receivable.Status,
-            'description': receivable.Description or '',
-            'reference_id': receivable.ReferenceID,
-            'reference_type': receivable.ReferenceType or '',
-            'create_time': receivable.CreateTime.strftime('%Y-%m-%d %H:%M') if receivable.CreateTime else '',
-            'is_active': bool(receivable.IsActive) if hasattr(receivable, 'IsActive') else True,
-            'deleted_at': receivable.DeletedAt.strftime('%Y-%m-%d %H:%M') if hasattr(receivable, 'DeletedAt') and receivable.DeletedAt else '',
-            'delete_reason': receivable.DeleteReason or '' if hasattr(receivable, 'DeleteReason') else '',
-            'collection_records': collection_list
-        }
-
-        # 关联数据：租金→合同，电费/水费→抄表
-        expense_name = receivable.ExpenseTypeName or ''
-        ref_type = receivable.ReferenceType or ''
-
-        # 租金：通过 ReferenceID=ContractID 查关联合同
-        if (expense_name == '租金' or ref_type == 'contract') and receivable.ReferenceID:
-            contract_data = _get_contract_summary(receivable.ReferenceID)
-            if contract_data:
-                data['contract_info'] = contract_data
-
-        # 电费/水费：通过多种策略查关联抄表
-        if expense_name in ('电费', '水费') or ref_type == 'utility_reading_merged' or ref_type == 'utility_reading':
-            reading_data = _get_utility_readings(receivable_id)
-            if reading_data:
-                data['utility_readings'] = reading_data
-
-        return jsonify({'success': True, 'data': data})
+        detail = finance_svc.get_receivable_detail(receivable_id)
+        if not detail:
+            return error_response('记录不存在', status=404)
+        return success_response(detail)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取详情失败：{str(e)}'}), 500
-
-
-def _get_contract_summary(contract_id):
-    """获取合同摘要信息（含关联合同地块）"""
-    try:
-        from utils.database import DBConnection
-        with DBConnection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT c.ContractID, c.ContractNumber, c.ContractName,
-                       c.MerchantID, m.MerchantName,
-                       c.StartDate, c.EndDate,
-                       c.ContractAmount, c.AmountReduction, c.ActualAmount,
-                       c.Status, c.PaymentMethod, c.ContractPeriod
-                FROM Contract c
-                LEFT JOIN Merchant m ON c.MerchantID = m.MerchantID
-                WHERE c.ContractID = ?
-            """, contract_id)
-            row = cursor.fetchone()
-            if not row:
-                return None
-
-            # 查关联合同地块
-            cursor.execute("""
-                SELECT cp.PlotID, cp.UnitPrice, cp.Area, cp.MonthlyPrice,
-                       p.PlotNumber, p.PlotName
-                FROM ContractPlot cp
-                LEFT JOIN Plot p ON cp.PlotID = p.PlotID
-                WHERE cp.ContractID = ?
-            """, contract_id)
-            plots = []
-            for p in cursor.fetchall():
-                plots.append({
-                    'plot_number': p.PlotNumber or '',
-                    'plot_name': p.PlotName or '',
-                    'area': float(p.Area) if p.Area else 0,
-                    'monthly_price': float(p.MonthlyPrice) if p.MonthlyPrice else 0,
-                })
-            plot_numbers = ', '.join([pl['plot_number'] for pl in plots if pl['plot_number']])
-
-            return {
-                'contract_id': row.ContractID,
-                'contract_number': row.ContractNumber or '',
-                'contract_name': row.ContractName or '',
-                'merchant_name': row.MerchantName or '',
-                'plot_numbers': plot_numbers,
-                'plots': plots,
-                'start_date': row.StartDate.strftime('%Y-%m-%d') if row.StartDate else '',
-                'end_date': row.EndDate.strftime('%Y-%m-%d') if row.EndDate else '',
-                'contract_amount': float(row.ContractAmount) if row.ContractAmount else 0,
-                'amount_reduction': float(row.AmountReduction) if row.AmountReduction else 0,
-                'actual_amount': float(row.ActualAmount) if row.ActualAmount else 0,
-                'status': row.Status or '',
-                'payment_method': row.PaymentMethod or '',
-                'contract_period': row.ContractPeriod or '',
-            }
-    except Exception:
-        return None
-
-
-def _get_utility_readings(receivable_id):
-    """获取关联的抄表数据列表
-
-    查询策略（按优先级）：
-    1. 通过 ReceivableDetail 关联查
-    2. 通过 ReferenceID 直接查（旧版 utility_reading 类型）
-    3. 通过 MerchantID + BelongMonth + MeterType 关联查（兜底）
-    """
-    try:
-        import re
-        from utils.database import DBConnection
-
-        # 公共 SQL 片段：抄表记录 + 电表/水表关联
-        UTILITY_SELECT = """
-            SELECT ur.ReadingID, ur.MeterID, ur.MeterType,
-                   ur.LastReading, ur.CurrentReading, ur.Usage, ur.UnitPrice, ur.TotalAmount,
-                   ur.BelongMonth, ur.ReadingDate, ur.ReadingMonth,
-                   CASE
-                       WHEN ur.MeterType = N'electricity' THEN ISNULL(em.MeterMultiplier, 1)
-                       WHEN ur.MeterType = N'water' THEN ISNULL(wm.MeterMultiplier, 1)
-                       ELSE 1
-                   END AS MeterMultiplier,
-                   CASE
-                       WHEN ur.MeterType = N'electricity' THEN em.MeterNumber
-                       WHEN ur.MeterType = N'water' THEN wm.MeterNumber
-                       ELSE ''
-                   END AS MeterNumber,
-                   CASE
-                       WHEN ur.MeterType = N'electricity' THEN ISNULL(em.InstallationLocation, '')
-                       WHEN ur.MeterType = N'water' THEN ISNULL(wm.InstallationLocation, '')
-                       ELSE ''
-                   END AS InstallationLocation
-        """
-        UTILITY_JOINS = """
-            LEFT JOIN ElectricityMeter em ON ur.MeterType = N'electricity' AND ur.MeterID = em.MeterID
-            LEFT JOIN WaterMeter wm ON ur.MeterType = N'water' AND ur.MeterID = wm.MeterID
-        """
-
-        with DBConnection() as conn:
-            cursor = conn.cursor()
-            rows = []
-
-            # ---- 策略1：通过 ReceivableDetail 关联 ----
-            cursor.execute(f"""
-                {UTILITY_SELECT}
-                FROM ReceivableDetail rd
-                INNER JOIN UtilityReading ur ON rd.ReadingID = ur.ReadingID
-                {UTILITY_JOINS}
-                WHERE rd.ReceivableID = ?
-                ORDER BY ur.MeterType, ur.MeterID
-            """, receivable_id)
-            rows = cursor.fetchall()
-
-            # ---- 策略2：通过 ReferenceID 直接查（旧版 utility_reading） ----
-            if not rows:
-                cursor.execute(f"""
-                    {UTILITY_SELECT}
-                    FROM UtilityReading ur
-                    {UTILITY_JOINS}
-                    WHERE ur.ReadingID IN (
-                        SELECT ReferenceID FROM Receivable
-                        WHERE ReceivableID = ? AND ReferenceType = N'utility_reading'
-                    )
-                    ORDER BY ur.MeterType, ur.MeterID
-                """, receivable_id)
-                rows = cursor.fetchall()
-
-            # ---- 策略3：通过 MerchantID + BelongMonth + MeterType 兜底查 ----
-            if not rows:
-                # 先获取该应收的 MerchantID 和 Description
-                cursor.execute("""
-                    SELECT MerchantID, Description, ExpenseTypeID
-                    FROM Receivable WHERE ReceivableID = ?
-                """, receivable_id)
-                recv = cursor.fetchone()
-                if recv and recv.MerchantID and recv.Description:
-                    # 从 Description 解析月份，格式如 "2026年01月电费（3块表）"
-                    month_match = re.search(r'(\d{4}年\d{2}月)', recv.Description)
-                    belong_month = month_match.group(1) if month_match else ''
-
-                    # 判断 MeterType：Description 包含"水费"→ water，否则→ electricity
-                    meter_type = 'water' if '水费' in (recv.Description or '') else 'electricity'
-
-                    if belong_month:
-                        cursor.execute(f"""
-                            {UTILITY_SELECT}
-                            FROM UtilityReading ur
-                            {UTILITY_JOINS}
-                            WHERE ur.MerchantID = ? AND ur.BelongMonth = ? AND ur.MeterType = ?
-                            ORDER BY ur.MeterID
-                        """, recv.MerchantID, belong_month, meter_type)
-                        rows = cursor.fetchall()
-
-            if not rows:
-                return []
-
-            result = []
-            total_amount = 0
-            for row in rows:
-                subtotal = float(row.TotalAmount) if row.TotalAmount else 0
-                total_amount += subtotal
-                result.append({
-                    'reading_id': row.ReadingID,
-                    'meter_number': row.MeterNumber or '',
-                    'meter_type': row.MeterType or '',
-                    'installation_location': row.InstallationLocation or '',
-                    'belong_month': row.BelongMonth or row.ReadingMonth or '',
-                    'last_reading': float(row.LastReading) if row.LastReading else 0,
-                    'current_reading': float(row.CurrentReading) if row.CurrentReading else 0,
-                    'meter_multiplier': float(row.MeterMultiplier) if row.MeterMultiplier else 1,
-                    'usage': float(row.Usage) if row.Usage else 0,
-                    'unit_price': float(row.UnitPrice) if row.UnitPrice else 0,
-                    'subtotal': subtotal,
-                })
-            # 返回列表+合计
-            return {
-                'items': result,
-                'total_amount': total_amount
-            }
-    except Exception:
-        return []
+        return error_response(f'获取详情失败：{str(e)}', status=500)
 
 
 # ==================== 应付账款 ====================
@@ -458,7 +222,7 @@ def payable():
 def payable_list():
     try:
         page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 10, type=int)
+        per_page = request.args.get('per_page', 12, type=int)
         search = request.args.get('search', '').strip()
         status = request.args.get('status', '').strip()
 
@@ -467,9 +231,80 @@ def payable_list():
             search=search or None, status=status or None
         )
 
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return error_response(f'获取数据失败：{str(e)}', status=500)
+
+
+@finance_bp.route('/payable/list_by_customer', methods=['GET'])
+@login_required
+def payable_list_by_customer():
+    """按客户汇总应付账款列表"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 12, type=int)
+        search = request.args.get('search', '').strip()
+        status = request.args.get('status', '').strip()
+
+        result = finance_svc.get_payables_by_customer(
+            page=page, per_page=per_page,
+            search=search or None, status=status or None
+        )
+
+        return success_response(result)
+    except Exception as e:
+        return error_response(f'获取数据失败：{str(e)}', status=500)
+
+
+@finance_bp.route('/payable/batch_pay', methods=['POST'])
+@login_required
+def payable_batch_pay():
+    """按客户批量付款核销"""
+    try:
+        data = request.json
+        result = finance_svc.batch_pay_by_customer(
+            customer_type=data.get('customer_type', 'Merchant'),
+            customer_id=int(data.get('customer_id', 0)),
+            total_amount=float(data.get('amount', 0)),
+            payment_method=data.get('payment_method', ''),
+            transaction_date=data.get('transaction_date', ''),
+            description=data.get('description', ''),
+            created_by=current_user.user_id,
+            account_id=data.get('account_id')
+        )
+        if result['success']:
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return success_response(result_data or None, message=result.get('message', '批量付款成功'))
+        else:
+            return error_response(result.get('message', '批量付款失败'), status=400)
+    except Exception as e:
+        return error_response(f'批量付款失败：{str(e)}', status=500)
+
+
+@finance_bp.route('/payable/delete/<int:payable_id>', methods=['POST'])
+@login_required
+def payable_delete(payable_id):
+    """软删除应付账款"""
+    try:
+        data = request.get_json() if request.is_json else {}
+        delete_reason = data.get('delete_reason', '').strip() if data else ''
+
+        if not delete_reason:
+            return error_response('请填写删除原因')
+
+        result = finance_svc.soft_delete_payable(
+            payable_id=payable_id,
+            deleted_by=current_user.user_id,
+            delete_reason=delete_reason
+        )
+
+        if result['success']:
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return success_response(result_data or None, message=result.get('message', '删除成功'))
+        else:
+            return error_response(result.get('message', '删除失败'), status=400)
+    except Exception as e:
+        return error_response(f'删除失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/payable/add', methods=['POST'])
@@ -489,11 +324,11 @@ def payable_add():
             customer_id=data.get('customer_id')
         )
 
-        return jsonify({'success': True, 'message': '添加成功', 'id': new_id})
+        return success_response({'id': new_id}, message='添加成功', id=new_id)
     except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
+        return error_response(str(e))
     except Exception as e:
-        return jsonify({'success': False, 'message': f'添加失败：{str(e)}'}), 500
+        return error_response(f'添加失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/payable/pay/<int:payable_id>', methods=['POST'])
@@ -512,11 +347,13 @@ def payable_pay(payable_id):
             account_id=data.get('account_id')
         )
         if result['success']:
-            return jsonify(result)
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return success_response(result_data or None, message=result.get('message', '操作成功'), **result_data)
         else:
-            return jsonify(result), 400
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return error_response(result.get('message', '操作失败'), data=result_data or None, status=400, **result_data)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'付款失败：{str(e)}'}), 500
+        return error_response(f'付款失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/payable/detail/<int:payable_id>', methods=['GET'])
@@ -526,7 +363,7 @@ def payable_detail(payable_id):
     try:
         payable = finance_svc._get_payable_by_id(payable_id)
         if not payable:
-            return jsonify({'success': False, 'message': '记录不存在'}), 404
+            return error_response('记录不存在', status=404)
 
         payment_records = finance_svc.get_payment_records(payable_id)
 
@@ -548,9 +385,9 @@ def payable_detail(payable_id):
             'payment_records': payment_records
         }
 
-        return jsonify({'success': True, 'data': data})
+        return success_response(data)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取详情失败：{str(e)}'}), 500
+        return error_response(f'获取详情失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/payable/expense_types', methods=['GET'])
@@ -566,9 +403,9 @@ def payable_expense_types():
             'expense_direction': '支出',
             'description': ''
         } for item in items]
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取费用类型失败：{str(e)}'}), 500
+        return error_response(f'获取费用类型失败：{str(e)}', status=500)
 
 
 # ==================== 现金流水 ====================
@@ -606,13 +443,9 @@ def cash_flow_list():
             end_date=end_date or None
         )
 
-        return jsonify({
-            'success': True,
-            'data': result,
-            'summary': summary
-        })
+        return success_response(result, summary=summary)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return error_response(f'获取数据失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/cash_flow/expense_types', methods=['GET'])
@@ -639,9 +472,9 @@ def cash_flow_expense_types():
                 'expense_direction': '支出',
                 'description': ''
             })
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取费用类型失败：{str(e)}'}), 500
+        return error_response(f'获取费用类型失败：{str(e)}', status=500)
 
 
 # ==================== 其他 ====================
@@ -669,9 +502,9 @@ def account_list():
     try:
         status = request.args.get('status', '').strip()
         result = account_svc.get_accounts(status=status or None)
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return error_response(f'获取数据失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/account/create', methods=['POST'])
@@ -688,11 +521,11 @@ def account_create():
             is_default=data.get('is_default', False),
             remark=data.get('remark', '').strip() or None
         )
-        return jsonify({'success': True, 'message': '创建成功', 'id': new_id})
+        return success_response({'id': new_id}, message='创建成功', id=new_id)
     except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
+        return error_response(str(e))
     except Exception as e:
-        return jsonify({'success': False, 'message': f'创建失败：{str(e)}'}), 500
+        return error_response(f'创建失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/account/update/<int:account_id>', methods=['POST'])
@@ -710,11 +543,11 @@ def account_update(account_id):
             is_default=data.get('is_default'),
             remark=data.get('remark')
         )
-        return jsonify({'success': True, 'message': '更新成功'})
+        return success_response(message='更新成功')
     except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
+        return error_response(str(e))
     except Exception as e:
-        return jsonify({'success': False, 'message': f'更新失败：{str(e)}'}), 500
+        return error_response(f'更新失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/account/toggle_status/<int:account_id>', methods=['POST'])
@@ -723,11 +556,11 @@ def account_update(account_id):
 def account_toggle_status(account_id):
     try:
         new_status = account_svc.toggle_account_status(account_id)
-        return jsonify({'success': True, 'message': f'账户已{new_status}', 'new_status': new_status})
+        return success_response({'new_status': new_status}, message=f'账户已{new_status}', new_status=new_status)
     except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
+        return error_response(str(e))
     except Exception as e:
-        return jsonify({'success': False, 'message': f'操作失败：{str(e)}'}), 500
+        return error_response(f'操作失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/account/summary', methods=['GET'])
@@ -736,9 +569,9 @@ def account_toggle_status(account_id):
 def account_summary():
     try:
         result = account_svc.get_balance_summary()
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取汇总失败：{str(e)}'}), 500
+        return error_response(f'获取汇总失败：{str(e)}', status=500)
 
 
 # ==================== 直接记账 ====================
@@ -766,11 +599,13 @@ def direct_entry_submit():
             created_by=current_user.user_id
         )
         if result['success']:
-            return jsonify(result)
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return success_response(result_data or None, message=result.get('message', '操作成功'), **result_data)
         else:
-            return jsonify(result), 400
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return error_response(result.get('message', '操作失败'), data=result_data or None, status=400, **result_data)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'记账失败：{str(e)}'}), 500
+        return error_response(f'记账失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/account/active_list', methods=['GET'])
@@ -779,9 +614,9 @@ def account_active_list():
     """获取所有有效账户（供下拉选择用，不需要 account_manage 权限）"""
     try:
         result = account_svc.get_accounts(status='有效')
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取账户失败：{str(e)}'}), 500
+        return error_response(f'获取账户失败：{str(e)}', status=500)
 
 
 # ==================== 预收/预付管理 ====================
@@ -812,9 +647,9 @@ def prepayment_list():
             status=status or None,
             search=search or None
         )
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return error_response(f'获取数据失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/prepayment/create', methods=['POST'])
@@ -834,11 +669,11 @@ def prepayment_create():
             description=data.get('description', '').strip() or None,
             created_by=current_user.user_id
         )
-        return jsonify({'success': True, 'message': '创建成功', 'id': new_id})
+        return success_response({'id': new_id}, message='创建成功', id=new_id)
     except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
+        return error_response(str(e))
     except Exception as e:
-        return jsonify({'success': False, 'message': f'创建失败：{str(e)}'}), 500
+        return error_response(f'创建失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/prepayment/detail/<int:prepayment_id>', methods=['GET'])
@@ -848,14 +683,14 @@ def prepayment_detail(prepayment_id):
     try:
         detail = prepayment_svc.get_prepayment_by_id(prepayment_id)
         if not detail:
-            return jsonify({'success': False, 'message': '记录不存在'}), 404
+            return error_response('记录不存在', status=404)
 
         apply_records = prepayment_svc.get_apply_records(prepayment_id)
         detail['apply_records'] = apply_records
 
-        return jsonify({'success': True, 'data': detail})
+        return success_response(detail)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取详情失败：{str(e)}'}), 500
+        return error_response(f'获取详情失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/prepayment/apply', methods=['POST'])
@@ -871,11 +706,13 @@ def prepayment_apply():
             created_by=current_user.user_id
         )
         if result['success']:
-            return jsonify(result)
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return success_response(result_data or None, message=result.get('message', '操作成功'), **result_data)
         else:
-            return jsonify(result), 400
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return error_response(result.get('message', '操作失败'), data=result_data or None, status=400, **result_data)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'冲抵失败：{str(e)}'}), 500
+        return error_response(f'冲抵失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/prepayment/available', methods=['GET'])
@@ -887,12 +724,12 @@ def prepayment_available():
         customer_type = request.args.get('customer_type', 'Merchant')
         customer_id = request.args.get('customer_id', type=int)
         if not customer_id:
-            return jsonify({'success': True, 'data': []})
+            return success_response([])
 
         result = prepayment_svc.get_available_prepayments(direction, customer_type, customer_id)
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return error_response(f'获取数据失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/prepayment/summary', methods=['GET'])
@@ -902,9 +739,9 @@ def prepayment_summary():
     try:
         direction = request.args.get('direction', '').strip()
         result = prepayment_svc.get_summary(direction=direction or None)
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取汇总失败：{str(e)}'}), 500
+        return error_response(f'获取汇总失败：{str(e)}', status=500)
 
 
 # ==================== 押金管理 ====================
@@ -935,9 +772,9 @@ def deposit_list():
             status=status or None,
             search=search or None
         )
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return error_response(f'获取数据失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/deposit/create', methods=['POST'])
@@ -957,11 +794,11 @@ def deposit_create():
             description=data.get('description', '').strip() or None,
             created_by=current_user.user_id
         )
-        return jsonify({'success': True, 'message': '收取成功', 'id': new_id})
+        return success_response({'id': new_id}, message='收取成功', id=new_id)
     except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
+        return error_response(str(e))
     except Exception as e:
-        return jsonify({'success': False, 'message': f'收取失败：{str(e)}'}), 500
+        return error_response(f'收取失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/deposit/detail/<int:deposit_id>', methods=['GET'])
@@ -971,14 +808,14 @@ def deposit_detail(deposit_id):
     try:
         detail = deposit_svc.get_deposit_by_id(deposit_id)
         if not detail:
-            return jsonify({'success': False, 'message': '记录不存在'}), 404
+            return error_response('记录不存在', status=404)
 
         operations = deposit_svc.get_operations(deposit_id)
         detail['operations'] = operations
 
-        return jsonify({'success': True, 'data': detail})
+        return success_response(detail)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取详情失败：{str(e)}'}), 500
+        return error_response(f'获取详情失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/deposit/refund', methods=['POST'])
@@ -996,11 +833,13 @@ def deposit_refund():
             created_by=current_user.user_id
         )
         if result['success']:
-            return jsonify(result)
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return success_response(result_data or None, message=result.get('message', '操作成功'), **result_data)
         else:
-            return jsonify(result), 400
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return error_response(result.get('message', '操作失败'), data=result_data or None, status=400, **result_data)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'退还失败：{str(e)}'}), 500
+        return error_response(f'退还失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/deposit/deduct', methods=['POST'])
@@ -1018,11 +857,13 @@ def deposit_deduct():
             created_by=current_user.user_id
         )
         if result['success']:
-            return jsonify(result)
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return success_response(result_data or None, message=result.get('message', '操作成功'), **result_data)
         else:
-            return jsonify(result), 400
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return error_response(result.get('message', '操作失败'), data=result_data or None, status=400, **result_data)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'扣除失败：{str(e)}'}), 500
+        return error_response(f'扣除失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/deposit/transfer', methods=['POST'])
@@ -1040,11 +881,13 @@ def deposit_transfer():
             created_by=current_user.user_id
         )
         if result['success']:
-            return jsonify(result)
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return success_response(result_data or None, message=result.get('message', '操作成功'), **result_data)
         else:
-            return jsonify(result), 400
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return error_response(result.get('message', '操作失败'), data=result_data or None, status=400, **result_data)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'转抵失败：{str(e)}'}), 500
+        return error_response(f'转抵失败：{str(e)}', status=500)
 
 
 @finance_bp.route('/deposit/summary', methods=['GET'])
@@ -1053,6 +896,6 @@ def deposit_transfer():
 def deposit_summary():
     try:
         result = deposit_svc.get_summary()
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取汇总失败：{str(e)}'}), 500
+        return error_response(f'获取汇总失败：{str(e)}', status=500)

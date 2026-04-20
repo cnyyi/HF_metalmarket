@@ -52,6 +52,9 @@ DEFAULT_CONFIG = {
     # 变更检测回查天数（检查最近N天内已同步记录是否被修改）
     "change_detection_days": 3,
 
+    # 补漏回查天数（检查最近N天内是否有已完成但遗漏的记录）
+    "missing_detection_days": 7,
+
     # 日志级别
     "log_level": "INFO"
 }
@@ -206,8 +209,11 @@ def get_last_synced_serial(sql_conn):
     return row[0] if row and row[0] else None
 
 
-def fetch_new_records(access_conn, last_serial, only_finished=True):
-    """从 Access 查询新记录（流水号 > last_serial）"""
+def fetch_new_records(access_conn, last_serial, only_finished=True, lookback_serials=None):
+    """
+    从 Access 查询新记录（流水号 > last_serial）
+    增加回查窗口：检查 lookback_serials 中是否有之前未完成、现已完成的记录
+    """
     cursor = access_conn.cursor()
 
     sql = """
@@ -223,55 +229,88 @@ def fetch_new_records(access_conn, last_serial, only_finished=True):
     """
 
     if last_serial:
-        sql += f" AND 流水号 > '{last_serial}'"
+        if lookback_serials:
+            placeholders = ','.join(['?'] * len(lookback_serials))
+            sql += f" AND (流水号 > ? OR 流水号 IN ({placeholders}))"
+        else:
+            sql += " AND 流水号 > ?"
 
     if only_finished:
         sql += " AND RecordFinish = 1"
 
     sql += " ORDER BY 流水号 ASC"
 
-    cursor.execute(sql)
+    if last_serial:
+        if lookback_serials:
+            cursor.execute(sql, [last_serial] + list(lookback_serials))
+        else:
+            cursor.execute(sql, (last_serial,))
+    else:
+        cursor.execute(sql)
+
     return cursor.fetchall(), [desc[0] for desc in cursor.description]
 
 
-def fetch_recent_source_records(sql_conn, detection_days):
+def get_unfinished_serials(access_conn, sql_conn, lookback_days=2):
     """
-    查询 SQL Server 中最近 N 天已同步、且未被修改标记的记录
-    返回 dict: {SourceSerialNo: (ScaleRecordID, SourceUpdateTime)}
+    获取回查流水号：Access 中最近 lookback_days 天内存在但可能未同步的流水号
+    场景：跨天过磅（皮重4月19日、毛重4月20日），4月19日同步时 RecordFinish=0，
+    后续记录推进了 last_serial，导致该记录永远无法被增量同步捕获
+    返回: 在 last_serial 之前但可能未同步的流水号列表
     """
-    cursor = sql_conn.cursor()
+    cutoff = datetime.now() - timedelta(days=lookback_days)
+
+    # 获取 SQL Server 中的最大流水号
+    last_serial = get_last_synced_serial(sql_conn)
+    if not last_serial:
+        return []
+
+    # 从 Access 获取 cutoff 之后所有记录的流水号（不限 RecordFinish）
+    cursor = access_conn.cursor()
+    cursor.execute("""
+        SELECT 流水号 FROM 称重信息
+        WHERE 更新时间 >= ?
+    """, (cutoff,))
+    access_serials = [row[0] for row in cursor.fetchall() if row[0]]
+
+    # 从 SQL Server 获取已同步的流水号
+    sql_cur = sql_conn.cursor()
+    if access_serials:
+        placeholders = ','.join(['?'] * len(access_serials))
+        sql_cur.execute(f"""
+            SELECT SourceSerialNo FROM ScaleRecord
+            WHERE SourceSerialNo IN ({placeholders}) AND IsModified = 0
+        """, access_serials)
+        synced_serials = set(row[0] for row in sql_cur.fetchall())
+    else:
+        synced_serials = set()
+
+    # 找出: 流水号 <= last_serial 且未同步的记录
+    lookback = [s for s in access_serials if s <= last_serial and s not in synced_serials]
+
+    return lookback
+
+
+def fetch_missing_records(access_conn, sql_conn, detection_days=7, only_finished=True):
+    """
+    补漏：查找 Access 中已完成但未同步到 SQL Server 的记录
+    场景：跨天过磅（如皮重4月19日、毛重4月20日），流水号在增量窗口外但当时未完成
+    只检查最近 detection_days 天的记录，避免全表扫描
+    返回 (records, columns)
+    """
+    cursor = access_conn.cursor()
     cutoff = datetime.now() - timedelta(days=detection_days)
 
-    cursor.execute("""
-        SELECT SourceSerialNo, ScaleRecordID, SourceUpdateTime
-        FROM ScaleRecord
-        WHERE SourceSerialNo IS NOT NULL
-          AND IsModified = 0
-          AND CreateTime >= ?
-    """, (cutoff,))
+    # 从 SQL Server 获取最近 detection_days 天已同步的流水号集合
+    sql_cur = sql_conn.cursor()
+    sql_cur.execute(
+        "SELECT SourceSerialNo FROM ScaleRecord WHERE SourceSerialNo IS NOT NULL AND CreateTime >= ?",
+        (cutoff,)
+    )
+    synced_serials = set(row[0] for row in sql_cur.fetchall())
 
-    result = {}
-    for row in cursor.fetchall():
-        serial = row[0]
-        # 如果同一流水号有多条未修改记录，取最新的那条
-        if serial not in result or (row[2] and result[serial][1] and row[2] > result[serial][1]):
-            result[serial] = (row[1], row[2])  # (ScaleRecordID, SourceUpdateTime)
-    return result
-
-
-def fetch_access_updated_records(access_conn, serial_nos, only_finished=True):
-    """
-    从 Access 查询指定流水号的记录（用于变更检测）
-    返回 dict: {流水号: row_dict}
-    """
-    if not serial_nos:
-        return {}
-
-    cursor = access_conn.cursor()
-
-    # 构建 IN 子句
-    placeholders = ','.join(f"'{s}'" for s in serial_nos)
-    sql = f"""
+    # 从 Access 查询最近 detection_days 天已完成的记录
+    access_sql = """
         SELECT 
             流水号, 车号, 过磅类型, 发货单位, 收货单位, 货名, 规格,
             毛重, 皮重, 净重, 扣重, 实重, 单价, 金额, 过磅费,
@@ -280,13 +319,47 @@ def fetch_access_updated_records(access_conn, serial_nos, only_finished=True):
             一次过磅时间, 二次过磅时间,
             更新人, 更新时间, 备注, RecordFinish
         FROM 称重信息
-        WHERE 流水号 IN ({placeholders})
+        WHERE RecordFinish = 1 AND 更新时间 >= ?
+    """
+
+    cursor.execute(access_sql, (cutoff,))
+    columns = [desc[0] for desc in cursor.description]
+
+    # 过滤出未同步的记录
+    missing = []
+    for row in cursor.fetchall():
+        data = dict(zip(columns, row))
+        serial = data.get('流水号', '')
+        if serial and serial not in synced_serials:
+            missing.append(row)
+
+    return missing, columns
+
+
+def fetch_recently_updated_access_records(access_conn, detection_days, only_finished=True):
+    """
+    从 Access 查询最近 N 天内更新过的记录（按 Access 端更新时间过滤）
+    返回 dict: {流水号: row_dict}
+    """
+    cursor = access_conn.cursor()
+    cutoff = datetime.now() - timedelta(days=detection_days)
+
+    sql = """
+        SELECT 
+            流水号, 车号, 过磅类型, 发货单位, 收货单位, 货名, 规格,
+            毛重, 皮重, 净重, 扣重, 实重, 单价, 金额, 过磅费,
+            毛重司磅员, 皮重司磅员, 毛重磅号, 皮重磅号,
+            毛重时间, 皮重时间,
+            一次过磅时间, 二次过磅时间,
+            更新人, 更新时间, 备注, RecordFinish
+        FROM 称重信息
+        WHERE 更新时间 >= ?
     """
 
     if only_finished:
         sql += " AND RecordFinish = 1"
 
-    cursor.execute(sql)
+    cursor.execute(sql, (cutoff,))
     columns = [desc[0] for desc in cursor.description]
 
     result = {}
@@ -298,43 +371,77 @@ def fetch_access_updated_records(access_conn, serial_nos, only_finished=True):
     return result
 
 
+def fetch_sql_records_by_serials(sql_conn, serial_nos):
+    """
+    从 SQL Server 查询指定流水号的已同步记录（IsModified=0）
+    返回 dict: {SourceSerialNo: (ScaleRecordID, SourceUpdateTime)}
+    """
+    if not serial_nos:
+        return {}
+
+    cursor = sql_conn.cursor()
+    placeholders = ','.join(['?'] * len(serial_nos))
+
+    cursor.execute(f"""
+        SELECT SourceSerialNo, ScaleRecordID, SourceUpdateTime
+        FROM ScaleRecord
+        WHERE SourceSerialNo IN ({placeholders})
+          AND IsModified = 0
+    """, list(serial_nos))
+
+    result = {}
+    for row in cursor.fetchall():
+        serial = row[0]
+        # 如果同一流水号有多条未修改记录，取最新的那条
+        if serial not in result or (row[2] and result[serial][1] and row[2] > result[serial][1]):
+            result[serial] = (row[1], row[2])  # (ScaleRecordID, SourceUpdateTime)
+    return result
+
+
 def detect_changes(sql_conn, access_conn, config, logger):
     """
-    变更检测：对比最近已同步记录与 Access 端数据
-    发现修改后：标记原记录 IsModified=1，插入新版本记录
+    变更检测：以 Access 端更新时间为依据，找出最近被修改的记录
+    1. 从 Access 取最近 N 天内更新过的记录
+    2. 在 SQL Server 中找对应的已同步记录
+    3. 对比两端更新时间，不一致则标记原记录并插入新版本
     返回修改的记录数
     """
     detection_days = config.get('change_detection_days', 3)
 
-    # 1. 从 SQL Server 获取最近 N 天已同步的记录
-    source_records = fetch_recent_source_records(sql_conn, detection_days)
-    if not source_records:
-        logger.debug("变更检测: 无最近记录需要检查")
-        return 0
-
-    logger.debug(f"变更检测: 检查 {len(source_records)} 条最近记录")
-
-    # 2. 从 Access 查询这些流水号的当前数据
-    serial_nos = list(source_records.keys())
-    access_data = fetch_access_updated_records(
-        access_conn, serial_nos,
+    # 1. 从 Access 获取最近 N 天内更新过的记录
+    access_data = fetch_recently_updated_access_records(
+        access_conn, detection_days,
         only_finished=config.get('only_finished', True)
     )
+    if not access_data:
+        logger.debug("变更检测: Access 端无最近更新的记录")
+        return 0
+
+    logger.debug(f"变更检测: Access 端最近 {detection_days} 天有 {len(access_data)} 条更新记录")
+
+    # 2. 从 SQL Server 查找这些流水号对应的已同步记录
+    serial_nos = list(access_data.keys())
+    sql_records = fetch_sql_records_by_serials(sql_conn, serial_nos)
+    if not sql_records:
+        logger.debug("变更检测: 这些记录尚未同步到 SQL Server，无需变更检测")
+        return 0
+
+    logger.debug(f"变更检测: 其中 {len(sql_records)} 条已在 SQL Server 中")
 
     # 3. 逐一对比更新时间
     modified_count = 0
     cursor = sql_conn.cursor()
 
-    for serial_no, (record_id, stored_update_time) in source_records.items():
+    for serial_no, (record_id, stored_update_time) in sql_records.items():
         access_row = access_data.get(serial_no)
         if not access_row:
-            continue  # Access 中已无此记录，跳过
+            continue  # 理论上不会出现（因为 access_data 是全集）
 
         access_update_time = access_row.get('更新时间')
         if not access_update_time or not stored_update_time:
             continue
 
-        # 对比更新时间：如果 Access 的更新时间比存储的更新时间更新，则认为被修改
+        # 对比更新时间：如果 Access 的更新时间比 SQL Server 存储的更新时间更新，则认为被修改
         if access_update_time > stored_update_time:
             logger.info(f"发现修改: 流水号 {serial_no}, 原更新时间={stored_update_time}, 新更新时间={access_update_time}")
 
@@ -462,25 +569,48 @@ def do_sync(config, logger):
         # ---- 阶段1: 变更检测 ----
         modified = detect_changes(sql_conn, access_conn, config, logger)
 
-        # ---- 阶段2: 增量插入新记录 ----
+        # ---- 阶段2: 增量插入新记录（含回查窗口） ----
         last_serial = get_last_synced_serial(sql_conn)
         logger.debug(f"最后已同步流水号: {last_serial or '无'}")
 
+        # 获取回查流水号：之前未完成、现已完成但流水号在 last_serial 之前的记录
+        lookback_serials = get_unfinished_serials(
+            access_conn, sql_conn,
+            lookback_days=config.get('missing_detection_days', 7)
+        )
+        if lookback_serials:
+            logger.info(f"回查窗口: 发现 {len(lookback_serials)} 个可能遗漏的流水号")
+
         records, columns = fetch_new_records(
             access_conn, last_serial,
-            only_finished=config.get('only_finished', True)
+            only_finished=config.get('only_finished', True),
+            lookback_serials=lookback_serials if lookback_serials else None
         )
 
-        if not records and modified == 0:
-            logger.debug("无新记录，无修改")
-            return
-
+        inserted_new = 0
         if records:
             logger.info(f"发现 {len(records)} 条新记录，开始同步...")
-            inserted = insert_new_records(sql_conn, records, columns, config, logger)
-            logger.info(f"本次同步: 新增 {inserted} 条，修改 {modified} 条")
+            inserted_new = insert_new_records(sql_conn, records, columns, config, logger)
+
+        # ---- 阶段3: 补漏——跨天完成等遗漏记录 ----
+        missing_records, missing_columns = fetch_missing_records(
+            access_conn, sql_conn,
+            detection_days=config.get('missing_detection_days', 7),
+            only_finished=config.get('only_finished', True)
+        )
+        inserted_missing = 0
+        if missing_records:
+            logger.info(f"补漏发现 {len(missing_records)} 条遗漏记录，开始同步...")
+            inserted_missing = insert_new_records(
+                sql_conn, missing_records, missing_columns, config, logger
+            )
+
+        # ---- 汇总 ----
+        total_inserted = inserted_new + inserted_missing
+        if total_inserted == 0 and modified == 0:
+            logger.debug("无新记录，无修改，无遗漏")
         else:
-            logger.info(f"本次同步: 新增 0 条，修改 {modified} 条")
+            logger.info(f"本次同步: 新增 {inserted_new} 条，补漏 {inserted_missing} 条，修改 {modified} 条")
 
     except Exception as e:
         logger.error(f"同步异常: {e}")

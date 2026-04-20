@@ -1,0 +1,101 @@
+{% extends "wx_base.html" %}
+
+{% block title %}申请绑定商户{% endblock %}
+{% block header_title %}申请绑定商户{% endblock %}
+
+{% block content %}
+<div class="wx-card">
+    <div class="wx-card-title">选择商户</div>
+    <div class="wx-form-group">
+        <label>搜索商户</label>
+        <input type="text" id="merchantSearch" placeholder="输入商户名称搜索">
+    </div>
+    <div id="merchantList" style="max-height: 200px; overflow-y: auto;"></div>
+    <div id="selectedMerchant" style="display:none; margin-top: 12px; padding: 10px; background: #e8f5e9; border-radius: 6px;">
+        <span id="selectedMerchantName" style="font-weight: 500;"></span>
+        <input type="hidden" id="selectedMerchantId">
+    </div>
+</div>
+
+<div class="wx-card">
+    <div class="wx-card-title">选择身份</div>
+    <div style="display: flex; gap: 10px;">
+        <div class="role-option" data-role="Boss" onclick="selectRole(this)" style="flex:1; text-align:center; padding: 12px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer;">
+            <i class="fa fa-user-tie" style="font-size: 24px; color: #f39c12;"></i>
+            <div style="margin-top: 6px; font-size: 14px;">老板</div>
+        </div>
+        <div class="role-option" data-role="Staff" onclick="selectRole(this)" style="flex:1; text-align:center; padding: 12px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer;">
+            <i class="fa fa-user" style="font-size: 24px; color: #3498db;"></i>
+            <div style="margin-top: 6px; font-size: 14px;">员工</div>
+        </div>
+        <div class="role-option" data-role="Finance" onclick="selectRole(this)" style="flex:1; text-align:center; padding: 12px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer;">
+            <i class="fa fa-calculator" style="font-size: 24px; color: #e74c3c;"></i>
+            <div style="margin-top: 6px; font-size: 14px;">财务</div>
+        </div>
+    </div>
+    <input type="hidden" id="selectedRole">
+</div>
+
+<div class="wx-card">
+    <div class="wx-form-group">
+        <label>申请说明（选填）</label>
+        <input type="text" id="remark" placeholder="例如：我是该商户的法人代表">
+    </div>
+    <button class="wx-btn wx-btn-primary" onclick="submitApply()">提交申请</button>
+</div>
+
+<div style="text-align: center; padding: 16px;">
+    <a href="{{ url_for('wx.bind_status') }}" style="color: #27ae60; font-size: 14px;">查看我的绑定状态 →</a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var selectedMerchantId = null;
+var selectedRole = null;
+
+function selectRole(el) {
+    $('.role-option').css('border-color', '#ddd');
+    $(el).css('border-color', '#27ae60');
+    selectedRole = $(el).data('role');
+    $('#selectedRole').val(selectedRole);
+}
+
+$('#merchantSearch').on('input', function() {
+    var search = $(this).val().trim();
+    if (search.length < 1) { $('#merchantList').empty(); return; }
+    wxGet('{{ url_for("wx.api_merchants") }}?search=' + encodeURIComponent(search), function(data) {
+        var html = '';
+        for (var i = 0; i < data.length; i++) {
+            html += '<div class="wx-list-item" style="cursor:pointer;" onclick="selectMerchant(' + data[i].merchant_id + ', \'' + escapeHtml(data[i].merchant_name).replace(/'/g, "\\'") + '\')">';
+            html += '<div style="font-weight:500;">' + escapeHtml(data[i].merchant_name) + '</div>';
+            html += '<div style="font-size:12px;color:#999;">' + escapeHtml(data[i].contact_person || '') + ' ' + escapeHtml(data[i].phone || '') + '</div>';
+            html += '</div>';
+        }
+        if (!html) html = '<div class="wx-empty"><p>未找到商户</p></div>';
+        $('#merchantList').html(html);
+    });
+});
+
+function selectMerchant(id, name) {
+    selectedMerchantId = id;
+    $('#selectedMerchantId').val(id);
+    $('#selectedMerchantName').text(name);
+    $('#selectedMerchant').show();
+    $('#merchantList').empty();
+    $('#merchantSearch').val(name);
+}
+
+function submitApply() {
+    if (!selectedMerchantId) { wxToast('请选择商户'); return; }
+    if (!selectedRole) { wxToast('请选择身份'); return; }
+    var remark = $('#remark').val().trim();
+    wxPost('{{ url_for("wx.api_bind_apply") }}', {merchant_id: selectedMerchantId, bind_role: selectedRole, remark: remark}, function(resp) {
+        wxToast(resp.message);
+        if (resp.success) {
+            setTimeout(function() { window.location.href = '{{ url_for("wx.bind_status") }}'; }, 1500);
+        }
+    });
+}
+</script>
+{% endblock %}

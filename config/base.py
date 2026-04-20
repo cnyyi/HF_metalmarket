@@ -33,6 +33,32 @@ def _get_required_env(key, default=None, warn=True):
     return default
 
 
+def _build_odbc_connection_string():
+    """
+    构建 ODBC 连接字符串。
+
+    优先使用 ODBC_CONNECTION_STRING；如果未提供，则回退到拆分环境变量。
+    这样可以兼容现有脚本，也避免在仓库中硬编码真实连接信息。
+    """
+    raw_connection_string = os.environ.get('ODBC_CONNECTION_STRING')
+    if raw_connection_string:
+        return raw_connection_string
+
+    db_driver = _get_required_env('DB_DRIVER', '{ODBC Driver 17 for SQL Server}', warn=False)
+    db_server = _get_required_env('DB_SERVER', 'localhost')
+    db_database = _get_required_env('DB_DATABASE', 'hf_metalmarket')
+    db_uid = _get_required_env('DB_UID', 'sa')
+    db_pwd = _get_required_env('DB_PWD', '')
+
+    return (
+        f'DRIVER={db_driver};'
+        f'SERVER={db_server};'
+        f'DATABASE={db_database};'
+        f'UID={db_uid};'
+        f'PWD={db_pwd};'
+    )
+
+
 class Config:
     """
     应用基础配置类
@@ -54,22 +80,12 @@ class Config:
     PLOT_IMAGE_FOLDER = os.path.join(UPLOAD_FOLDER, 'plot')
     LOGO_IMAGE_FOLDER = os.path.join(UPLOAD_FOLDER, 'logo')
     
-    # ODBC数据库连接字符串 - 从环境变量读取，不再硬编码密码
+    # ODBC 数据库连接字符串 - 统一从环境变量读取
     DB_SERVER = _get_required_env('DB_SERVER', 'localhost')
     DB_DATABASE = _get_required_env('DB_DATABASE', 'hf_metalmarket')
     DB_UID = _get_required_env('DB_UID', 'sa')
-    DB_PWD = _get_required_env('DB_PWD', '')  # 密码无默认值，强制要求设置
-    
-    ODBC_CONNECTION_STRING = (
-        f'DRIVER={{ODBC Driver 17 for SQL Server}};'
-        f'SERVER={DB_SERVER};'
-        f'DATABASE={DB_DATABASE};'
-        f'UID={DB_UID};'
-        f'PWD={DB_PWD};'
-        'Encrypt=no;'
-        'TrustServerCertificate=yes;'
-        'charset=utf-8;'
-    )
+    DB_PWD = _get_required_env('DB_PWD', '')
+    ODBC_CONNECTION_STRING = _build_odbc_connection_string()
     
     # 日志配置
     LOG_LEVEL = 'INFO'
@@ -88,3 +104,10 @@ class Config:
     # 时间格式
     DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
     DATE_FORMAT = '%Y-%m-%d'
+
+    # 微信公众号配置
+    WX_APP_ID = os.environ.get('WX_APP_ID', '')
+    WX_APP_SECRET = os.environ.get('WX_APP_SECRET', '')
+    WX_TOKEN = os.environ.get('WX_TOKEN', '')
+    WX_ENCODING_AES_KEY = os.environ.get('WX_ENCODING_AES_KEY', '')
+    WX_TEMPLATE_BIND_RESULT = os.environ.get('WX_TEMPLATE_BIND_RESULT', '')

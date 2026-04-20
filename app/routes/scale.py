@@ -3,6 +3,7 @@
 from datetime import datetime
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required
+from app.api_response import success_response, error_response
 from app.services.scale_service import ScaleService
 
 scale_bp = Blueprint('scale', __name__)
@@ -25,9 +26,9 @@ def records():
 def api_scale_list():
     try:
         items = ScaleService.get_scale_list()
-        return jsonify({'success': True, 'data': {'items': items}})
+        return success_response({'items': items})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return error_response(f'获取数据失败：{str(e)}', status=500)
 
 
 @scale_bp.route('/api/records')
@@ -45,9 +46,9 @@ def api_records():
             start_date=start_date or None,
             end_date=end_date or None
         )
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return error_response(f'获取数据失败：{str(e)}', status=500)
 
 
 @scale_bp.route('/api/records/<int:record_id>')
@@ -56,10 +57,10 @@ def api_record_detail(record_id):
     try:
         record = ScaleService.get_scale_record_detail(record_id)
         if not record:
-            return jsonify({'success': False, 'message': '记录不存在'}), 404
-        return jsonify({'success': True, 'data': record})
+            return error_response('记录不存在', status=404)
+        return success_response(record)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return error_response(f'获取数据失败：{str(e)}', status=500)
 
 
 @scale_bp.route('/api/dashboard/overview')
@@ -67,9 +68,9 @@ def api_record_detail(record_id):
 def api_dashboard_overview():
     try:
         data = ScaleService.get_dashboard_overview()
-        return jsonify({'success': True, 'data': data})
+        return success_response(data)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return error_response(f'获取数据失败：{str(e)}', status=500)
 
 
 @scale_bp.route('/api/dashboard/trend')
@@ -80,9 +81,9 @@ def api_dashboard_trend():
         year = request.args.get('year', now.year, type=int)
         month = request.args.get('month', now.month, type=int)
         data = ScaleService.get_monthly_trend(year, month)
-        return jsonify({'success': True, 'data': data})
+        return success_response(data)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return error_response(f'获取数据失败：{str(e)}', status=500)
 
 
 @scale_bp.route('/api/dashboard/today')
@@ -96,6 +97,6 @@ def api_dashboard_today():
             page=page, per_page=per_page,
             keyword=keyword or None
         )
-        return jsonify({'success': True, 'data': result})
+        return success_response(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return error_response(f'获取数据失败：{str(e)}', status=500)

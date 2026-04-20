@@ -1,0 +1,93 @@
+{% extends "wx_base.html" %}
+
+{% block title %}首页{% endblock %}
+
+{% block content %}
+<div id="merchantInfo" style="padding: 16px; background: linear-gradient(135deg, #27ae60, #2ecc71); color: white; margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h5 style="margin: 0;" id="merchantName">加载中...</h5>
+            <span id="bindRoleTag" style="font-size: 12px; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px;"></span>
+        </div>
+        <a href="{{ url_for('wx.switch') }}" style="color: white; font-size: 13px;"><i class="fa fa-exchange-alt"></i> 切换</a>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 12px;">
+    <div class="wx-stat-card">
+        <div class="stat-value" id="statContracts">-</div>
+        <div class="stat-label">有效合同</div>
+    </div>
+    <div class="wx-stat-card">
+        <div class="stat-value" id="statPending">-</div>
+        <div class="stat-label">待缴金额</div>
+    </div>
+    <div class="wx-stat-card">
+        <div class="stat-value" id="statUtility">-</div>
+        <div class="stat-label">本月水电</div>
+    </div>
+    <div class="wx-stat-card">
+        <div class="stat-value" id="statScale">-</div>
+        <div class="stat-label">本月过磅</div>
+    </div>
+</div>
+
+<div class="wx-card" style="margin-top: 12px;">
+    <div class="wx-card-title">即将到期合同</div>
+    <div id="expiringContracts"><p style="color:#999;">加载中...</p></div>
+</div>
+
+<div class="wx-card">
+    <div class="wx-card-title">逾期未缴账单</div>
+    <div id="overdueReceivables"><p style="color:#999;">加载中...</p></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    wxGet('{{ url_for("wx.api_current_merchant") }}', function(data) {
+        if (data) {
+            $('#merchantName').text(data.merchant_name || '');
+            var roleMap = {Boss:'老板', Staff:'员工', Finance:'财务'};
+            $('#bindRoleTag').text(roleMap[data.bind_role] || '');
+        }
+    });
+
+    wxGet('{{ url_for("wx.api_dashboard") }}', function(d) {
+        $('#statContracts').text(d.active_contracts);
+        $('#statPending').text('¥' + (d.pending_amount || 0).toFixed(0));
+        $('#statUtility').text('¥' + (d.monthly_utility || 0).toFixed(0));
+        $('#statScale').text(d.monthly_scale_count + '次');
+
+        if (d.expiring_contracts && d.expiring_contracts.length > 0) {
+            var html = '';
+            for (var i = 0; i < d.expiring_contracts.length; i++) {
+                var c = d.expiring_contracts[i];
+                html += '<div class="wx-list-item"><div style="display:flex;justify-content:space-between;">';
+                html += '<span>' + escapeHtml(c.contract_name) + '</span>';
+                html += '<span class="wx-badge wx-badge-pending">' + c.end_date + '到期</span>';
+                html += '</div></div>';
+            }
+            $('#expiringContracts').html(html);
+        } else {
+            $('#expiringContracts').html('<p style="color:#999;">暂无</p>');
+        }
+
+        if (d.overdue_receivables && d.overdue_receivables.length > 0) {
+            var html = '';
+            for (var i = 0; i < d.overdue_receivables.length; i++) {
+                var r = d.overdue_receivables[i];
+                html += '<div class="wx-list-item"><div style="display:flex;justify-content:space-between;">';
+                html += '<span>' + escapeHtml(r.expense_type_name) + '</span>';
+                html += '<span style="color:#c62828;font-weight:600;">¥' + (r.remaining_amount || 0).toFixed(0) + '</span>';
+                html += '</div></div>';
+            }
+            $('#overdueReceivables').html(html);
+        } else {
+            $('#overdueReceivables').html('<p style="color:#999;">暂无</p>');
+        }
+    });
+});
+</script>
+{% endblock %}

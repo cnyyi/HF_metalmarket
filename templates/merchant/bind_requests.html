@@ -1,0 +1,132 @@
+{% extends "admin_base.html" %}
+
+{% block title %}商户绑定审批{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fa fa-link"></i> 商户绑定审批</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>申请人</th>
+                        <th>手机号</th>
+                        <th>商户</th>
+                        <th>申请身份</th>
+                        <th>申请时间</th>
+                        <th>申请说明</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="requestList">
+                    <tr><td colspan="7" class="text-center text-muted">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">驳回绑定申请</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">驳回原因</label>
+                    <textarea class="form-control" id="rejectReason" rows="3" placeholder="请输入驳回原因"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="confirmReject()">确认驳回</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var currentBindingId = null;
+
+$(document).ready(function() { loadRequests(); });
+
+function loadRequests() {
+    $.ajax({
+        url: '/merchant/api/bind-requests',
+        type: 'GET',
+        success: function(resp) {
+            if (!resp.success) { showToast(resp.message, 'danger'); return; }
+            var data = resp.data;
+            if (!data.length) {
+                $('#requestList').html('<tr><td colspan="7" class="text-center text-muted">暂无待审批申请</td></tr>');
+                return;
+            }
+            var html = '';
+            for (var i = 0; i < data.length; i++) {
+                var r = data[i];
+                var roleMap = {Boss:'老板', Staff:'员工', Finance:'财务'};
+                html += '<tr>';
+                html += '<td>' + escapeHtml(r.user_real_name) + '</td>';
+                html += '<td>' + escapeHtml(r.phone) + '</td>';
+                html += '<td>' + escapeHtml(r.merchant_name) + '</td>';
+                html += '<td><span class="badge bg-info">' + (roleMap[r.bind_role] || r.bind_role) + '</span></td>';
+                html += '<td>' + r.apply_time + '</td>';
+                html += '<td>' + escapeHtml(r.remark) + '</td>';
+                html += '<td>';
+                html += '<button class="btn btn-sm btn-success me-1" onclick="approveBinding(' + r.binding_id + ')"><i class="fa fa-check"></i> 通过</button>';
+                html += '<button class="btn btn-sm btn-danger" onclick="showRejectModal(' + r.binding_id + ')"><i class="fa fa-times"></i> 驳回</button>';
+                html += '</td>';
+                html += '</tr>';
+            }
+            $('#requestList').html(html);
+        }
+    });
+}
+
+function approveBinding(bindingId) {
+    if (!confirm('确定通过此绑定申请？')) return;
+    $.ajax({
+        url: '/merchant/api/bind-approve/' + bindingId,
+        type: 'POST',
+        contentType: 'application/json',
+        headers: {'X-CSRFToken': getCSRFToken()},
+        data: JSON.stringify({}),
+        success: function(resp) {
+            showToast(resp.message, resp.success ? 'success' : 'danger');
+            if (resp.success) loadRequests();
+        }
+    });
+}
+
+function showRejectModal(bindingId) {
+    currentBindingId = bindingId;
+    $('#rejectReason').val('');
+    new bootstrap.Modal(document.getElementById('rejectModal')).show();
+}
+
+function confirmReject() {
+    var reason = $('#rejectReason').val().trim();
+    $.ajax({
+        url: '/merchant/api/bind-reject/' + currentBindingId,
+        type: 'POST',
+        contentType: 'application/json',
+        headers: {'X-CSRFToken': getCSRFToken()},
+        data: JSON.stringify({reason: reason}),
+        success: function(resp) {
+            showToast(resp.message, resp.success ? 'success' : 'danger');
+            if (resp.success) {
+                loadRequests();
+                bootstrap.Modal.getInstance(document.getElementById('rejectModal')).hide();
+            }
+        }
+    });
+}
+</script>
+{% endblock %}
