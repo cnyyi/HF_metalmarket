@@ -227,38 +227,13 @@ function loadPlots(page) {
                 
                 $('#pageInfo').text('共 ' + response.data.total + ' 条记录，第 ' + response.data.page + '/' + response.data.total_pages + ' 页');
                 
-                var pagination = $('#pagination');
-                pagination.empty();
-                
-                if (response.data.total_pages > 1) {
-                    if (response.data.page > 1) {
-                        pagination.append('<li class="page-item"><a class="page-link" href="#" data-page="' + (response.data.page - 1) + '">上一页</a></li>');
-                    }
-                    
-                    var startPage = Math.max(1, response.data.page - 2);
-                    var endPage = Math.min(response.data.total_pages, response.data.page + 2);
-                    
-                    for (var i = startPage; i <= endPage; i++) {
-                        var activeClass = i === response.data.page ? 'active' : '';
-                        pagination.append('<li class="page-item ' + activeClass + '"><a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>');
-                    }
-                    
-                    if (response.data.page < response.data.total_pages) {
-                        pagination.append('<li class="page-item"><a class="page-link" href="#" data-page="' + (response.data.page + 1) + '">下一页</a></li>');
-                    }
-                }
+                renderPagination('#pagination', { current_page: response.data.page, total_pages: response.data.total_pages, total: response.data.total }, function(page) {
+                    loadPlots(page);
+                });
             }
         }
     });
 }
-
-$(document).on('click', '.page-link', function(e) {
-    e.preventDefault();
-    var page = $(this).data('page');
-    if (page) {
-        loadPlots(page);
-    }
-});
 
 $(document).on('click', '.delete-btn', function() {
     deletePlotId = $(this).data('id');
@@ -373,15 +348,7 @@ $(document).on('click', '.plot-code-link', function() {
     });
 });
 
-$('#searchBtn').click(function() {
-    loadPlots(1);
-});
-
-$('#searchInput').keypress(function(e) {
-    if (e.which === 13) {
-        loadPlots(1);
-    }
-});
+bindSearch('searchInput', 'searchBtn', function() { loadPlots(1); });
 
 $('#filterStatus, #filterPlotType, #filterRentStatus').change(function() {
     loadPlots(1);

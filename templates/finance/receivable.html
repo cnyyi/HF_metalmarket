@@ -460,30 +460,10 @@ function renderTable(data) {
         tfoot.hide();
     }
 
-    renderPagination(data);
-}
-
-function renderPagination(data) {
-    var totalPages = data.total_pages;
-    var curPage = data.current_page;
-    if (totalPages <= 1) { $('#paginationArea').hide(); return; }
-    var html = '<li class="page-item ' + (curPage === 1 ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (curPage - 1) + '">上一页</a></li>';
-    var startPage = Math.max(1, curPage - 2);
-    var endPage = Math.min(totalPages, curPage + 2);
-    if (startPage > 1) {
-        html += '<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>';
-        if (startPage > 2) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-    }
-    for (var i = startPage; i <= endPage; i++) {
-        html += '<li class="page-item ' + (i === curPage ? 'active' : '') + '"><a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
-    }
-    if (endPage < totalPages) {
-        if (endPage < totalPages - 1) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-        html += '<li class="page-item"><a class="page-link" href="#" data-page="' + totalPages + '">' + totalPages + '</a></li>';
-    }
-    html += '<li class="page-item ' + (curPage === totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (curPage + 1) + '">下一页</a></li>';
-    $('#paginationList').html(html);
-    $('#paginationArea').show();
+    renderPagination('#paginationList', data, function(page) {
+        currentPage = page;
+        loadData(currentTab, currentPage);
+    });
 }
 
 function loadExpenseTypes() {
@@ -929,8 +909,7 @@ function openDetailModal(id) {
 
 $(document).ready(function() {
     loadReceivables(1);
-    $('#btnSearch').on('click', function() { loadReceivables(1); });
-    $('#searchInput').on('keypress', function(e) { if (e.which === 13) loadReceivables(1); });
+    bindSearch('searchInput', 'btnSearch', function() { loadReceivables(1); });
     $('#statusFilter').on('change', function() { loadReceivables(1); });
     $('#expenseTypeFilter').on('change', function() { loadReceivables(1); });
     $('#perPageSelect').on('change', function() {
