@@ -1308,6 +1308,169 @@ h1, h2, h3, h4, h5, h6 {
     border-color: var(--color-border);
 }
 
+/* ========== Bootstrap Badge 暗色模式 ========== */
+[data-theme="dark"] .badge.bg-warning { background-color: rgba(251,191,36,0.18)!important; color: #FBBF24!important; }
+[data-theme="dark"] .badge.bg-success { background-color: rgba(52,211,153,0.18)!important; color: #34D399!important; }
+[data-theme="dark"] .badge.bg-info { background-color: rgba(96,165,250,0.18)!important; color: #60A5FA!important; }
+[data-theme="dark"] .badge.bg-primary { background-color: rgba(129,140,248,0.18)!important; color: #818CF8!important; }
+[data-theme="dark"] .badge.bg-secondary { background-color: rgba(156,163,175,0.18)!important; color: #9CA3AF!important; }
+[data-theme="dark"] .badge.bg-danger { background-color: rgba(248,113,113,0.18)!important; color: #F87171!important; }
+
+/* ========== Bootstrap Button Outline 暗色模式 ========== */
+[data-theme="dark"] .btn-outline-danger { color: var(--color-danger); border-color: var(--color-danger); }
+[data-theme="dark"] .btn-outline-danger:hover { background-color: rgba(248,113,113,0.15); color: var(--color-danger); }
+[data-theme="dark"] .btn-outline-info { color: var(--color-info); border-color: var(--color-info); }
+[data-theme="dark"] .btn-outline-info:hover { background-color: rgba(96,165,250,0.15); color: var(--color-info); }
+[data-theme="dark"] .btn-outline-primary { color: var(--color-primary); border-color: var(--color-primary); }
+[data-theme="dark"] .btn-outline-primary:hover { background-color: rgba(129,140,248,0.15); color: var(--color-primary); }
+[data-theme="dark"] .btn-outline-warning { color: var(--color-warning); border-color: var(--color-warning); }
+[data-theme="dark"] .btn-outline-warning:hover { background-color: rgba(251,191,36,0.15); color: var(--color-warning); }
+[data-theme="dark"] .btn-outline-success { color: var(--color-success); border-color: var(--color-success); }
+[data-theme="dark"] .btn-outline-success:hover { background-color: rgba(52,211,153,0.15); color: var(--color-success); }
+
+/* ========== Bootstrap Button Solid 暗色模式 ========== */
+[data-theme="dark"] .btn-success { background-color: rgba(52,211,153,0.18); border-color: #34D399; color: #34D399; }
+[data-theme="dark"] .btn-success:hover { background-color: rgba(52,211,153,0.28); color: #34D399; }
+[data-theme="dark"] .btn-warning { background-color: rgba(251,191,36,0.18); border-color: #FBBF24; color: #1A1F2E; }
+
+/* ========== Bootstrap Alert 暗色模式 ========== */
+[data-theme="dark"] .alert-info { background-color: rgba(96,165,250,0.1); border-color: rgba(96,165,250,0.2); color: var(--color-info); }
+[data-theme="dark"] .alert-info a { color: var(--color-info); }
+[data-theme="dark"] .alert-warning { background-color: rgba(251,191,36,0.1); border-color: rgba(251,191,36,0.2); color: var(--color-warning); }
+[data-theme="dark"] .alert-danger { background-color: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.2); color: var(--color-danger); }
+[data-theme="dark"] .alert-success { background-color: rgba(52,211,153,0.1); border-color: rgba(52,211,153,0.2); color: var(--color-success); }
+
+/* ========== 其他 Bootstrap 暗色模式补丁 ========== */
+[data-theme="dark"] .text-muted { color: var(--color-text-muted)!important; }
+[data-theme="dark"] .text-primary { color: var(--color-primary)!important; }
+[data-theme="dark"] .bg-light { background-color: var(--color-bg-light)!important; }
+[data-theme="dark"] .table-light { background-color: var(--color-bg-light)!important; color: var(--color-text); }
+
+/* ========== 公共组件：详情区 ========== */
+.detail-section { margin-bottom: 16px; }
+.detail-section h6 { border-bottom: 1px solid var(--color-border); padding-bottom: 6px; margin-bottom: 10px; }
+.detail-field { margin-bottom: 6px; }
+.detail-field .label { color: var(--color-text-muted); font-size: 13px; }
+.detail-field .value { font-weight: 500; }
+
+/* ========== 公共组件：汇总行 ========== */
+.table-summary-row,
+.summary-row td {
+    background: var(--color-bg-card, #f8f9fa);
+    border-top: 2px solid var(--color-primary);
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+.table-summary-row td,
+.summary-row td {
+    padding: 12px 8px;
+    vertical-align: middle;
+    border-bottom: none;
+}
+[data-theme="dark"] .table-summary-row,
+[data-theme="dark"] .summary-row td {
+    background: rgba(22, 93, 255, 0.06);
+}
+
+/* ========== 公共组件：排序表头 ========== */
+.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.sortable:hover { color: var(--color-primary); }
+.sortable .sort-icon { margin-left: 4px; font-size: 0.7em; opacity: 0.4; }
+.sortable.asc .sort-icon, .sortable.desc .sort-icon { opacity: 1; color: var(--color-primary); }
+.sortable.asc .sort-icon::after { content: ' \25B2'; }
+.sortable.desc .sort-icon::after { content: ' \25BC'; }
+.sortable:not(.asc):not(.desc) .sort-icon::after { content: ' \25B2'; }
+
+/* ========== 公共组件：筛选表单 ========== */
+.filter-form {
+    background: var(--color-bg-light);
+    border-radius: 8px;
+    padding: 16px;
+    border: 1px solid var(--color-border);
+}
+
+/* ========== 公共组件：汇总卡片 ========== */
+.summary-card { border-radius: var(--radius-xl); border: none; overflow: hidden; }
+.summary-card .card-body { padding: var(--space-4) var(--space-6); }
+.summary-label { font-size: var(--font-size-sm); color: var(--color-text-muted); margin-bottom: var(--space-1); }
+.summary-amount { font-size: var(--font-size-2xl); font-weight: 700; font-family: var(--font-mono); }
+.summary-income { border-left: 4px solid var(--color-success); }
+.summary-expense { border-left: 4px solid var(--color-danger); }
+.summary-net { border-left: 4px solid var(--color-primary); }
+
+/* ========== 公共组件：金额高亮 ========== */
+.summary-amount-cell {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+.amount-unpaid { color: var(--color-danger); }
+.amount-paid { color: var(--color-success); }
+.amount-total { color: var(--color-text); }
+
+/* ========== 公共组件：链接样式 ========== */
+.summary-link,
+.detail-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    cursor: pointer;
+    border-bottom: 1px dashed var(--color-primary);
+    transition: all var(--transition-fast);
+}
+.summary-link:hover,
+.detail-link:hover {
+    color: var(--color-primary-hover);
+    border-bottom-style: solid;
+    text-decoration: none;
+}
+
+/* ========== 公共组件：方向标签 ========== */
+.direction-income { color: var(--color-success); font-weight: 500; }
+.direction-expense { color: var(--color-danger); font-weight: 500; }
+
+/* ========== 公共组件：可点击行 ========== */
+.customer-row {
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+.customer-row:hover {
+    background-color: var(--table-hover-bg) !important;
+}
+
+/* ========== 公共组件：Tab 增强 ========== */
+.enhanced-tabs .nav-link {
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 10px 24px;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    color: var(--color-text-muted);
+    transition: all var(--transition-fast);
+}
+.enhanced-tabs .nav-link:hover {
+    color: var(--color-primary);
+    background: var(--color-primary-light);
+}
+.enhanced-tabs .nav-link.active {
+    color: var(--color-primary);
+    background: var(--color-bg-card);
+    border-color: var(--color-border) var(--color-border) var(--color-bg-card);
+}
+
+/* ========== 公共组件：状态徽章 ========== */
+.status-badge {
+    font-size: var(--badge-font-size);
+    padding: var(--badge-padding);
+    border-radius: var(--badge-radius);
+    display: inline-block;
+}
+.status-badge.status-unpaid { background-color: rgba(248,113,113,0.15); color: var(--color-danger); }
+.status-badge.status-partial { background-color: rgba(251,191,36,0.15); color: var(--color-warning); }
+.status-badge.status-paid { background-color: rgba(52,211,153,0.15); color: var(--color-success); }
+.status-badge.status-overdue { background-color: rgba(239,68,68,0.15); color: #EF4444; }
+.status-badge.status-active { background-color: rgba(52,211,153,0.15); color: var(--color-success); }
+.status-badge.status-inactive { background-color: rgba(156,163,175,0.15); color: var(--color-secondary); }
+
 /* ========== 面包屑 — 保持兼容但样式更新 ========== */
 .breadcrumb-container {
     padding: var(--space-2) 0;
