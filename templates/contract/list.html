@@ -3,21 +3,6 @@
 {% block title %}合同列表{% endblock %}
 
 {% block extra_css %}
-<style>
-.contract-number-link {
-    color: var(--color-primary, #0d6efd);
-    text-decoration: none;
-    font-weight: 500;
-    padding: 2px 6px;
-    border-radius: 4px;
-    transition: all 0.2s ease;
-}
-
-.contract-number-link:hover {
-    text-decoration: underline;
-    background-color: rgba(13, 110, 253, 0.1);
-}
-</style>
 {% endblock %}
 
 {% block breadcrumb %}
@@ -279,7 +264,7 @@ function loadContracts(page) {
                     response.data.contracts.forEach(function(contract, index) {
                         var row = '<tr>' +
                             '<td>' + (startNum + index) + '</td>' +
-                            '<td><span class="contract-number-link" data-id="' + contract.contract_id + '" style="cursor: pointer;">' + contract.contract_number + '</span></td>' +
+                            '<td><span class="detail-link" data-id="' + contract.contract_id + '">' + contract.contract_number + '</span></td>' +
                             '<td>' + contract.merchant_name + '</td>' +
                             '<td>' + contract.contact_person + '</td>' +
                             '<td>' + (contract.start_date || '-') + '</td>' +
@@ -340,7 +325,7 @@ $(document).on('click', '.page-link', function(e) {
     }
 });
 
-$(document).on('click', '.contract-number-link', function() {
+$(document).on('click', '.detail-link', function() {
     var contractId = $(this).data('id');
     $('#viewModal').modal('show');
     loadContractDetail(contractId);

@@ -10,15 +10,6 @@
 {% endblock %}
 
 {% block extra_css %}
-<style>
-    .sortable { cursor: pointer; user-select: none; white-space: nowrap; }
-    .sortable:hover { color: var(--color-primary, #165DFF); }
-    .sortable .sort-icon { margin-left: 4px; font-size: 0.7em; opacity: 0.4; }
-    .sortable.asc .sort-icon, .sortable.desc .sort-icon { opacity: 1; color: var(--color-primary, #165DFF); }
-    .sortable.asc .sort-icon::after { content: ' \25B2'; }
-    .sortable.desc .sort-icon::after { content: ' \25BC'; }
-    .sortable:not(.asc):not(.desc) .sort-icon::after { content: ' \25B2'; }
-</style>
 {% endblock %}
 
 {% block content %}
