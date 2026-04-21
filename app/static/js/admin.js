@@ -293,3 +293,222 @@ function animateValue(el, target, duration, isMoney) {
  * 面包屑已迁移为圆角色块格式，直接由子页面 breadcrumb block 渲染
  * 无需 JS 解析旧格式
  */
+
+/**
+ * 统一分页 HTML 生成器
+ * @param {string} container - 分页容器选择器（如 '#pagination'）
+ * @param {object} data - { current_page, total_pages, total }
+ * @param {function} onPageClick - function(pageNumber) 点击页码回调
+ */
+function renderPagination(container, data, onPageClick) {
+    var el = $(container);
+    if (!el.length) return;
+    el.empty();
+
+    var totalPages = data.total_pages;
+    var curPage = data.current_page;
+
+    if (totalPages <= 1) {
+        var area = el.closest('#paginationArea');
+        if (area.length) area.hide();
+        return;
+    }
+    var area = el.closest('#paginationArea');
+    if (area.length) area.show();
+
+    var html = '';
+    html += '<li class="page-item ' + (curPage === 1 ? 'disabled' : '') + '">';
+    html += '<a class="page-link" href="#" data-page="' + (curPage - 1) + '">上一页</a></li>';
+
+    var startPage = Math.max(1, curPage - 2);
+    var endPage = Math.min(totalPages, curPage + 2);
+
+    if (startPage > 1) {
+        html += '<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>';
+        if (startPage > 2) {
+            html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+    }
+
+    for (var i = startPage; i <= endPage; i++) {
+        html += '<li class="page-item ' + (i === curPage ? 'active' : '') + '">';
+        html += '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
+    }
+
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+        html += '<li class="page-item"><a class="page-link" href="#" data-page="' + totalPages + '">' + totalPages + '</a></li>';
+    }
+
+    html += '<li class="page-item ' + (curPage === totalPages ? 'disabled' : '') + '">';
+    html += '<a class="page-link" href="#" data-page="' + (curPage + 1) + '">下一页</a></li>';
+
+    el.html(html);
+
+    el.off('click', '.page-link').on('click', '.page-link', function(e) {
+        e.preventDefault();
+        var page = $(this).data('page');
+        if (page && !$(this).closest('.page-item').hasClass('disabled')) {
+            if (typeof onPageClick === 'function') onPageClick(page);
+        }
+    });
+}
+
+/**
+ * 统一搜索绑定（按钮点击 + 回车触发）
+ * @param {string} inputId - 搜索输入框 ID
+ * @param {string} btnId - 搜索按钮 ID
+ * @param {function} callback - function() 搜索时调用
+ */
+function bindSearch(inputId, btnId, callback) {
+    var input = $('#' + inputId);
+    var btn = $('#' + btnId);
+
+    btn.off('click').on('click', function() {
+        if (typeof callback === 'function') callback();
+    });
+
+    input.off('keypress.search').on('keypress.search', function(e) {
+        if (e.which === 13) {
+            e.preventDefault();
+            if (typeof callback === 'function') callback();
+        }
+    });
+}
+
+/**
+ * 统一删除确认流程
+ * @param {object} options
+ * @param {string} options.url - 删除接口 URL
+ * @param {string|number} options.id - 要删除的记录 ID
+ * @param {string} [options.modalId='deleteModal'] - 确认模态框 ID
+ * @param {function} [options.onSuccess] - 删除成功回调
+ * @param {string} [options.message='删除成功'] - 成功提示消息
+ */
+function confirmDelete(options) {
+    var modalId = options.modalId || 'deleteModal';
+    var deleteId = options.id;
+    var deleteUrl = options.url;
+    var successMsg = options.message || '删除成功';
+
+    $('#' + modalId).modal('show');
+    $('#' + modalId + 'Confirm').off('click').on('click', function() {
+        ajaxPost(deleteUrl, { id: deleteId }, function(resp) {
+            $('#' + modalId).modal('hide');
+            showToast('success', successMsg);
+            if (typeof options.onSuccess === 'function') options.onSuccess(resp);
+        });
+    });
+}
+
+/**
+ * AJAX POST 封装（自动携带 CSRF Token）
+ * @param {string} url - 请求 URL
+ * @param {object} data - 请求数据
+ * @param {function} onSuccess - function(resp) 成功回调
+ * @param {function} [onError] - function(xhr) 失败回调
+ */
+function ajaxPost(url, data, onSuccess, onError) {
+    $.ajax({
+        url: url,
+        type: 'POST',
+        data: data,
+        headers: { 'X-CSRFToken': getCSRFToken() },
+        success: function(resp) {
+            if (typeof onSuccess === 'function') onSuccess(resp);
+        },
+        error: function(xhr) {
+            if (typeof onError === 'function') {
+                onError(xhr);
+            } else {
+                var msg = '操作失败';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    msg = xhr.responseJSON.message;
+                }
+                showToast('error', msg);
+            }
+        }
+    });
+}
+
+/**
+ * AJAX GET 封装
+ * @param {string} url - 请求 URL
+ * @param {object} params - 查询参数
+ * @param {function} onSuccess - function(resp) 成功回调
+ * @param {function} [onError] - function(xhr) 失败回调
+ */
+function ajaxGet(url, params, onSuccess, onError) {
+    $.ajax({
+        url: url,
+        type: 'GET',
+        data: params,
+        success: function(resp) {
+            if (typeof onSuccess === 'function') onSuccess(resp);
+        },
+        error: function(xhr) {
+            if (typeof onError === 'function') {
+                onError(xhr);
+            } else {
+                showToast('error', '请求失败，请刷新页面重试');
+            }
+        }
+    });
+}
+
+/**
+ * 统一状态徽章 HTML 生成
+ * @param {string} status - 状态文本
+ * @returns {string} HTML 字符串
+ */
+function statusBadge(status) {
+    var statusMap = {
+        '未付款': 'status-unpaid',
+        '未缴费': 'status-unpaid',
+        '部分付款': 'status-partial',
+        '部分缴费': 'status-partial',
+        '已付款': 'status-paid',
+        '已缴费': 'status-paid',
+        '逾期': 'status-overdue',
+        '有效': 'status-active',
+        '正常': 'status-active',
+        '活跃': 'status-active',
+        '无效': 'status-inactive',
+        '停用': 'status-inactive'
+    };
+    var cls = statusMap[status] || 'status-inactive';
+    return '<span class="status-badge ' + cls + '">' + escapeHtml(status) + '</span>';
+}
+
+/**
+ * 表格加载中占位 HTML
+ * @param {number} colspan - 列数
+ * @returns {string} HTML 字符串
+ */
+function tableLoadingHtml(colspan) {
+    return '<tr><td colspan="' + colspan + '" class="text-center py-4"><i class="fa fa-spinner fa-spin fa-2x text-muted"></i><p class="mt-2 text-muted">加载中...</p></td></tr>';
+}
+
+/**
+ * 表格空数据占位 HTML
+ * @param {number} colspan - 列数
+ * @param {string} [message='暂无数据'] - 提示消息
+ * @returns {string} HTML 字符串
+ */
+function tableEmptyHtml(colspan, message) {
+    message = message || '暂无数据';
+    return '<tr><td colspan="' + colspan + '" class="text-center py-4 text-muted"><i class="fa fa-inbox fa-2x mb-2"></i><p>' + escapeHtml(message) + '</p></td></tr>';
+}
+
+/**
+ * 表格错误占位 HTML
+ * @param {number} colspan - 列数
+ * @param {string} [message='加载失败'] - 提示消息
+ * @returns {string} HTML 字符串
+ */
+function tableErrorHtml(colspan, message) {
+    message = message || '加载失败';
+    return '<tr><td colspan="' + colspan + '" class="text-center py-4 text-danger"><i class="fa fa-exclamation-circle fa-2x mb-2"></i><p>' + escapeHtml(message) + '</p></td></tr>';
+}
