@@ -4,102 +4,6 @@
 
 {% block extra_css %}
 <style>
-.detail-section { margin-bottom: 16px; }
-.detail-section h6 { border-bottom: 1px solid var(--color-border); padding-bottom: 6px; margin-bottom: 10px; }
-.detail-field { margin-bottom: 6px; }
-.detail-field .label { color: var(--color-text-muted); font-size: 13px; }
-.detail-field .value { font-weight: 500; }
-
-/* Tab 样式增强 */
-.payable-tabs .nav-link {
-    font-weight: 600;
-    font-size: 0.9rem;
-    padding: 10px 24px;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    color: var(--color-text-muted);
-    transition: all var(--transition-fast);
-}
-.payable-tabs .nav-link:hover {
-    color: var(--color-primary);
-    background: var(--color-primary-light);
-}
-.payable-tabs .nav-link.active {
-    color: var(--color-primary);
-    background: var(--color-bg-card);
-    border-color: var(--color-border) var(--color-border) var(--color-bg-card);
-}
-
-/* 汇总金额高亮 */
-.summary-amount-cell {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-}
-.amount-unpaid { color: var(--color-danger); }
-.amount-paid { color: var(--color-success); }
-.amount-total { color: var(--color-text); }
-
-/* 客户行可点击 */
-.customer-row {
-    cursor: pointer;
-    transition: background-color var(--transition-fast);
-}
-.customer-row:hover {
-    background-color: var(--table-hover-bg) !important;
-}
-
-/* 暗色模式 */
-[data-theme="dark"] .badge.bg-info {
-    background-color: rgba(96, 165, 250, 0.18) !important;
-    color: #60A5FA !important;
-}
-[data-theme="dark"] .badge.bg-primary {
-    background-color: rgba(129, 140, 248, 0.18) !important;
-    color: #818CF8 !important;
-}
-[data-theme="dark"] .badge.bg-warning {
-    background-color: rgba(251, 191, 36, 0.18) !important;
-    color: #FBBF24 !important;
-}
-[data-theme="dark"] .badge.bg-success {
-    background-color: rgba(52, 211, 153, 0.18) !important;
-    color: #34D399 !important;
-}
-[data-theme="dark"] .btn-outline-warning {
-    color: var(--color-warning);
-    border-color: var(--color-warning);
-}
-[data-theme="dark"] .btn-outline-warning:hover {
-    background-color: rgba(251, 191, 36, 0.15);
-    color: var(--color-warning);
-}
-[data-theme="dark"] .btn-outline-info {
-    color: var(--color-info);
-    border-color: var(--color-info);
-}
-[data-theme="dark"] .btn-outline-info:hover {
-    background-color: rgba(96, 165, 250, 0.15);
-    color: var(--color-info);
-}
-[data-theme="dark"] .alert-warning {
-    background-color: rgba(251, 191, 36, 0.1);
-    border-color: rgba(251, 191, 36, 0.2);
-    color: var(--color-warning);
-}
-[data-theme="dark"] .alert-info {
-    background-color: rgba(96, 165, 250, 0.1);
-    border-color: rgba(96, 165, 250, 0.2);
-    color: var(--color-info);
-}
-[data-theme="dark"] .btn-outline-danger {
-    color: var(--color-danger);
-    border-color: var(--color-danger);
-}
-[data-theme="dark"] .btn-outline-danger:hover {
-    background-color: rgba(248, 113, 113, 0.15);
-    color: var(--color-danger);
-}
 [data-theme="dark"] #deleteInfo {
     background-color: var(--color-primary-light) !important;
 }
@@ -132,7 +36,7 @@
     </div>
     <div class="card-body">
         <!-- 筛选栏 -->
-        <div class="row mb-3">
+        <div class="filter-form row mb-3">
             <div class="col-md-4">
                 <div class="input-group">
                     <span class="input-group-text"><i class="fa fa-search"></i></span>
@@ -155,7 +59,7 @@
         </div>
 
         <!-- Tab 导航 -->
-        <ul class="nav nav-tabs payable-tabs mb-0" id="payableTab" role="tablist">
+        <ul class="nav nav-tabs enhanced-tabs mb-0" id="payableTab" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="customer-tab" data-bs-toggle="tab" data-bs-target="#customerView" type="button" role="tab" aria-controls="customerView" aria-selected="true">
                     <i class="fa fa-users"></i> 按客户显示

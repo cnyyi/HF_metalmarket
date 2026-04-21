@@ -9,84 +9,10 @@
 
 {% block extra_css %}
 <style>
-    .table th, .table td {
-        vertical-align: middle;
-    }
     .badge {
         font-size: 0.8rem;
         padding: 0.4em 0.8em;
         border-radius: 0.5rem;
-    }
-    .filter-form {
-        background: var(--color-bg-light);
-        border-radius: 8px;
-        padding: 16px;
-        border: 1px solid var(--color-border);
-    }
-    .summary-row td {
-        font-weight: 700;
-        background-color: rgba(129, 140, 248, 0.08) !important;
-        border-top: 2px solid var(--color-primary, #818CF8) !important;
-    }
-    [data-theme="dark"] .summary-row td {
-        background-color: rgba(129, 140, 248, 0.12) !important;
-    }
-    /* 暗色模式适配 */
-    [data-theme="dark"] .badge.bg-warning {
-        background-color: rgba(251, 191, 36, 0.18) !important;
-        color: #FBBF24 !important;
-    }
-    [data-theme="dark"] .badge.bg-success {
-        background-color: rgba(52, 211, 153, 0.18) !important;
-        color: #34D399 !important;
-    }
-    [data-theme="dark"] .badge.bg-secondary {
-        background-color: rgba(156, 163, 175, 0.18) !important;
-        color: #9CA3AF !important;
-    }
-    [data-theme="dark"] .btn-outline-info {
-        color: var(--color-info);
-        border-color: var(--color-info);
-    }
-    [data-theme="dark"] .btn-outline-info:hover {
-        background-color: rgba(96, 165, 250, 0.15);
-        color: var(--color-info);
-    }
-    [data-theme="dark"] .btn-outline-primary {
-        color: var(--color-primary);
-        border-color: var(--color-primary);
-    }
-    [data-theme="dark"] .btn-outline-primary:hover {
-        background-color: rgba(129, 140, 248, 0.15);
-        color: var(--color-primary);
-    }
-    [data-theme="dark"] .btn-outline-danger {
-        color: var(--color-danger);
-        border-color: var(--color-danger);
-    }
-    [data-theme="dark"] .btn-outline-danger:hover {
-        background-color: rgba(248, 113, 113, 0.15);
-        color: var(--color-danger);
-    }
-    [data-theme="dark"] .btn-success {
-        background-color: rgba(52, 211, 153, 0.18);
-        border-color: #34D399;
-        color: #34D399;
-    }
-    [data-theme="dark"] .btn-success:hover {
-        background-color: rgba(52, 211, 153, 0.28);
-        color: #34D399;
-    }
-    [data-theme="dark"] .text-muted {
-        color: var(--color-text-muted) !important;
-    }
-    [data-theme="dark"] .alert-info {
-        background-color: rgba(96, 165, 250, 0.1);
-        border-color: rgba(96, 165, 250, 0.2);
-        color: var(--color-info);
-    }
-    [data-theme="dark"] .alert-info a {
-        color: var(--color-info);
     }
 </style>
 {% endblock %}
