@@ -154,31 +154,12 @@ $(function() {
             tfoot.show();
 
             // 分页
-            if (data.total_pages > 1) {
-                var phtml = '';
-                phtml += '<li class="page-item ' + (data.page <= 1 ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (data.page - 1) + '">上一页</a></li>';
-                for (var p = 1; p <= data.total_pages; p++) {
-                    phtml += '<li class="page-item ' + (p === data.page ? 'active' : '') + '"><a class="page-link" href="#" data-page="' + p + '">' + p + '</a></li>';
-                }
-                phtml += '<li class="page-item ' + (data.page >= data.total_pages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (data.page + 1) + '">下一页</a></li>';
-                $('#paginationList').html(phtml);
-                $('#paginationNav').show();
-            } else {
-                $('#paginationNav').hide();
-            }
+            renderPagination('#paginationList', { current_page: data.page, total_pages: data.total_pages, total: data.total }, function(page) { loadOrders(page); });
         });
     }
 
     // 搜索
-    $('#btnSearch').click(function() { loadOrders(1); });
-    $('#searchInput').keypress(function(e) { if (e.which === 13) { e.preventDefault(); loadOrders(1); } });
-
-    // 分页点击
-    $(document).on('click', '#paginationList .page-link', function(e) {
-        e.preventDefault();
-        var page = $(this).data('page');
-        if (page && page >= 1) loadOrders(page);
-    });
+    bindSearch('searchInput', 'btnSearch', function() { loadOrders(1); });
 
     // 工具函数
     function escapeHtml(str) {

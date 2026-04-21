@@ -182,7 +182,7 @@ $(function() {
                         $('#pagination').empty();
                         $('#pageInfo').text(`共 ${totalCount} 条（全部显示）`);
                     } else {
-                        renderPagination();
+                        renderPageNav();
                         updatePageInfo();
                     }
                 } else {
@@ -267,67 +267,11 @@ $(function() {
     }
 
     // 渲染分页
-    function renderPagination() {
-        const pagination = $('#pagination');
-        pagination.empty();
-
-        if (totalPages <= 1) return;
-
-        // 上一页
-        pagination.append(`
-            <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
-                <a class="page-link" href="#" data-page="${currentPage - 1}">
-                    <i class="fa fa-chevron-left"></i>
-                </a>
-            </li>
-        `);
-
-        // 页码
-        let startPage = Math.max(1, currentPage - 2);
-        let endPage = Math.min(totalPages, startPage + 4);
-
-        if (endPage - startPage < 4) {
-            startPage = Math.max(1, endPage - 4);
-        }
-
-        if (startPage > 1) {
-            pagination.append(`
-                <li class="page-item">
-                    <a class="page-link" href="#" data-page="1">1</a>
-                </li>
-            `);
-            if (startPage > 2) {
-                pagination.append('<li class="page-item disabled"><span class="page-link">...</span></li>');
-            }
-        }
-
-        for (let i = startPage; i <= endPage; i++) {
-            pagination.append(`
-                <li class="page-item ${i === currentPage ? 'active' : ''}">
-                    <a class="page-link" href="#" data-page="${i}">${i}</a>
-                </li>
-            `);
-        }
-
-        if (endPage < totalPages) {
-            if (endPage < totalPages - 1) {
-                pagination.append('<li class="page-item disabled"><span class="page-link">...</span></li>');
-            }
-            pagination.append(`
-                <li class="page-item">
-                    <a class="page-link" href="#" data-page="${totalPages}">${totalPages}</a>
-                </li>
-            `);
-        }
-
-        // 下一页
-        pagination.append(`
-            <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
-                <a class="page-link" href="#" data-page="${currentPage + 1}">
-                    <i class="fa fa-chevron-right"></i>
-                </a>
-            </li>
-        `);
+    function renderPageNav() {
+        renderPagination('#pagination', { current_page: currentPage, total_pages: totalPages, total: totalCount }, function(page) {
+            currentPage = page;
+            loadData();
+        });
     }
 
     // 更新分页信息
@@ -342,18 +286,8 @@ $(function() {
         }
     }
 
-    // 分页点击事件
-    $(document).on('click', '.page-link', function(e) {
-        e.preventDefault();
-        const page = $(this).data('page');
-        if (page && page !== currentPage && page >= 1 && page <= totalPages) {
-            currentPage = page;
-            loadData();
-        }
-    });
-
     // 搜索按钮点击事件
-    $('#btnSearch').click(function() {
+    bindSearch('searchInput', 'btnSearch', function() {
         currentPage = 1;
         showAll = false;
         updateShowAllBtn();

@@ -485,9 +485,14 @@
         </div>
         <div class="today-footer">
             <span class="today-count" id="todayCountInfo">共 0 条记录</span>
-            <nav id="todayPagination" style="display:none;">
-                <ul class="pagination pagination-sm mb-0" id="todayPaginationList"></ul>
-            </nav>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-outline-secondary" id="btnToggleShowAll">
+                    <i class="fa fa-expand"></i> 显示全部
+                </button>
+                <nav id="todayPagination" style="display:none;">
+                    <ul class="pagination pagination-sm mb-0" id="todayPaginationList"></ul>
+                </nav>
+            </div>
         </div>
     </div>
 </div>
@@ -525,6 +530,7 @@ function formatNumber(n) {
 }
 var todayPage = 1;
 var todayPerPage = 15;
+var showAllToday = false;
 
 function animateValue(el, endVal, duration, isCurrency) {
     if (!el) return;
@@ -770,11 +776,12 @@ function loadTodayRecords(page) {
     if (!page) page = 1;
     todayPage = page;
     var keyword = $('#todayKeyword').val().trim();
+    var perPage = showAllToday ? 9999 : todayPerPage;
 
     $.ajax({
         url: '{{ url_for("scale.api_dashboard_today") }}',
         type: 'GET',
-        data: { page: page, per_page: todayPerPage, keyword: keyword || '' },
+        data: { page: 1, per_page: perPage, keyword: keyword || '' },
         success: function(resp) {
             if (resp.success) {
                 renderTodayTable(resp.data);
@@ -827,26 +834,10 @@ function renderTodayTable(data) {
 }
 
 function renderTodayPagination(data) {
-    var totalPages = data.total_pages;
-    var curPage = data.current_page;
-    if (totalPages <= 1) { $('#todayPagination').hide(); return; }
-
-    var html = '';
-    html += '<li class="page-item ' + (curPage === 1 ? 'disabled' : '') + '">';
-    html += '<a class="page-link" href="#" data-page="' + (curPage - 1) + '">‹</a></li>';
-
-    var startPage = Math.max(1, curPage - 2);
-    var endPage = Math.min(totalPages, curPage + 2);
-    for (var i = startPage; i <= endPage; i++) {
-        html += '<li class="page-item ' + (i === curPage ? 'active' : '') + '">';
-        html += '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
-    }
-
-    html += '<li class="page-item ' + (curPage === totalPages ? 'disabled' : '') + '">';
-    html += '<a class="page-link" href="#" data-page="' + (curPage + 1) + '">›</a></li>';
-
-    $('#todayPaginationList').html(html);
-    $('#todayPagination').show();
+    renderPagination('#todayPaginationList', { current_page: data.current_page, total_pages: data.total_pages, total: data.total }, function(page) {
+        loadTodayRecords(page);
+    });
+    if (showAllToday || data.total_pages <= 1) { $('#todayPagination').hide(); } else { $('#todayPagination').show(); }
 }
 
 function showPlateDetail(recordId) {
@@ -919,15 +910,17 @@ $(document).ready(function() {
         }, 1500);
     });
 
-    $(document).on('click', '#todayPaginationList .page-link', function(e) {
-        e.preventDefault();
-        var page = $(this).data('page');
-        if (page && page >= 1) loadTodayRecords(page);
-    });
+    bindSearch('todayKeyword', 'btnTodaySearch', function() { loadTodayRecords(1); });
 
-    $('#btnTodaySearch').on('click', function() { loadTodayRecords(1); });
-    $('#todayKeyword').on('keypress', function(e) {
-        if (e.which === 13) loadTodayRecords(1);
+    $('#btnToggleShowAll').on('click', function() {
+        showAllToday = !showAllToday;
+        var $btn = $(this);
+        if (showAllToday) {
+            $btn.html('<i class="fa fa-compress"></i> 分页显示');
+        } else {
+            $btn.html('<i class="fa fa-expand"></i> 显示全部');
+        }
+        loadTodayRecords(1);
     });
 
     $(document).on('click', '.plate-link', function() {

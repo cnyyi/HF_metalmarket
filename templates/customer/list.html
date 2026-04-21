@@ -217,30 +217,7 @@ function renderTable(data) {
         html += '</td></tr>';
     }
     tbody.html(html);
-    renderPagination(data);
-}
-
-function renderPagination(data) {
-    var totalPages = data.total_pages;
-    var curPage = data.current_page;
-    if (totalPages <= 1) { $('#paginationNav').hide(); return; }
-    var html = '<li class="page-item ' + (curPage === 1 ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (curPage - 1) + '">上一页</a></li>';
-    var startPage = Math.max(1, curPage - 2);
-    var endPage = Math.min(totalPages, curPage + 2);
-    if (startPage > 1) {
-        html += '<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>';
-        if (startPage > 2) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-    }
-    for (var i = startPage; i <= endPage; i++) {
-        html += '<li class="page-item ' + (i === curPage ? 'active' : '') + '"><a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
-    }
-    if (endPage < totalPages) {
-        if (endPage < totalPages - 1) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-        html += '<li class="page-item"><a class="page-link" href="#" data-page="' + totalPages + '">' + totalPages + '</a></li>';
-    }
-    html += '<li class="page-item ' + (curPage === totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (curPage + 1) + '">下一页</a></li>';
-    $('#paginationList').html(html);
-    $('#paginationNav').show();
+    renderPagination('#paginationList', data, function(page) { loadCustomers(page); });
 }
 
 function openAddModal() {
@@ -346,14 +323,8 @@ function deleteCustomer(id, name) {
 
 $(document).ready(function() {
     loadCustomers(1);
-    $('#btnSearch').on('click', function() { loadCustomers(1); });
-    $('#searchInput').on('keypress', function(e) { if (e.which === 13) loadCustomers(1); });
+    bindSearch('searchInput', 'btnSearch', function() { loadCustomers(1); });
     $('#statusFilter').on('change', function() { loadCustomers(1); });
-    $(document).on('click', '#paginationList .page-link', function(e) {
-        e.preventDefault();
-        var page = $(this).data('page');
-        if (page && page >= 1) loadCustomers(page);
-    });
     $('#btnAddCustomer').on('click', openAddModal);
     $(document).on('click', '.btn-edit', function() { openEditModal($(this).data('id')); });
     $(document).on('click', '.btn-delete', function() { deleteCustomer($(this).data('id'), $(this).data('name')); });

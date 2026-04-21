@@ -296,7 +296,7 @@ function renderTable(data) {
     updateUnitPriceColumn();
 
     $('#pageInfo').text('共 ' + data.total_count + ' 条记录，第 ' + data.page + '/' + data.total_pages + ' 页');
-    renderPagination(data.page, data.total_pages);
+    renderPagination('#pagination', { current_page: data.page, total_pages: data.total_pages, total: data.total }, function(page) { loadList(page); });
     updateBatchButtons();
 }
 
@@ -309,38 +309,6 @@ function updateUnitPriceColumn() {
         $('.unit-price-col').hide();
         $('#dictTableBody td:nth-child(8)').hide();
     }
-}
-
-function renderPagination(current, totalPages) {
-    var $ul = $('#pagination');
-    $ul.empty();
-
-    if (totalPages <= 1) return;
-
-    $ul.append('<li class="page-item ' + (current <= 1 ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="loadList(' + (current - 1) + ');return false;">上一页</a></li>');
-
-    var start = Math.max(1, current - 2);
-    var end = Math.min(totalPages, current + 2);
-
-    if (start > 1) {
-        $ul.append('<li class="page-item"><a class="page-link" href="#" onclick="loadList(1);return false;">1</a></li>');
-        if (start > 2) {
-            $ul.append('<li class="page-item disabled"><span class="page-link">...</span></li>');
-        }
-    }
-
-    for (var i = start; i <= end; i++) {
-        $ul.append('<li class="page-item ' + (i === current ? 'active' : '') + '"><a class="page-link" href="#" onclick="loadList(' + i + ');return false;">' + i + '</a></li>');
-    }
-
-    if (end < totalPages) {
-        if (end < totalPages - 1) {
-            $ul.append('<li class="page-item disabled"><span class="page-link">...</span></li>');
-        }
-        $ul.append('<li class="page-item"><a class="page-link" href="#" onclick="loadList(' + totalPages + ');return false;">' + totalPages + '</a></li>');
-    }
-
-    $ul.append('<li class="page-item ' + (current >= totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="loadList(' + (current + 1) + ');return false;">下一页</a></li>');
 }
 
 function openAddModal() {
@@ -603,10 +571,7 @@ $(document).ready(function() {
     loadDictTypes();
     loadList(1);
 
-    $('#btnSearch').on('click', function() { loadList(1); });
-    $('#filterKeyword').on('keypress', function(e) {
-        if (e.which === 13) { e.preventDefault(); loadList(1); }
-    });
+    bindSearch('filterKeyword', 'btnSearch', function() { loadList(1); });
     $('#filterDictType').on('change', function() { loadList(1); });
     $('#filterStatus').on('change', function() { loadList(1); });
 
