@@ -331,19 +331,8 @@ function loadList(page) {
 
         $('#dataBody').html(html);
         $('#pageInfo').text(`共 ${data.total_count} 条，第 ${data.current_page}/${data.total_pages} 页`);
-        renderPagination(data);
+        renderPagination('#pagination', data, function(page) { loadList(page); });
     });
-}
-
-function renderPagination(data) {
-    if (data.total_pages <= 1) { $('#pagination').html(''); return; }
-    let html = '<ul class="pagination pagination-sm mb-0">';
-    for (let i = 1; i <= data.total_pages; i++) {
-        html += `<li class="page-item ${i === data.current_page ? 'active' : ''}">
-            <a class="page-link" href="#" onclick="loadList(${i});return false">${i}</a></li>`;
-    }
-    html += '</ul>';
-    $('#pagination').html(html);
 }
 
 function resetFilters() {

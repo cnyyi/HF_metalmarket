@@ -11,8 +11,13 @@ class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
     
-    # 密钥配置（生产环境使用环境变量）
+    # 密钥配置（生产环境必须设置环境变量）
     SECRET_KEY = os.environ.get('SECRET_KEY')
+    if not SECRET_KEY:
+        raise RuntimeError(
+            'SECRET_KEY 环境变量在生产环境必填。'
+            '生成方式: python -c "import secrets; print(secrets.token_hex(32))"'
+        )
     
     # 数据库配置（生产环境）
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')

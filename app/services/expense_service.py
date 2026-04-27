@@ -4,8 +4,9 @@
 负责费用单的创建、查询、详情等业务逻辑，确认后自动联动生成应付账款
 """
 import logging
-from datetime import datetime, date
 from utils.database import DBConnection
+from utils.format_utils import format_date, format_datetime
+from utils.sequence import generate_serial_no
 from app.services.dict_service import DictService
 
 logger = logging.getLogger(__name__)
@@ -79,11 +80,11 @@ class ExpenseService:
                     'expense_category': row.ExpenseCategory,
                     'vendor_name': row.VendorName,
                     'total_amount': float(row.TotalAmount),
-                    'order_date': row.OrderDate.strftime('%Y-%m-%d') if row.OrderDate else '',
+                    'order_date': format_date(row.OrderDate),
                     'description': row.Description or '',
                     'status': row.Status,
                     'create_by_name': row.CreateByName or '',
-                    'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                    'create_time': format_datetime(row.CreateTime),
                     'item_count': row.ItemCount,
                 })
 
@@ -124,11 +125,11 @@ class ExpenseService:
                 'expense_category': row.ExpenseCategory,
                 'vendor_name': row.VendorName,
                 'total_amount': float(row.TotalAmount),
-                'order_date': row.OrderDate.strftime('%Y-%m-%d') if row.OrderDate else '',
+                'order_date': format_date(row.OrderDate),
                 'description': row.Description or '',
                 'status': row.Status,
                 'create_by_name': row.CreateByName or '',
-                'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                'create_time': format_datetime(row.CreateTime),
             }
 
             # 明细行（含应付状态）
@@ -155,7 +156,7 @@ class ExpenseService:
                     'item_description': ir.ItemDescription or '',
                     'amount': float(ir.Amount),
                     'worker_name': ir.WorkerName or '',
-                    'work_date': ir.WorkDate.strftime('%Y-%m-%d') if ir.WorkDate else '',
+                    'work_date': format_date(ir.WorkDate),
                     'payable_id': ir.PayableID,
                     'payable_status': ir.PayableStatus or '',
                     'payable_paid_amount': float(ir.PayablePaidAmount) if ir.PayablePaidAmount else 0,
@@ -208,7 +209,7 @@ class ExpenseService:
             cursor = conn.cursor()
 
             # 1. 生成单号
-            order_no = self._generate_order_no(cursor)
+            order_no = generate_serial_no(cursor, 'EO', 'ExpenseOrder', 'OrderNo')
 
             # 2. 插入费用单主表
             cursor.execute("""
@@ -284,26 +285,6 @@ class ExpenseService:
                 'order_no': order_no,
                 'payable_count': payable_count,
             }
-
-    def _generate_order_no(self, cursor):
-        """生成单号：EO + 年月日(8位) + 序号(3位)"""
-        today = date.today().strftime('%Y%m%d')
-        prefix = f'EO{today}'
-
-        cursor.execute("""
-            SELECT OrderNo FROM ExpenseOrder
-            WHERE OrderNo LIKE ?
-            ORDER BY OrderNo DESC
-        """, (f'{prefix}%',))
-        row = cursor.fetchone()
-
-        if row:
-            last_no = row[0]
-            seq = int(last_no[-3:]) + 1
-        else:
-            seq = 1
-
-        return f'{prefix}{seq:03d}'
 
     # ========== 统计 ==========
 

@@ -6,6 +6,7 @@ from flask_login import login_required
 from datetime import datetime
 
 from app.services.admin_service import AdminService
+from app.api_response import handle_exception
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 admin_svc = AdminService()
@@ -29,9 +30,4 @@ def dashboard_stats():
             'data': admin_svc.get_dashboard_stats()
         })
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).error(f'dashboard_stats API异常: {e}', exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return handle_exception(e)

@@ -7,6 +7,7 @@ import logging
 import os
 from datetime import datetime, date
 from utils.database import DBConnection
+from utils.format_utils import format_date, format_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class DormService:
                 SELECT dr.RoomID, dr.RoomNumber, dr.RoomType, dr.Area,
                        dr.MonthlyRent, dr.WaterQuota, dr.ElectricityUnitPrice,
                        dr.MeterNumber, dr.LastReading, dr.Status, dr.Description,
-                       dr.CreateTime,
+                       dr.CreateTime, dr.WaterMode, dr.WaterUnitPrice,
                        o.TenantName, o.TenantPhone, o.TenantType, o.OccupancyID
                 FROM DormRoom dr
                 LEFT JOIN DormOccupancy o ON dr.RoomID = o.RoomID AND o.Status = N'在住'
@@ -76,6 +77,8 @@ class DormService:
                     'monthly_rent': float(row.MonthlyRent),
                     'water_quota': float(row.WaterQuota),
                     'electricity_unit_price': float(row.ElectricityUnitPrice),
+                    'water_mode': row.WaterMode or 'quota',
+                    'water_unit_price': float(row.WaterUnitPrice),
                     'meter_number': row.MeterNumber or '',
                     'last_reading': float(row.LastReading) if row.LastReading else 0,
                     'status': row.Status,
@@ -111,7 +114,8 @@ class DormService:
 
     def create_room(self, room_number, room_type='单间', area=None,
                     monthly_rent=0, water_quota=0, electricity_unit_price=1.0,
-                    meter_number=None, description=None):
+                    meter_number=None, description=None,
+                    water_mode='quota', water_unit_price=0):
         """新增房间"""
         if not room_number:
             raise ValueError("房间编号不能为空")
@@ -125,11 +129,13 @@ class DormService:
 
             cursor.execute("""
                 INSERT INTO DormRoom (RoomNumber, RoomType, Area, MonthlyRent, WaterQuota,
-                                      ElectricityUnitPrice, MeterNumber, Description)
+                                      ElectricityUnitPrice, MeterNumber, Description,
+                                      WaterMode, WaterUnitPrice)
                 OUTPUT INSERTED.RoomID
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, room_number, room_type, area, monthly_rent, water_quota,
-                 electricity_unit_price, meter_number, description)
+                 electricity_unit_price, meter_number, description,
+                 water_mode, water_unit_price)
 
             row = cursor.fetchone()
             new_id = row[0] if row else None
@@ -151,7 +157,8 @@ class DormService:
             params = []
 
             allowed_fields = ['room_type', 'area', 'monthly_rent', 'water_quota',
-                              'electricity_unit_price', 'meter_number', 'status', 'description']
+                              'electricity_unit_price', 'meter_number', 'status', 'description',
+                              'water_mode', 'water_unit_price']
             for field in allowed_fields:
                 if field in kwargs and kwargs[field] is not None:
                     db_field = ''.join(word.capitalize() for word in field.split('_'))
@@ -200,6 +207,7 @@ class DormService:
                        o.IDCardNumber, o.IDCardFrontPhoto, o.IDCardBackPhoto,
                        o.MoveInDate, o.MoveOutDate, o.Status, o.Description,
                        o.CreateTime,
+                       o.MonthlyRent, o.WaterMode, o.WaterQuota, o.WaterUnitPrice, o.ElectricityUnitPrice,
                        m.MerchantName
                 FROM DormOccupancy o
                 INNER JOIN DormRoom dr ON o.RoomID = dr.RoomID
@@ -259,6 +267,11 @@ class DormService:
                     'status': row.Status,
                     'description': row.Description or '',
                     'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                    'monthly_rent': float(row.MonthlyRent),
+                    'water_mode': row.WaterMode or 'quota',
+                    'water_quota': float(row.WaterQuota),
+                    'water_unit_price': float(row.WaterUnitPrice),
+                    'electricity_unit_price': float(row.ElectricityUnitPrice),
                 })
 
             total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 0
@@ -273,7 +286,9 @@ class DormService:
     def check_in(self, room_id, tenant_type='个人', merchant_id=None,
                  tenant_name=None, tenant_phone=None,
                  id_card_number=None, id_card_front_photo=None, id_card_back_photo=None,
-                 move_in_date=None, description=None):
+                 move_in_date=None, description=None,
+                 monthly_rent=None, water_mode='quota', water_quota=None,
+                 water_unit_price=None, electricity_unit_price=None):
         """办理入住"""
         if not tenant_name:
             raise ValueError("租户姓名不能为空")
@@ -286,23 +301,35 @@ class DormService:
             cursor = conn.cursor()
 
             # 检查房间状态
-            cursor.execute("SELECT Status FROM DormRoom WHERE RoomID = ?", room_id)
+            cursor.execute("SELECT Status, MonthlyRent, WaterMode, WaterQuota, WaterUnitPrice, ElectricityUnitPrice FROM DormRoom WHERE RoomID = ?", room_id)
             room = cursor.fetchone()
             if not room:
                 raise ValueError("房间不存在")
             if room.Status == '已住':
                 raise ValueError("该房间已有在住人员，请先办理退房")
 
+            # 默认值回填：未传参时取房间默认值
+            if monthly_rent is None:
+                monthly_rent = float(room.MonthlyRent)
+            if water_quota is None:
+                water_quota = float(room.WaterQuota)
+            if water_unit_price is None:
+                water_unit_price = float(room.WaterUnitPrice)
+            if electricity_unit_price is None:
+                electricity_unit_price = float(room.ElectricityUnitPrice)
+
             # 创建入住记录
             cursor.execute("""
                 INSERT INTO DormOccupancy (RoomID, TenantType, MerchantID, TenantName, TenantPhone,
                                            IDCardNumber, IDCardFrontPhoto, IDCardBackPhoto,
-                                           MoveInDate, Status, Description)
+                                           MoveInDate, Status, Description,
+                                           MonthlyRent, WaterMode, WaterQuota, WaterUnitPrice, ElectricityUnitPrice)
                 OUTPUT INSERTED.OccupancyID
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, N'在住', ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, N'在住', ?, ?, ?, ?, ?, ?)
             """, room_id, tenant_type, merchant_id, tenant_name, tenant_phone,
                  id_card_number, id_card_front_photo, id_card_back_photo,
-                 move_in_date, description)
+                 move_in_date, description,
+                 monthly_rent, water_mode, water_quota, water_unit_price, electricity_unit_price)
 
             row = cursor.fetchone()
             occupancy_id = row[0] if row else None
@@ -354,6 +381,7 @@ class DormService:
                        o.IDCardNumber, o.IDCardFrontPhoto, o.IDCardBackPhoto,
                        o.MoveInDate, o.MoveOutDate, o.Status, o.Description,
                        o.CreateTime, o.UpdateTime,
+                       o.MonthlyRent, o.WaterMode, o.WaterQuota, o.WaterUnitPrice, o.ElectricityUnitPrice,
                        m.MerchantName
                 FROM DormOccupancy o
                 INNER JOIN DormRoom dr ON o.RoomID = dr.RoomID
@@ -448,8 +476,11 @@ class DormService:
 
             # 获取房间信息
             cursor.execute("""
-                SELECT RoomID, LastReading, ElectricityUnitPrice, Status
-                FROM DormRoom WHERE RoomID = ?
+                SELECT dr.RoomID, dr.LastReading, dr.Status,
+                       ISNULL(o.ElectricityUnitPrice, dr.ElectricityUnitPrice) AS ElectricityUnitPrice
+                FROM DormRoom dr
+                LEFT JOIN DormOccupancy o ON dr.RoomID = o.RoomID AND o.Status = N'在住'
+                WHERE dr.RoomID = ?
             """, room_id)
             room = cursor.fetchone()
             if not room:
@@ -515,7 +546,8 @@ class DormService:
         with DBConnection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT dr.RoomID, dr.RoomNumber, dr.LastReading, dr.ElectricityUnitPrice,
+                SELECT dr.RoomID, dr.RoomNumber, dr.LastReading,
+                       ISNULL(o.ElectricityUnitPrice, dr.ElectricityUnitPrice) AS ElectricityUnitPrice,
                        dr.MeterNumber, o.TenantName
                 FROM DormRoom dr
                 LEFT JOIN DormOccupancy o ON dr.RoomID = o.RoomID AND o.Status = N'在住'
@@ -537,6 +569,181 @@ class DormService:
                 })
             return items
 
+    # ========== 水表抄表 ==========
+
+    def get_water_readings(self, page=1, per_page=50, year_month=None, room_id=None):
+        """获取水表读数列表"""
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+
+            base_query = """
+                SELECT wr.ReadingID, wr.RoomID, dr.RoomNumber, wr.YearMonth,
+                       wr.PreviousReading, wr.CurrentReading, wr.Consumption,
+                       wr.UnitPrice, wr.Amount, wr.ReadingDate, wr.OccupancyID,
+                       wr.CreateTime,
+                       o.TenantName
+                FROM DormWaterReading wr
+                INNER JOIN DormRoom dr ON wr.RoomID = dr.RoomID
+                LEFT JOIN DormOccupancy o ON wr.OccupancyID = o.OccupancyID
+            """
+            count_query = "SELECT COUNT(*) FROM DormWaterReading wr"
+
+            conditions = []
+            params = []
+
+            if year_month:
+                conditions.append("wr.YearMonth = ?")
+                params.append(year_month)
+
+            if room_id:
+                conditions.append("wr.RoomID = ?")
+                params.append(room_id)
+
+            where_clause = ""
+            if conditions:
+                where_clause = " WHERE " + " AND ".join(conditions)
+                base_query += where_clause
+                count_query += where_clause
+
+            offset = (page - 1) * per_page
+            base_query += " ORDER BY wr.ReadingID DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
+            params.extend([offset, per_page])
+
+            cursor.execute(base_query, params)
+            rows = cursor.fetchall()
+
+            count_params = params[:-2]
+            cursor.execute(count_query, count_params)
+            total_count = cursor.fetchone()[0]
+
+            total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 0
+
+            items = []
+            for row in rows:
+                items.append({
+                    'reading_id': row.ReadingID,
+                    'room_id': row.RoomID,
+                    'room_number': row.RoomNumber,
+                    'year_month': row.YearMonth,
+                    'previous_reading': float(row.PreviousReading),
+                    'current_reading': float(row.CurrentReading),
+                    'consumption': float(row.Consumption),
+                    'unit_price': float(row.UnitPrice),
+                    'amount': float(row.Amount),
+                    'reading_date': format_date(row.ReadingDate),
+                    'occupancy_id': row.OccupancyID,
+                    'create_time': format_datetime(row.CreateTime),
+                    'tenant_name': row.TenantName or '',
+                })
+
+            return {
+                'items': items,
+                'total_count': total_count,
+                'total_pages': total_pages,
+                'current_page': page
+            }
+
+    def save_water_reading(self, room_id, year_month, current_reading, reading_date=None):
+        """保存水表读数（新增或更新）"""
+        if not year_month:
+            raise ValueError("抄表月份不能为空")
+
+        if not reading_date:
+            reading_date = date.today().strftime('%Y-%m-%d')
+
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT dr.RoomID, dr.Status,
+                       ISNULL(o.WaterUnitPrice, 0) AS WaterUnitPrice,
+                       ISNULL(o.OccupancyID, NULL) AS OccupancyID
+                FROM DormRoom dr
+                LEFT JOIN DormOccupancy o ON dr.RoomID = o.RoomID AND o.Status = N'在住'
+                WHERE dr.RoomID = ?
+            """, room_id)
+            room = cursor.fetchone()
+            if not room:
+                raise ValueError("房间不存在")
+
+            unit_price = float(room.WaterUnitPrice)
+            if unit_price <= 0:
+                raise ValueError("该房间水费单价未设置，请先在入住记录中设置水费单价")
+
+            occupancy_id = room.OccupancyID
+
+            current_reading = float(current_reading)
+
+            cursor.execute("""
+                SELECT TOP 1 CurrentReading FROM DormWaterReading
+                WHERE RoomID = ?
+                ORDER BY YearMonth DESC, ReadingID DESC
+            """, room_id)
+            last_row = cursor.fetchone()
+            previous_reading = float(last_row.CurrentReading) if last_row else 0
+
+            if current_reading < previous_reading:
+                raise ValueError(f"读数不能小于上次读数 {previous_reading}")
+
+            consumption = current_reading - previous_reading
+            amount = round(consumption * unit_price, 2)
+
+            cursor.execute("""
+                SELECT ReadingID FROM DormWaterReading WHERE RoomID = ? AND YearMonth = ?
+            """, room_id, year_month)
+            existing = cursor.fetchone()
+
+            if existing:
+                cursor.execute("""
+                    UPDATE DormWaterReading SET
+                        PreviousReading = ?, CurrentReading = ?, Consumption = ?,
+                        UnitPrice = ?, Amount = ?, ReadingDate = ?, OccupancyID = ?
+                    WHERE ReadingID = ?
+                """, previous_reading, current_reading, consumption,
+                     unit_price, amount, reading_date, occupancy_id, existing.ReadingID)
+            else:
+                cursor.execute("""
+                    INSERT INTO DormWaterReading (RoomID, YearMonth, PreviousReading, CurrentReading,
+                                                   Consumption, UnitPrice, Amount, ReadingDate, OccupancyID)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, room_id, year_month, previous_reading, current_reading,
+                     consumption, unit_price, amount, reading_date, occupancy_id)
+
+            conn.commit()
+
+            return {
+                'consumption': consumption,
+                'amount': amount,
+                'unit_price': unit_price
+            }
+
+    def get_rooms_for_water_reading(self, year_month):
+        """获取需要水表抄表的在住房间列表（WaterMode=meter，排除已有该月读数的房间）"""
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT dr.RoomID, dr.RoomNumber,
+                       ISNULL(o.WaterUnitPrice, 0) AS WaterUnitPrice,
+                       o.TenantName
+                FROM DormRoom dr
+                INNER JOIN DormOccupancy o ON dr.RoomID = o.RoomID AND o.Status = N'在住'
+                WHERE dr.Status = N'已住'
+                  AND o.WaterMode = N'meter'
+                  AND NOT EXISTS (SELECT 1 FROM DormWaterReading wr WHERE wr.RoomID = dr.RoomID AND wr.YearMonth = ?)
+                ORDER BY dr.RoomNumber
+            """, year_month)
+            rows = cursor.fetchall()
+
+            items = []
+            for row in rows:
+                items.append({
+                    'room_id': row.RoomID,
+                    'room_number': row.RoomNumber,
+                    'water_unit_price': float(row.WaterUnitPrice),
+                    'tenant_name': row.TenantName or '',
+                })
+            return items
+
     # ========== 月度账单 ==========
 
     def get_bills(self, page=1, per_page=20, year_month=None, status=None):
@@ -548,6 +755,7 @@ class DormService:
                 SELECT b.BillID, b.RoomID, b.OccupancyID, b.YearMonth,
                        b.RentAmount, b.WaterAmount, b.ElectricityAmount, b.TotalAmount,
                        b.ReadingID, b.ReceivableID, b.Status, b.CreateTime,
+                       o.WaterMode,
                        dr.RoomNumber, dr.RoomType,
                        o.TenantName, o.TenantType, o.TenantPhone, o.MerchantID,
                        m.MerchantName
@@ -594,6 +802,7 @@ class DormService:
                     'year_month': row.YearMonth,
                     'rent_amount': float(row.RentAmount),
                     'water_amount': float(row.WaterAmount),
+                    'water_mode': row.WaterMode or 'quota',
                     'electricity_amount': float(row.ElectricityAmount),
                     'total_amount': float(row.TotalAmount),
                     'reading_id': row.ReadingID,
@@ -651,7 +860,10 @@ class DormService:
 
             # 获取所有在住房间
             cursor.execute("""
-                SELECT dr.RoomID, dr.MonthlyRent, dr.WaterQuota, dr.ElectricityUnitPrice,
+                SELECT dr.RoomID,
+                       ISNULL(o.MonthlyRent, dr.MonthlyRent) AS MonthlyRent,
+                       ISNULL(o.WaterMode, dr.WaterMode) AS WaterMode,
+                       ISNULL(o.WaterQuota, dr.WaterQuota) AS WaterQuota,
                        o.OccupancyID, o.TenantType, o.MerchantID, o.TenantName
                 FROM DormRoom dr
                 INNER JOIN DormOccupancy o ON dr.RoomID = o.RoomID AND o.Status = N'在住'
@@ -687,7 +899,19 @@ class DormService:
                     reading_id = reading.ReadingID
 
                 rent_amount = float(room.MonthlyRent)
-                water_amount = float(room.WaterQuota)
+                water_mode = room.WaterMode or 'quota'
+                if water_mode == 'meter':
+                    cursor.execute("""
+                        SELECT ReadingID, Amount FROM DormWaterReading
+                        WHERE RoomID = ? AND YearMonth = ?
+                    """, room.RoomID, year_month)
+                    water_reading = cursor.fetchone()
+                    if water_reading:
+                        water_amount = float(water_reading.Amount)
+                    else:
+                        water_amount = 0
+                else:
+                    water_amount = float(room.WaterQuota)
                 total_amount = rent_amount + water_amount + electricity_amount
 
                 cursor.execute("""

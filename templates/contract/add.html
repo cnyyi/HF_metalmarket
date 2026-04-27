@@ -30,7 +30,7 @@
                                 <div class="position-relative">
                                     <input type="text" class="form-control" id="merchantSearch" placeholder="请先选择合同期年" disabled autocomplete="off">
                                     <input type="hidden" id="merchant" name="merchant_id">
-                                    <div class="dropdown-menu w-100" id="merchantDropdown" style="max-height: 300px; overflow-y: auto;">
+                                    <div class="dropdown-menu w-100" id="merchantDropdown" style="max-height: 300px; overflow-y: auto; z-index: 1050;">
                                         <div class="dropdown-item text-muted">请先选择合同期年</div>
                                     </div>
                                 </div>
@@ -229,12 +229,16 @@ function renderMerchantDropdown(merchants) {
     dropdown.empty();
     
     if (merchants.length === 0) {
-        dropdown.html('<div class="dropdown-item text-muted">暂无可选商户</div>');
+        dropdown.html('<div class="dropdown-item text-muted">暂无商户数据</div>');
         return;
     }
     
     merchants.forEach(function(m) {
-        var item = $('<a class="dropdown-item" href="javascript:void(0)" data-id="' + m.merchant_id + '">' + m.merchant_name + '</a>');
+        var label = escapeHtml(m.merchant_name);
+        if (m.has_contract) {
+            label += ' <span class="badge bg-info ms-1">已有' + escapeHtml(m.contract_count) + '份合同</span>';
+        }
+        var item = $('<a class="dropdown-item" href="javascript:void(0)" data-id="' + escapeHtml(m.merchant_id) + '">' + label + '</a>');
         item.click(function() {
             $('#merchantSearch').val(m.merchant_name);
             $('#merchant').val(m.merchant_id);
@@ -251,7 +255,7 @@ $('#merchantSearch').on('focus', function() {
     var filtered = allMerchants.filter(function(m) {
         return m.merchant_name.toLowerCase().indexOf(keyword) > -1;
     });
-    renderMerchantDropdown(filtered);
+    renderMerchantDropdown(filtered.length > 0 ? filtered : allMerchants);
     $('#merchantDropdown').show();
 });
 
@@ -282,13 +286,14 @@ function triggerMerchantChange() {
     
     $('#start_date, #end_date').prop('disabled', false);
     
+    // 合同编号后端自动生成（含序号去重），前端仅预览基础格式
     var match = period.match(/第(\d+)期第(\d+)年/);
     if (match) {
         var periodCode = match[1] + match[2];
         var dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         var merchantIdPadded = String(merchantId).padStart(3, '0');
         var contractNumber = 'ZTHYHT' + periodCode + dateStr + merchantIdPadded;
-        $('#contract_number').val(contractNumber);
+        $('#contract_number').val(contractNumber + ' (自动生成)');
     }
 }
 
@@ -306,12 +311,12 @@ function renderPlotTable(plots) {
         var checkedAttr = isSelected ? ' checked' : '';
         
         var row = '<tr>' +
-            '<td><input type="checkbox" class="plot-checkbox" data-id="' + plot.plot_id + '"' + checkedAttr + '></td>' +
-            '<td>' + plot.plot_number + '</td>' +
+            '<td><input type="checkbox" class="plot-checkbox" data-id="' + escapeHtml(plot.plot_id) + '"' + checkedAttr + '></td>' +
+            '<td>' + escapeHtml(plot.plot_number) + '</td>' +
             '<td>';
         
         if (plot.image_path) {
-            row += '<img src="' + plot.image_path + '" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;" alt="地块图片">';
+            row += '<img src="' + escapeHtml(plot.image_path) + '" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;" alt="地块图片">';
         } else {
             row += '<span class="text-muted">无图</span>';
         }
@@ -373,11 +378,11 @@ function renderSelectedPlots() {
     
     selectedPlots.forEach(function(plot) {
         var row = '<tr>' +
-            '<td>' + plot.plot_number + '</td>' +
+            '<td>' + escapeHtml(plot.plot_number) + '</td>' +
             '<td>';
         
         if (plot.image_path) {
-            row += '<img src="' + plot.image_path + '" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;" alt="地块图片">';
+            row += '<img src="' + escapeHtml(plot.image_path) + '" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;" alt="地块图片">';
         } else {
             row += '<span class="text-muted">无图</span>';
         }
@@ -387,7 +392,7 @@ function renderSelectedPlots() {
             '<td>' + plot.unit_price.toFixed(2) + '</td>' +
             '<td>' + plot.monthly_rent.toFixed(2) + '</td>' +
             '<td>' + plot.yearly_rent.toFixed(2) + '</td>' +
-            '<td><button type="button" class="btn btn-sm btn-outline-danger remove-plot" data-id="' + plot.plot_id + '"><i class="fa fa-times"></i> 移除</button></td>' +
+            '<td><button type="button" class="btn btn-sm btn-outline-danger remove-plot" data-id="' + escapeHtml(plot.plot_id) + '"><i class="fa fa-times"></i> 移除</button></td>' +
         '</tr>';
         
         tbody.append(row);

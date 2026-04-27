@@ -204,25 +204,12 @@ $(function() {
                 });
             }
             $('#occupancyTableBody').html(html);
-            renderPagination(data);
+            renderPagination('#paginationList', data, function(page) { loadOccupancies(page); });
         });
     }
 
-    function renderPagination(data) {
-        if (data.total_pages <= 1) { $('#paginationNav').hide(); return; }
-        $('#paginationNav').show();
-        var html = '';
-        html += '<li class="page-item ' + (data.current_page <= 1 ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="loadOccupancies(' + (data.current_page - 1) + ');return false;">&laquo;</a></li>';
-        for (var i = 1; i <= data.total_pages; i++) {
-            html += '<li class="page-item ' + (i === data.current_page ? 'active' : '') + '"><a class="page-link" href="#" onclick="loadOccupancies(' + i + ');return false;">' + i + '</a></li>';
-        }
-        html += '<li class="page-item ' + (data.current_page >= data.total_pages ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="loadOccupancies(' + (data.current_page + 1) + ');return false;">&raquo;</a></li>';
-        $('#paginationList').html(html);
-    }
-
     // 搜索
-    $('#btnSearch').click(function() { loadOccupancies(1); });
-    $('#searchInput').keypress(function(e) { if (e.which === 13) loadOccupancies(1); });
+    bindSearch('searchInput', 'btnSearch', function() { loadOccupancies(1); });
 
     // 租户类型切换
     $('#tenantType').change(function() {

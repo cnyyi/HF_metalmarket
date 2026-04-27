@@ -58,13 +58,13 @@ class AdminService:
             today_expense = float(today_row[1])
 
             cursor.execute("""
-                SELECT COUNT(DISTINCT MerchantID)
+                SELECT COUNT(*)
                 FROM Contract
-                WHERE Status = N'生效'
+                WHERE Status IN (N'生效', N'有效')
                   AND StartDate <= CAST(GETDATE() AS DATE)
                   AND EndDate >= CAST(GETDATE() AS DATE)
             """)
-            active_merchants = int(cursor.fetchone()[0])
+            active_contracts = int(cursor.fetchone()[0])
 
             cursor.execute("SELECT COUNT(*) FROM Plot WHERE Status = N'已出租'")
             rented_plots = int(cursor.fetchone()[0])
@@ -243,7 +243,7 @@ class AdminService:
                     'net': today_income - today_expense
                 },
                 'merchant': {
-                    'active_count': active_merchants,
+                    'active_count': active_contracts,
                     'rented_plots': rented_plots,
                     'total_plots': total_plots,
                     'vacancy_rate': vacancy_rate

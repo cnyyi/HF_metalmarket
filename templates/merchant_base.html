@@ -1,161 +1,141 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}{% endblock %} - 商户中心 - 宏发金属交易市场</title>
-    
-    <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome 6 (含v4兼容层) -->
-    <link href="https://cdn.jsdelivr.net/npm/font-awesome@6.5.1/css/all.min.css" rel="stylesheet">
-    
-    <!-- 页面特定CSS -->
-    {% block extra_css %}{% endblock %}
-    
-    <style>
-        body {
-            padding-top: 70px;
-        }
-        .footer {
-            background-color: #f8f9fa;
-            padding: 20px 0;
-            margin-top: 40px;
-        }
-        .merchant-nav {
-            background-color: #27ae60;
-        }
-        .sidebar {
-            background-color: #f8f9fa;
-            min-height: calc(100vh - 140px);
-            padding: 20px;
-        }
-        .sidebar .nav-link {
-            color: #333;
-            padding: 10px 15px;
-            border-radius: 5px;
-            margin-bottom: 5px;
-        }
-        .sidebar .nav-link:hover {
-            background-color: #e9ecef;
-        }
-        .sidebar .nav-link.active {
-            background-color: #27ae60;
-            color: white;
-        }
-    </style>
-</head>
-<body>
-    <!-- 
-        商户端母版模板 - 预留框架
-        
-        功能说明：
-        - 包含商户特定的权限控制功能
-        - 设计为商户端专用的页面布局
-        - 与商户权限体系相匹配的访问控制机制
-        
-        待开发功能：
-        - 商户信息展示
-        - 商户特定功能菜单
-        - 商户数据统计面板
-        - 商户订单/合同管理
-        - 商户财务信息
-    -->
-    
-    <!-- 导航栏 - 商户端专用 -->
-    <nav class="navbar navbar-expand-lg navbar-dark merchant-nav fixed-top">
+{% extends "base.html" %}
+
+{% block title_suffix %} - 商户中心 - 宏发金属交易市场{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        padding-top: var(--navbar-height);
+    }
+
+    .merchant-sidebar {
+        background: var(--color-bg-light);
+        min-height: calc(100vh - var(--navbar-height) - 100px);
+        border-right: 1px solid var(--color-border-light);
+        padding: var(--space-4) 0;
+    }
+
+    .merchant-sidebar .nav-link {
+        color: var(--color-text-muted);
+        padding: 10px 20px;
+        border-radius: 0;
+        margin-bottom: 2px;
+        font-size: var(--font-size-sm);
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: all var(--transition-fast);
+        border-left: 3px solid transparent;
+    }
+
+    .merchant-sidebar .nav-link i {
+        width: 18px;
+        text-align: center;
+        font-size: 0.85rem;
+    }
+
+    .merchant-sidebar .nav-link:hover {
+        color: var(--color-primary);
+        background: var(--color-primary-light);
+        border-left-color: var(--color-primary);
+    }
+
+    .merchant-sidebar .nav-link.active {
+        color: var(--color-primary);
+        background: var(--color-primary-light);
+        border-left-color: var(--color-accent);
+        font-weight: 600;
+    }
+
+    .merchant-sidebar .sidebar-heading {
+        font-size: var(--font-size-xs);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--color-text-light);
+        padding: var(--space-4) var(--space-4) var(--space-2) 20px;
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+    <nav class="navbar navbar-expand-lg navbar-dark hf-navbar fixed-top">
         <div class="container">
-            <a class="navbar-brand" href="#">
-                <i class="fa fa-store"></i> 商户中心 - 宏发金属交易市场
+            <a class="navbar-brand" href="{{ url_for('portal.index') }}">
+                <span class="brand-icon"><i class="fa fa-store"></i></span>
+                商户中心
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#merchantNavbar" aria-controls="merchantNavbar" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="merchantNavbar">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    {% if current_user.is_authenticated %}
                     <li class="nav-item">
-                        <a class="nav-link" href="#">
+                        <a class="nav-link {% if request.endpoint == 'portal.index' %}active{% endif %}" href="{{ url_for('portal.index') }}">
                             <i class="fa fa-home"></i> 首页
                         </a>
                     </li>
-                    
-                    {% if current_user.is_authenticated %}
-                        <!-- 首页 -->
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('portal.index') }}">
-                                <i class="fa fa-home"></i> 首页
-                            </a>
-                        </li>
-                        
-                        <!-- 我的合同 -->
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('portal.contracts') }}">
-                                <i class="fa fa-file-text"></i> 我的合同
-                            </a>
-                        </li>
-                        
-                        <!-- 缴费记录 -->
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('portal.receivables') }}">
-                                <i class="fa fa-money"></i> 缴费记录
-                            </a>
-                        </li>
-                        
-                        <!-- 水电抄表 -->
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('portal.utility_readings') }}">
-                                <i class="fa fa-tint"></i> 水电抄表
-                            </a>
-                        </li>
-                        
-                        <!-- 过磅记录 -->
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('portal.scale_records') }}">
-                                <i class="fa fa-balance-scale"></i> 过磅记录
-                            </a>
-                        </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'portal.contracts' %}active{% endif %}" href="{{ url_for('portal.contracts') }}">
+                            <i class="fa fa-file-text"></i> 我的合同
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'portal.receivables' %}active{% endif %}" href="{{ url_for('portal.receivables') }}">
+                            <i class="fa fa-money"></i> 缴费记录
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'portal.utility_readings' %}active{% endif %}" href="{{ url_for('portal.utility_readings') }}">
+                            <i class="fa fa-tint"></i> 水电抄表
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'portal.scale_records' %}active{% endif %}" href="{{ url_for('portal.scale_records') }}">
+                            <i class="fa fa-balance-scale"></i> 过磅记录
+                        </a>
+                    </li>
                     {% endif %}
                 </ul>
-                
-                <!-- 商户用户菜单 -->
+
                 <ul class="navbar-nav">
                     {% if current_user.is_authenticated %}
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="fa fa-user-circle"></i> 
-                                {{ current_user.merchant_name or current_user.real_name }}
-                            </a>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="{{ url_for('portal.profile') }}"><i class="fa fa-building"></i> 商户信息</a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('user.change_password') }}"><i class="fa fa-key"></i> 修改密码</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="fa fa-sign-out"></i> 退出登录</a></li>
-                            </ul>
-                        </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fa fa-user-circle"></i>
+                            {{ current_user.merchant_name or current_user.real_name }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('portal.profile') }}"><i class="fa fa-building"></i> 商户信息</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('user.change_password') }}"><i class="fa fa-key"></i> 修改密码</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}"><i class="fa fa-sign-out"></i> 退出登录</a></li>
+                        </ul>
+                    </li>
                     {% else %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('auth.login') }}"><i class="fa fa-sign-in"></i> 登录</a>
-                        </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.login') }}"><i class="fa fa-sign-in"></i> 登录</a>
+                    </li>
                     {% endif %}
                 </ul>
             </div>
         </div>
     </nav>
 
-    <!-- 主要内容区域 - 带侧边栏布局 -->
     <div class="container-fluid">
         <div class="row">
-            <!-- 侧边栏 - 可选 -->
             {% block sidebar %}
-            <div class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+            <div class="col-md-3 col-lg-2 d-md-block merchant-sidebar collapse">
                 <div class="position-sticky pt-3">
-                    <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted">
+                    <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1">
                         <span>功能菜单</span>
                     </h6>
                     <ul class="nav flex-column">
                         <li class="nav-item">
                             <a class="nav-link {% if request.endpoint == 'portal.index' %}active{% endif %}" href="{{ url_for('portal.index') }}">
-                                <i class="fa fa-tachometer"></i> 数据概览
+                                <i class="fa fa-tachometer-alt"></i> 数据概览
                             </a>
                         </li>
                         <li class="nav-item">
@@ -187,42 +167,19 @@
                 </div>
             </div>
             {% endblock %}
-            
-            <!-- 主内容区 -->
+
             <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
-                <!-- 消息提示 -->
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for category, message in messages %}
-                            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                                {{ message }}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                            </div>
-                        {% endfor %}
-                    {% endif %}
-                {% endwith %}
-                
-                <!-- 页面内容区域 -->
+                {% include "_flash_messages.html" %}
                 {% block content %}{% endblock %}
             </main>
         </div>
     </div>
 
-    <!-- 页脚 -->
-    <footer class="footer mt-auto py-4">
+    <footer class="hf-footer mt-auto">
         <div class="container text-center">
-            <p class="text-muted mb-0">
+            <p class="footer-copyright">
                 <i class="fa fa-copyright"></i> 2026 宏发金属交易市场 - 商户中心. 保留所有权利.
             </p>
         </div>
     </footer>
-
-    <!-- jQuery 3.7.1 -->
-    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
-    <!-- Bootstrap 5 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- 页面特定JS -->
-    {% block extra_js %}{% endblock %}
-</body>
-</html>
+{% endblock %}

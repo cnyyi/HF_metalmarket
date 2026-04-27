@@ -1,6 +1,6 @@
 # 应用初始化文件
 import logging
-from flask import Flask, redirect, url_for, send_from_directory
+from flask import Flask, redirect, url_for, send_from_directory, request
 
 from config import Config
 from app.extensions import login_manager, csrf
@@ -16,7 +16,15 @@ def create_app(config_class=Config):
     import os
     app = Flask(__name__, template_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'templates'))
     app.config.from_object(config_class)
-    
+
+    # 配置日志
+    log_level = app.config.get('LOG_LEVEL', 'INFO')
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format='%(asctime)s %(levelname)s %(name)s: %(message)s',
+    )
+    logger.info(f"日志级别: {log_level}")
+
     # 导入并注册蓝图（带异常处理，非核心蓝图导入失败不阻止应用启动）
     blueprints = [
         ('app.routes.auth', 'auth_bp', '/auth', True),
@@ -35,6 +43,8 @@ def create_app(config_class=Config):
         ('app.routes.dorm', 'dorm_bp', '/dorm', False),
         ('app.routes.expense', 'expense_bp', '/expense', False),
         ('app.routes.garbage', 'garbage_bp', '/garbage', False),
+        ('app.routes.garbage_fee', 'garbage_fee_bp', '/garbage_fee', False),
+        ('app.routes.role', 'role_bp', '/role', False),
         ('app.routes.admin', 'admin_bp', None, False),
     ]
 
@@ -67,15 +77,13 @@ def create_app(config_class=Config):
     csrf.init_app(app)
     
     # 初始化合同文档服务
-    print("开始初始化合同文档服务...")
+    logger.info("开始初始化合同文档服务...")
     try:
         from app.services.contract_doc_service import contract_doc_service
         contract_doc_service.init_app(app)
-        print("合同文档服务初始化成功！")
+        logger.info("合同文档服务初始化成功")
     except Exception as e:
-        print(f"合同文档服务初始化失败：{str(e)}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"合同文档服务初始化失败：{e}")
     
     # 未登录重定向
     login_manager.login_view = 'auth.login'
@@ -117,5 +125,15 @@ def create_app(config_class=Config):
 
         upload_folder = app.config.get('UPLOAD_FOLDER', os.path.join(os.getcwd(), 'uploads'))
         return send_from_directory(upload_folder, filename)
-    
+
+    # 全局异常处理器 — 兜底未捕获的异常
+    from app.api_response import error_response
+
+    @app.errorhandler(Exception)
+    def handle_unhandled_exception(e):
+        logger.exception('Unhandled exception')
+        if request.is_json or request.accept_mimetypes.best == 'application/json':
+            return error_response('服务器内部错误，请稍后重试', status=500)
+        return '服务器内部错误', 500
+
     return app

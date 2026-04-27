@@ -6,6 +6,8 @@
 import logging
 from datetime import datetime
 from utils.database import DBConnection
+from utils.format_utils import format_date, format_datetime
+from utils.sequence import generate_serial_no
 from app.services.account_service import AccountService
 
 logger = logging.getLogger(__name__)
@@ -97,7 +99,7 @@ class DepositService:
                     'related_contract_id': row.RelatedContractID,
                     'description': row.Description or '',
                     'operator_name': row.OperatorName,
-                    'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                    'create_time': format_datetime(row.CreateTime),
                 })
 
             total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 0
@@ -147,7 +149,7 @@ class DepositService:
                 'related_contract_id': row.RelatedContractID,
                 'description': row.Description or '',
                 'created_by': row.CreatedBy,
-                'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                'create_time': format_datetime(row.CreateTime),
             }
 
     def create_deposit(self, customer_type, customer_id, customer_name,
@@ -202,9 +204,7 @@ class DepositService:
                 deposit_id = row[0]
 
                 # 2. INSERT CashFlow
-                from app.services.finance_service import FinanceService
-                finance_svc = FinanceService()
-                transaction_no = finance_svc._generate_transaction_no(cursor, 'CF')
+                transaction_no = generate_serial_no(cursor, 'CF', 'CashFlow', 'TransactionNo')
 
                 cursor.execute("""
                     INSERT INTO CashFlow (
@@ -288,9 +288,7 @@ class DepositService:
                 operation_id = cursor.fetchone()[0]
 
                 # 2. INSERT CashFlow
-                from app.services.finance_service import FinanceService
-                finance_svc = FinanceService()
-                transaction_no = finance_svc._generate_transaction_no(cursor, 'CF')
+                transaction_no = generate_serial_no(cursor, 'CF', 'CashFlow', 'TransactionNo')
 
                 cursor.execute("""
                     INSERT INTO CashFlow (
@@ -507,7 +505,7 @@ class DepositService:
                     'cash_flow_id': row.CashFlowID,
                     'description': row.Description or '',
                     'operator_name': row.OperatorName,
-                    'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                    'create_time': format_datetime(row.CreateTime),
                 })
             return result
 

@@ -6,6 +6,7 @@
 import logging
 from datetime import datetime, date
 from utils.database import DBConnection
+from utils.format_utils import format_date, format_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -74,10 +75,10 @@ class SalaryService:
                     'subsidy': float(row.Subsidy),
                     'insurance': float(row.Insurance),
                     'housing_fund': float(row.HousingFund),
-                    'effective_date': row.EffectiveDate.strftime('%Y-%m-%d') if row.EffectiveDate else '',
+                    'effective_date': format_date(row.EffectiveDate),
                     'status': row.Status,
                     'description': row.Description or '',
-                    'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                    'create_time': format_datetime(row.CreateTime),
                 })
 
             total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 0
@@ -294,7 +295,7 @@ class SalaryService:
                     'status': row.Status,
                     'payable_id': row.PayableID,
                     'description': row.Description or '',
-                    'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                    'create_time': format_datetime(row.CreateTime),
                 })
 
             total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 0
@@ -692,7 +693,7 @@ class SalaryService:
                     'actual_days': row.ActualDays or 0,
                     'status': row.Status,
                     'description': row.Description or '',
-                    'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                    'create_time': format_datetime(row.CreateTime),
                 })
 
             total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 0

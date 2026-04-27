@@ -2,6 +2,28 @@ import datetime
 from utils.database import DBConnection
 
 
+def _format_date(val, fmt='%Y-%m-%d'):
+    """安全格式化日期：兼容 datetime 对象和字符串"""
+    if not val:
+        return ''
+    if isinstance(val, str):
+        return val[:10] if len(val) >= 10 else val
+    if isinstance(val, (datetime.datetime, datetime.date)):
+        return val.strftime(fmt)
+    return str(val)
+
+
+def _format_datetime(val):
+    """安全格式化日期时间：兼容 datetime 对象和字符串"""
+    if not val:
+        return ''
+    if isinstance(val, str):
+        return val[:19] if len(val) >= 19 else val
+    if isinstance(val, datetime.datetime):
+        return val.strftime('%Y-%m-%d %H:%M:%S')
+    return str(val)
+
+
 class WaterMeter:
 
     @staticmethod
@@ -48,11 +70,11 @@ class WaterMeter:
                 'meter_type': r.MeterType,
                 'installation_location': r.InstallationLocation or '',
                 'meter_multiplier': float(r.MeterMultiplier) if r.MeterMultiplier else 1,
-                'installation_date': r.InstallationDate.strftime('%Y-%m-%d') if r.InstallationDate else '',
+                'installation_date': _format_date(r.InstallationDate),
                 'init_reading': float(r.InitReading) if r.InitReading else 0,
                 'status': r.Status or '正常',
-                'create_time': r.CreateTime.strftime('%Y-%m-%d %H:%M:%S') if r.CreateTime else '',
-                'update_time': r.UpdateTime.strftime('%Y-%m-%d %H:%M:%S') if r.UpdateTime else '',
+                'create_time': _format_datetime(r.CreateTime),
+                'update_time': _format_datetime(r.UpdateTime),
                 'contract_id': r.ContractID,
                 'merchant_name': r.MerchantName or '',
                 'merchant_id': r.MerchantID
@@ -102,7 +124,7 @@ class WaterMeter:
                     'meter_type': row.MeterType,
                     'installation_location': row.InstallationLocation or '',
                     'meter_multiplier': float(row.MeterMultiplier) if row.MeterMultiplier else 1,
-                    'installation_date': row.InstallationDate.strftime('%Y-%m-%d') if row.InstallationDate else '',
+                    'installation_date': _format_date(row.InstallationDate),
                     'init_reading': float(row.InitReading) if row.InitReading else 0,
                     'status': row.Status or '正常',
                     'contract_id': row.ContractID,
@@ -286,11 +308,11 @@ class ElectricityMeter:
                 'meter_type': r.MeterType,
                 'installation_location': r.InstallationLocation or '',
                 'meter_multiplier': float(r.MeterMultiplier) if r.MeterMultiplier else 1,
-                'installation_date': r.InstallationDate.strftime('%Y-%m-%d') if r.InstallationDate else '',
+                'installation_date': _format_date(r.InstallationDate),
                 'init_reading': float(r.InitReading) if r.InitReading else 0,
                 'status': r.Status or '正常',
-                'create_time': r.CreateTime.strftime('%Y-%m-%d %H:%M:%S') if r.CreateTime else '',
-                'update_time': r.UpdateTime.strftime('%Y-%m-%d %H:%M:%S') if r.UpdateTime else '',
+                'create_time': _format_datetime(r.CreateTime),
+                'update_time': _format_datetime(r.UpdateTime),
                 'contract_id': r.ContractID,
                 'merchant_name': r.MerchantName or '',
                 'merchant_id': r.MerchantID
@@ -340,7 +362,7 @@ class ElectricityMeter:
                     'meter_type': row.MeterType,
                     'installation_location': row.InstallationLocation or '',
                     'meter_multiplier': float(row.MeterMultiplier) if row.MeterMultiplier else 1,
-                    'installation_date': row.InstallationDate.strftime('%Y-%m-%d') if row.InstallationDate else '',
+                    'installation_date': _format_date(row.InstallationDate),
                     'init_reading': float(row.InitReading) if row.InitReading else 0,
                     'status': row.Status or '正常',
                     'contract_id': row.ContractID,

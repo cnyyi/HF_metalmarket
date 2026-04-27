@@ -9,6 +9,44 @@ import re
 
 logger = logging.getLogger(__name__)
 
+RENT_EXPENSE_DICT_CODE = 'rent'
+RENT_EXPENSE_DICT_NAME = '租金'
+RENT_EXPENSE_DICT_TYPE = 'expense_item_income'
+
+
+def _get_rent_expense_type_id(cursor):
+    expense_type_id = None
+
+    cursor.execute("""
+        SELECT DictID FROM Sys_Dictionary
+        WHERE DictType = ? AND DictCode = ? AND IsActive = 1
+    """, (RENT_EXPENSE_DICT_TYPE, RENT_EXPENSE_DICT_CODE))
+    row = cursor.fetchone()
+    if row:
+        return row.DictID
+
+    cursor.execute("""
+        SELECT DictID FROM Sys_Dictionary
+        WHERE DictType = ? AND DictName = ? AND IsActive = 1
+    """, (RENT_EXPENSE_DICT_TYPE, RENT_EXPENSE_DICT_NAME))
+    row = cursor.fetchone()
+    if row:
+        return row.DictID
+
+    try:
+        cursor.execute(
+            "SELECT ExpenseTypeID FROM ExpenseType WHERE ExpenseTypeCode = ? AND IsActive = 1",
+            (RENT_EXPENSE_DICT_CODE,)
+        )
+        row = cursor.fetchone()
+        if row:
+            expense_type_id = row.ExpenseTypeID
+    except Exception:
+        pass
+
+    return expense_type_id
+
+
 class ContractService:
     @staticmethod
     def get_contract_periods():
@@ -32,24 +70,30 @@ class ContractService:
     @staticmethod
     def get_available_merchants(period):
         """
-        获取可用商户列表
+        获取商户列表（允许同一商户多合同，标注已有合同信息）
         """
         with DBConnection() as conn:
             cursor = conn.cursor()
             
             cursor.execute("""
-                SELECT m.MerchantID, m.MerchantName
+                SELECT m.MerchantID, m.MerchantName,
+                       CASE WHEN c.ContractID IS NOT NULL THEN 1 ELSE 0 END AS HasContract,
+                       ISNULL(c.ContractCount, 0) AS ContractCount
                 FROM Merchant m
-                WHERE m.MerchantID NOT IN (
-                    SELECT MerchantID FROM Contract
+                LEFT JOIN (
+                    SELECT MerchantID, MIN(ContractID) AS ContractID, COUNT(*) AS ContractCount
+                    FROM Contract
                     WHERE ContractPeriod = ?
-                )
+                    GROUP BY MerchantID
+                ) c ON m.MerchantID = c.MerchantID
                 ORDER BY m.MerchantName
             """, (period,))
             
             merchants = [{
                 'merchant_id': r.MerchantID,
-                'merchant_name': r.MerchantName
+                'merchant_name': r.MerchantName,
+                'has_contract': bool(r.HasContract),
+                'contract_count': r.ContractCount
             } for r in cursor.fetchall()]
         
         return merchants
@@ -57,7 +101,7 @@ class ContractService:
     @staticmethod
     def get_available_plots(period):
         """
-        获取可用地块列表
+        获取可用地块列表（排除已有活跃合同关联的地块）
         """
         with DBConnection() as conn:
             cursor = conn.cursor()
@@ -91,7 +135,7 @@ class ContractService:
     @staticmethod
     def generate_contract_number(period, merchant_id):
         """
-        生成合同编号
+        生成合同编号（同一商户同日多合同自动递增序号）
         """
         match = re.search(r'第(\d+)期第(\d+)年', period)
         if match:
@@ -101,12 +145,54 @@ class ContractService:
         
         date_str = datetime.now().strftime('%Y%m%d')
         merchant_id_padded = str(merchant_id).zfill(3)
-        return f"ZTHYHT{period_code}{date_str}{merchant_id_padded}"
+        base_number = f"ZTHYHT{period_code}{date_str}{merchant_id_padded}"
+        
+        # 检查编号是否已存在，若存在则追加序号
+        try:
+            with DBConnection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT ContractNumber FROM Contract
+                    WHERE ContractNumber LIKE ?
+                    ORDER BY ContractNumber DESC
+                """, (base_number + '%',))
+                existing = cursor.fetchall()
+                
+                if not existing:
+                    return base_number
+                
+                # 已有同基础编号，找最大序号
+                max_seq = 0
+                for row in existing:
+                    num = row.ContractNumber
+                    if num == base_number:
+                        max_seq = max(max_seq, 1)
+                    elif num.startswith(base_number + '-'):
+                        try:
+                            seq = int(num.split('-')[-1])
+                            max_seq = max(max_seq, seq)
+                        except ValueError:
+                            pass
+                
+                return f"{base_number}-{max_seq + 1}"
+        except Exception:
+            return base_number
+
+    # 允许排序的字段映射（防SQL注入）
+    SORT_FIELD_MAP = {
+        'contract_number': 'c.ContractNumber',
+        'merchant_name': 'm.MerchantName',
+        'contract_period': 'c.ContractPeriod',
+        'contact_person': 'm.ContactPerson',
+        'start_date': 'c.StartDate',
+        'end_date': 'c.EndDate',
+        'contract_amount': 'c.ActualAmount',
+    }
 
     @staticmethod
-    def get_contract_list(page, per_page, search):
+    def get_contract_list(page, per_page, search, sort_by='create_time', sort_order='desc'):
         """
-        获取合同列表
+        获取合同列表（支持排序）
         """
         try:
             with DBConnection() as conn:
@@ -120,19 +206,23 @@ class ContractService:
                     search_param = f"%{search}%"
                     params.extend([search_param, search_param])
                 
+                # 排序字段安全映射
+                order_field = ContractService.SORT_FIELD_MAP.get(sort_by, 'c.CreateTime')
+                order_dir = 'DESC' if sort_order.lower() == 'desc' else 'ASC'
+                
                 offset = (page - 1) * per_page
                 
                 cursor.execute(f"SELECT COUNT(*) FROM Contract c LEFT JOIN Merchant m ON c.MerchantID = m.MerchantID {where_clause}", params)
                 total = cursor.fetchone()[0]
                 
                 cursor.execute(f"""
-                    SELECT c.ContractID, c.ContractNumber, c.ActualAmount as ActualAmount, m.MerchantName, m.ContactPerson,
+                    SELECT c.ContractID, c.ContractNumber, c.ContractPeriod, c.ActualAmount as ActualAmount, m.MerchantName, m.ContactPerson,
                            c.StartDate, c.EndDate, c.Status, c.CreateTime,
                            (SELECT COUNT(*) FROM ContractPlot cp WHERE cp.ContractID = c.ContractID) as PlotCount
                     FROM Contract c
                     LEFT JOIN Merchant m ON c.MerchantID = m.MerchantID
                     {where_clause}
-                    ORDER BY c.CreateTime DESC
+                    ORDER BY {order_field} {order_dir}
                     OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
                 """, params + [offset, per_page])
                 
@@ -142,6 +232,7 @@ class ContractService:
                     contracts.append({
                         'contract_id': r.ContractID,
                         'contract_number': r.ContractNumber,
+                        'contract_period': r.ContractPeriod or '-',
                         'actual_amount': float(actual_amount_val) if actual_amount_val is not None else 0,
                         'merchant_name': r.MerchantName or '-',
                         'contact_person': r.ContactPerson or '-',
@@ -169,6 +260,9 @@ class ContractService:
         添加合同
         """
         try:
+            # 确保 rent_adjust 为数值类型
+            rent_adjust = float(rent_adjust) if rent_adjust is not None else 0
+            
             start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
             end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
             
@@ -195,7 +289,8 @@ class ContractService:
                     INSERT INTO Contract (
                         ContractNumber, ContractName, MerchantID, ContractPeriod, StartDate, EndDate,
                         ContractAmount, AmountReduction, ActualAmount, PaymentMethod, ContractPeriodYear, BusinessType, Status, Description, CreateTime
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE())
+                    ) OUTPUT INSERTED.ContractID
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE())
                 """, (
                     contract_number,
                     contract_name,
@@ -213,10 +308,20 @@ class ContractService:
                     description
                 ))
 
-                cursor.execute("SELECT CAST(SCOPE_IDENTITY() AS INT)")
                 result = cursor.fetchone()
                 contract_id = result[0] if result else None
                 
+                if not contract_id:
+                    # OUTPUT INSERTED 失败时回退到 SCOPE_IDENTITY
+                    try:
+                        cursor.execute("SELECT CAST(SCOPE_IDENTITY() AS INT)")
+                        fallback = cursor.fetchone()
+                        contract_id = fallback[0] if fallback else None
+                    except Exception:
+                        pass
+                
+                logger.info(f"合同{contract_number}：contract_id={contract_id}, type={type(contract_id)}")
+
                 if contract_id:
                     for plot_id in plot_ids:
                         cursor.execute("SELECT UnitPrice, Area FROM Plot WHERE PlotID = ?", (int(plot_id),))
@@ -231,51 +336,51 @@ class ContractService:
                         """, (contract_id, int(plot_id), unit_price, area, monthly_price))
 
                     actual_amount = total_rent + rent_adjust
+                    logger.info(f"合同{contract_number}：total_rent={total_rent}, rent_adjust={rent_adjust}(type={type(rent_adjust)}), actual_amount={actual_amount}")
+                    
                     if actual_amount > 0:
-                        # 优先从字典表查找租金费用类型
-                        cursor.execute("""
-                            SELECT DictID FROM Sys_Dictionary
-                            WHERE DictType = N'expense_item_income' AND DictName = N'租金' AND IsActive = 1
-                        """)
-                        et_row = cursor.fetchone()
-                        expense_type_id = et_row.DictID if et_row else None
+                        expense_type_id = _get_rent_expense_type_id(cursor)
+                        logger.info(f"合同{contract_number}：expense_type_id={expense_type_id}")
 
-                        # 兼容旧 ExpenseType 表
                         if not expense_type_id:
-                            cursor.execute(
-                                "SELECT ExpenseTypeID FROM ExpenseType WHERE ExpenseTypeCode = N'rent' AND IsActive = 1"
-                            )
-                            et_row = cursor.fetchone()
-                            expense_type_id = et_row.ExpenseTypeID if et_row else None
+                            logger.warning(f"合同{contract_number}：未找到租金费用类型，应收未创建")
 
                         if expense_type_id:
                             due_date = end_date_obj
-                            description = f'{period}租金'
+                            recv_description = f'{period}租金'
 
                             cursor.execute("""
                                 SELECT 1 FROM Receivable
                                 WHERE ReferenceID = ? AND ReferenceType = N'contract'
                                   AND IsActive = 1
                             """, (contract_id,))
-                            if not cursor.fetchone():
+                            existing = cursor.fetchone()
+                            logger.info(f"合同{contract_number}：应收已存在检查结果={existing}")
+                            
+                            if not existing:
                                 cursor.execute("""
                                     INSERT INTO Receivable (
                                         MerchantID, ExpenseTypeID, Amount, Description,
                                         DueDate, ReferenceID, ReferenceType, Status,
                                         PaidAmount, RemainingAmount, CustomerType, CustomerID,
-                                        CreateTime
-                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, N'未付款', 0, ?, N'Merchant', ?, GETDATE())
+                                        IsActive, CreateTime
+                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, N'未付款', 0, ?, N'Merchant', ?, 1, GETDATE())
                                 """, (
                                     merchant_id,
                                     expense_type_id,
                                     actual_amount,
-                                    description,
+                                    recv_description,
                                     due_date,
                                     contract_id,
                                     'contract',
                                     actual_amount,
                                     merchant_id
                                 ))
+                                logger.info(f"合同{contract_number}：联动创建应收成功，金额={actual_amount}")
+                            else:
+                                logger.info(f"合同{contract_number}：应收已存在，跳过创建")
+                    else:
+                        logger.warning(f"合同{contract_number}：actual_amount={actual_amount}<=0，跳过创建应收")
                 
                 conn.commit()
             
@@ -345,6 +450,83 @@ class ContractService:
                     })
                 
                 contract['plots'] = plots
+
+                cursor.execute("""
+                    SELECT cem.ContractMeterID, cem.MeterID, em.MeterNumber, em.InstallationLocation,
+                           cem.StartReading, cem.UnitPrice, cem.Status
+                    FROM ContractElectricityMeter cem
+                    INNER JOIN ElectricityMeter em ON cem.MeterID = em.MeterID
+                    WHERE cem.ContractID = ?
+                    ORDER BY cem.ContractMeterID
+                """, (contract_id,))
+                electricity_meters = []
+                for em in cursor.fetchall():
+                    electricity_meters.append({
+                        'contract_meter_id': em.ContractMeterID,
+                        'meter_id': em.MeterID,
+                        'meter_number': em.MeterNumber or '',
+                        'installation_location': em.InstallationLocation or '',
+                        'start_reading': float(em.StartReading) if em.StartReading else 0,
+                        'unit_price': float(em.UnitPrice) if em.UnitPrice else 0,
+                        'status': em.Status or '启用',
+                    })
+                contract['electricity_meters'] = electricity_meters
+
+                cursor.execute("""
+                    SELECT r.ReceivableID, r.Amount, r.PaidAmount, r.RemainingAmount,
+                           r.Status, r.DueDate, r.Description
+                    FROM Receivable r
+                    WHERE r.ReferenceID = ? AND r.ReferenceType = N'contract' AND r.IsActive = 1
+                """, (contract_id,))
+                recv_rows = cursor.fetchall()
+
+                total_receivable = 0
+                total_paid = 0
+                total_remaining = 0
+                receivable_ids = []
+                for rv in recv_rows:
+                    amt = float(rv.Amount) if rv.Amount else 0
+                    paid = float(rv.PaidAmount) if rv.PaidAmount else 0
+                    remaining = float(rv.RemainingAmount) if rv.RemainingAmount else 0
+                    total_receivable += amt
+                    total_paid += paid
+                    total_remaining += remaining
+                    receivable_ids.append(rv.ReceivableID)
+
+                payment_progress = round(total_paid / total_receivable * 100, 1) if total_receivable > 0 else 0
+
+                contract['payment_progress'] = {
+                    'total_receivable': round(total_receivable, 2),
+                    'total_paid': round(total_paid, 2),
+                    'total_remaining': round(total_remaining, 2),
+                    'progress_percent': payment_progress,
+                }
+
+                collection_records = []
+                if receivable_ids:
+                    placeholders = ','.join(['?'] * len(receivable_ids))
+                    cursor.execute(f"""
+                        SELECT cr.CollectionRecordID, cr.ReceivableID, cr.Amount,
+                               cr.PaymentMethod, cr.TransactionDate, cr.Description,
+                               u.RealName AS OperatorName, cr.CreateTime
+                        FROM CollectionRecord cr
+                        LEFT JOIN [User] u ON cr.CreatedBy = u.UserID
+                        WHERE cr.ReceivableID IN ({placeholders})
+                        ORDER BY cr.TransactionDate DESC, cr.CreateTime DESC
+                    """, *receivable_ids)
+                    for cr in cursor.fetchall():
+                        collection_records.append({
+                            'collection_record_id': cr.CollectionRecordID,
+                            'receivable_id': cr.ReceivableID,
+                            'amount': float(cr.Amount) if cr.Amount else 0,
+                            'payment_method': cr.PaymentMethod or '',
+                            'transaction_date': cr.TransactionDate.strftime('%Y-%m-%d') if cr.TransactionDate else '',
+                            'description': cr.Description or '',
+                            'operator_name': cr.OperatorName or '',
+                            'create_time': cr.CreateTime.strftime('%Y-%m-%d %H:%M') if cr.CreateTime else '',
+                        })
+
+                contract['collection_records'] = collection_records
             
             return True, contract
         except Exception as e:
@@ -357,6 +539,9 @@ class ContractService:
         更新合同
         """
         try:
+            # 确保 rent_adjust 为数值类型
+            rent_adjust = float(rent_adjust) if rent_adjust is not None else 0
+            
             start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
             end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
             
@@ -407,6 +592,54 @@ class ContractService:
                         INSERT INTO ContractPlot (ContractID, PlotID, UnitPrice, Area, MonthlyPrice)
                         VALUES (?, ?, ?, ?, ?)
                     """, (contract_id, int(plot_id), unit_price, area, monthly_price))
+
+                # 同步更新关联的应收记录
+                actual_amount = total_rent + rent_adjust
+                expense_type_id = _get_rent_expense_type_id(cursor)
+                
+                # 获取商户ID（用于创建新应收）
+                cursor.execute("SELECT MerchantID FROM Contract WHERE ContractID = ?", (contract_id,))
+                merchant_row = cursor.fetchone()
+                merchant_id = merchant_row.MerchantID if merchant_row else None
+                
+                cursor.execute("""
+                    SELECT ReceivableID, Amount, PaidAmount FROM Receivable
+                    WHERE ReferenceID = ? AND ReferenceType = N'contract' AND IsActive = 1
+                """, (contract_id,))
+                existing_recv = cursor.fetchone()
+                
+                if existing_recv and actual_amount > 0:
+                    # 更新已有应收的金额和描述
+                    paid = float(existing_recv.PaidAmount) if existing_recv.PaidAmount else 0
+                    new_remaining = actual_amount - paid
+                    cursor.execute("""
+                        UPDATE Receivable
+                        SET Amount = ?, RemainingAmount = ?, 
+                            Description = ?, ExpenseTypeID = ?
+                        WHERE ReceivableID = ?
+                    """, (actual_amount, new_remaining, f'{contract_row.ContractPeriod}租金', expense_type_id, existing_recv.ReceivableID))
+                    logger.info(f"合同{contract_id}更新：同步更新应收{existing_recv.ReceivableID}，金额={actual_amount}")
+                elif not existing_recv and actual_amount > 0 and expense_type_id and merchant_id:
+                    # 应收不存在但金额>0，创建新应收
+                    cursor.execute("""
+                        INSERT INTO Receivable (
+                            MerchantID, ExpenseTypeID, Amount, Description,
+                            DueDate, ReferenceID, ReferenceType, Status,
+                            PaidAmount, RemainingAmount, CustomerType, CustomerID,
+                            IsActive, CreateTime
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, N'未付款', 0, ?, N'Merchant', ?, 1, GETDATE())
+                    """, (
+                        merchant_id,
+                        expense_type_id,
+                        actual_amount,
+                        f'{contract_row.ContractPeriod}租金',
+                        end_date_obj,
+                        contract_id,
+                        'contract',
+                        actual_amount,
+                        merchant_id
+                    ))
+                    logger.info(f"合同{contract_id}更新：创建新应收，金额={actual_amount}")
                 
                 conn.commit()
             

@@ -3,6 +3,29 @@ import datetime
 from flask_login import UserMixin
 from app.models.role import Role
 
+LEGACY_PERMISSION_MAP = {
+    'plot_manage': 'plot_view',
+    'merchant_manage': 'merchant_view',
+    'contract_manage': 'contract_view',
+    'utility_manage': 'utility_view',
+    'utility_reading': 'utility_reading',
+    'scale_manage': 'scale_view',
+    'expense_manage': 'expense_view',
+    'garbage_manage': 'garbage_view',
+    'dorm_manage': 'dorm_view',
+    'finance_manage': 'finance_view',
+    'account_manage': 'account_view',
+    'direct_entry': 'account_create',
+    'prepayment_manage': 'prepayment_view',
+    'deposit_manage': 'deposit_view',
+    'customer_manage': 'customer_view',
+    'salary_manage': 'salary_view',
+    'user_manage': 'user_view',
+    'role_manage': 'role_view',
+    'permission_manage': 'permission_view',
+    'dict_manage': 'dict_view',
+}
+
 
 class User(UserMixin):
     """
@@ -66,12 +89,14 @@ class User(UserMixin):
         return False
     
     def has_permission(self, permission_code):
-        """
-        检查用户是否拥有指定权限
-        """
-        for permission in self.permissions:
-            if permission.permission_code == permission_code:
+        for p in self.permissions:
+            if p.permission_code == permission_code:
                 return True
+        mapped = LEGACY_PERMISSION_MAP.get(permission_code)
+        if mapped:
+            for p in self.permissions:
+                if p.permission_code == mapped:
+                    return True
         return False
     
     def __repr__(self):

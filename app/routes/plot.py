@@ -7,6 +7,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required
 from app.api_response import success_response, error_response
 from app.services.plot_service import PlotService
+from app.routes.user import check_permission, check_api_permission
 
 logger = logging.getLogger(__name__)
 
@@ -14,14 +15,14 @@ plot_bp = Blueprint('plot', __name__)
 
 
 @plot_bp.route('/list')
-@login_required
+@check_permission('plot_view')
 def plot_list():
     plot_types = PlotService.get_plot_types()
     return render_template('plot/list.html', plot_types=plot_types)
 
 
 @plot_bp.route('/types', methods=['GET'])
-@login_required
+@check_api_permission('plot_view')
 def types():
     try:
         types = PlotService.get_plot_types_json()
@@ -32,7 +33,7 @@ def types():
 
 
 @plot_bp.route('/add', methods=['GET', 'POST'])
-@login_required
+@check_permission('plot_create')
 def add():
     if request.method == 'GET':
         plot_types = PlotService.get_plot_types()
@@ -108,7 +109,7 @@ def add():
 
 
 @plot_bp.route('/edit/<int:plot_id>', methods=['GET', 'POST'])
-@login_required
+@check_permission('plot_edit')
 def edit(plot_id):
     if request.method == 'GET':
         plot_types = PlotService.get_plot_types()
@@ -157,7 +158,7 @@ def edit(plot_id):
 
 
 @plot_bp.route('/upload_image/<int:plot_id>', methods=['POST'])
-@login_required
+@check_api_permission('plot_edit')
 def upload_image(plot_id):
     try:
         file = request.files.get('image')
@@ -184,7 +185,7 @@ def upload_image(plot_id):
 
 
 @plot_bp.route('/delete/<int:plot_id>', methods=['POST'])
-@login_required
+@check_api_permission('plot_delete')
 def delete(plot_id):
     try:
         success, message = PlotService.delete_plot(plot_id)
@@ -199,7 +200,7 @@ def delete(plot_id):
 
 
 @plot_bp.route('/detail/<int:plot_id>', methods=['GET'])
-@login_required
+@check_api_permission('plot_view')
 def detail(plot_id):
     try:
         success, result = PlotService.get_plot_detail(plot_id)
@@ -214,7 +215,7 @@ def detail(plot_id):
 
 
 @plot_bp.route('/list_data', methods=['GET'])
-@login_required
+@check_api_permission('plot_view')
 def list_data():
     try:
         page = int(request.args.get('page', 1))

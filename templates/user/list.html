@@ -15,7 +15,7 @@
                 <h5 class="card-title mb-0">用户列表</h5>
             </div>
             <div class="col-md-6 text-end">
-                {% if current_user.has_permission('user_manage') %}
+                {% if current_user.has_permission('user_create') %}
                 <a href="{{ url_for('user.add') }}" class="btn btn-primary">
                     <i class="fa fa-plus"></i> 添加用户
                 </a>
@@ -75,8 +75,10 @@
                         </td>
                         <td>{{ user.create_time.strftime('%Y-%m-%d %H:%M') }}</td>
                         <td class="table-actions">
-                            {% if current_user.has_permission('user_manage') %}
+                            {% if current_user.has_permission('user_edit') %}
                             <button type="button" class="btn btn-sm btn-warning" title="编辑" onclick="openEditModal({{ user.user_id }})"><i class="fa fa-edit"></i> 编辑</button>
+                            {% endif %}
+                            {% if current_user.has_permission('user_delete') %}
                             <a href="{{ url_for('user.delete', user_id=user.user_id) }}" class="btn btn-sm btn-danger" title="删除" onclick="return confirm('确定要删除这个用户吗？');"><i class="fa fa-trash"></i> 删除</a>
                             {% endif %}
                         </td>

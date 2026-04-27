@@ -4,6 +4,7 @@ from flask_login import login_required, current_user
 from app.forms.user_form import UserAddForm, UserEditForm, PasswordChangeForm
 from app.services.user_service import UserService
 from app.services.auth_service import AuthService
+from app.api_response import handle_exception
 
 # 创建蓝图
 user_bp = Blueprint('user', __name__)
@@ -28,8 +29,22 @@ def check_permission(permission_code):
     return decorator
 
 
+def check_api_permission(permission_code):
+    """检查用户是否拥有指定权限的装饰器（API路由专用，返回JSON 403）"""
+    def decorator(f):
+        @login_required
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not hasattr(current_user, 'has_permission') or not current_user.has_permission(permission_code):
+                return jsonify({'success': False, 'message': '您没有权限执行此操作'}), 403
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
 @user_bp.route('/list')
 @login_required
+@check_permission('user_view')
 def user_list():
     """
     用户列表页面
@@ -43,7 +58,7 @@ def user_list():
 
 
 @user_bp.route('/add', methods=['GET', 'POST'])
-@check_permission('user_manage')
+@check_permission('user_create')
 def add():
     """
     添加用户页面
@@ -84,7 +99,7 @@ def add():
 
 
 @user_bp.route('/edit/<int:user_id>', methods=['GET', 'POST'])
-@check_permission('user_manage')
+@check_permission('user_edit')
 def edit(user_id):
     """
     编辑用户页面
@@ -133,7 +148,7 @@ def edit(user_id):
 
 
 @user_bp.route('/delete/<int:user_id>')
-@check_permission('user_manage')
+@check_permission('user_delete')
 def delete(user_id):
     """
     删除用户
@@ -177,6 +192,7 @@ def change_password():
 
 @user_bp.route('/api/detail/<int:user_id>', methods=['GET'])
 @login_required
+@check_api_permission('user_view')
 def api_user_detail(user_id):
     try:
         user = UserService.get_user_by_id(user_id)
@@ -201,16 +217,14 @@ def api_user_detail(user_id):
             }
         })
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return handle_exception(e)
 
 
 @user_bp.route('/api/update/<int:user_id>', methods=['POST'])
 @login_required
+@check_api_permission('user_edit')
 def api_user_update(user_id):
     try:
-        if not hasattr(current_user, 'has_permission') or not current_user.has_permission('user_manage'):
-            return jsonify({'success': False, 'message': '无权限'}), 403
-
         data = request.json
         updated = UserService.update_user(
             user_id=user_id,
@@ -227,7 +241,7 @@ def api_user_update(user_id):
         else:
             return jsonify({'success': False, 'message': '更新失败'}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return handle_exception(e)
 
 
 @user_bp.route('/api/merchants', methods=['GET'])
@@ -242,7 +256,7 @@ def api_merchants():
         merchants = [{'merchant_id': r.MerchantID, 'merchant_name': r.MerchantName} for r in results]
         return jsonify({'success': True, 'data': merchants})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return handle_exception(e)
 
 
 @user_bp.route('/api/roles', methods=['GET'])
@@ -253,4 +267,4 @@ def api_roles():
         data = [{'role_id': r.role_id, 'role_name': r.role_name} for r in roles]
         return jsonify({'success': True, 'data': data})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return handle_exception(e)

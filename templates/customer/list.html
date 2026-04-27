@@ -130,7 +130,21 @@
                         </div>
                     </div>
                     <div class="row mb-3">
-                        <div class="col-md-12">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">开户银行</label>
+                            <input type="text" class="form-control" id="bankNameInput" placeholder="请输入开户银行（可选）">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">银行账号</label>
+                            <input type="text" class="form-control" id="bankAccountInput" placeholder="请输入银行账号（可选）">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">户名</label>
+                            <input type="text" class="form-control" id="accountNameInput" placeholder="请输入户名（可选）">
+                        </div>
+                        <div class="col-md-6">
                             <label class="form-label fw-bold">地址</label>
                             <input type="text" class="form-control" id="addressInput" placeholder="请输入地址">
                         </div>
@@ -242,6 +256,9 @@ function openEditModal(id) {
             $('#phoneInput').val(d.phone);
             $('#customerTypeInput').val(d.customer_type);
             $('#taxNumberInput').val(d.tax_number);
+            $('#bankNameInput').val(d.bank_name);
+            $('#bankAccountInput').val(d.bank_account);
+            $('#accountNameInput').val(d.account_name);
             $('#addressInput').val(d.address);
             $('#businessScopeInput').val(d.business_scope);
             $('#descriptionInput').val(d.description);
@@ -262,6 +279,9 @@ function submitCustomer() {
         phone: $('#phoneInput').val().trim(),
         customer_type: $('#customerTypeInput').val(),
         tax_number: $('#taxNumberInput').val().trim(),
+        bank_name: $('#bankNameInput').val().trim(),
+        bank_account: $('#bankAccountInput').val().trim(),
+        account_name: $('#accountNameInput').val().trim(),
         address: $('#addressInput').val().trim(),
         business_scope: $('#businessScopeInput').val().trim(),
         description: $('#descriptionInput').val().trim()

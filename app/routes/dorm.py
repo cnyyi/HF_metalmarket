@@ -8,6 +8,7 @@ from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from app.routes.user import check_permission
 from app.services.dorm_service import DormService
+from app.api_response import handle_exception
 
 dorm_bp = Blueprint('dorm', __name__)
 dorm_svc = DormService()
@@ -17,7 +18,7 @@ dorm_svc = DormService()
 
 @dorm_bp.route('/rooms')
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_view')
 def rooms():
     """房间管理页面"""
     return render_template('dorm/rooms.html')
@@ -25,7 +26,7 @@ def rooms():
 
 @dorm_bp.route('/rooms/list', methods=['GET'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_view')
 def rooms_list():
     """房间列表数据"""
     try:
@@ -42,12 +43,12 @@ def rooms_list():
         )
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @dorm_bp.route('/rooms/add', methods=['POST'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_create')
 def rooms_add():
     """新增房间"""
     try:
@@ -61,48 +62,44 @@ def rooms_add():
             electricity_unit_price=data.get('electricity_unit_price', 1.0),
             meter_number=data.get('meter_number', '').strip() or None,
             description=data.get('description', '').strip() or None,
+            water_mode=data.get('water_mode', 'quota'),
+            water_unit_price=data.get('water_unit_price', 0),
         )
         return jsonify({'success': True, 'message': '添加成功', 'id': new_id})
-    except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': f'添加失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @dorm_bp.route('/rooms/edit/<int:room_id>', methods=['POST'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_edit')
 def rooms_edit(room_id):
     """编辑房间"""
     try:
         data = request.json
         dorm_svc.update_room(room_id, **data)
         return jsonify({'success': True, 'message': '更新成功'})
-    except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': f'更新失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @dorm_bp.route('/rooms/delete/<int:room_id>', methods=['POST'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_delete')
 def rooms_delete(room_id):
     """删除房间"""
     try:
         dorm_svc.delete_room(room_id)
         return jsonify({'success': True, 'message': '删除成功'})
-    except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': f'删除失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 # ==================== 入住管理 ====================
 
 @dorm_bp.route('/occupancy')
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_view')
 def occupancy():
     """入住管理页面"""
     return render_template('dorm/occupancy.html')
@@ -110,7 +107,7 @@ def occupancy():
 
 @dorm_bp.route('/occupancy/list', methods=['GET'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_view')
 def occupancy_list():
     """入住记录列表"""
     try:
@@ -125,12 +122,12 @@ def occupancy_list():
         )
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @dorm_bp.route('/occupancy/check_in', methods=['POST'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_create')
 def occupancy_check_in():
     """办理入住"""
     try:
@@ -146,17 +143,20 @@ def occupancy_check_in():
             id_card_back_photo=data.get('id_card_back_photo', '').strip() or None,
             move_in_date=data.get('move_in_date', date.today().strftime('%Y-%m-%d')),
             description=data.get('description', '').strip() or None,
+            monthly_rent=data.get('monthly_rent'),
+            water_mode=data.get('water_mode', 'quota'),
+            water_quota=data.get('water_quota'),
+            water_unit_price=data.get('water_unit_price'),
+            electricity_unit_price=data.get('electricity_unit_price'),
         )
         return jsonify({'success': True, 'message': '入住办理成功', 'id': new_id})
-    except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': f'入住办理失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @dorm_bp.route('/occupancy/check_out/<int:occupancy_id>', methods=['POST'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_edit')
 def occupancy_check_out(occupancy_id):
     """办理退房"""
     try:
@@ -164,10 +164,8 @@ def occupancy_check_out(occupancy_id):
         move_out_date = data.get('move_out_date', date.today().strftime('%Y-%m-%d'))
         dorm_svc.check_out(occupancy_id, move_out_date)
         return jsonify({'success': True, 'message': '退房办理成功'})
-    except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': f'退房办理失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 # ==================== 身份证照片上传 ====================
@@ -181,7 +179,7 @@ def allowed_file(filename):
 
 @dorm_bp.route('/upload_idcard', methods=['POST'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_create')
 def upload_idcard():
     """上传身份证照片"""
     try:
@@ -217,14 +215,14 @@ def upload_idcard():
         return jsonify({'success': True, 'path': relative_path})
 
     except Exception as e:
-        return jsonify({'success': False, 'message': f'上传失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 # ==================== 电表抄表 ====================
 
 @dorm_bp.route('/reading')
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_view')
 def reading():
     """电表抄表页面"""
     return render_template('dorm/reading.html')
@@ -232,7 +230,7 @@ def reading():
 
 @dorm_bp.route('/reading/list', methods=['GET'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_view')
 def reading_list():
     """电表读数列表"""
     try:
@@ -248,12 +246,12 @@ def reading_list():
         )
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @dorm_bp.route('/reading/rooms_for_reading', methods=['GET'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_view')
 def reading_rooms():
     """获取需要抄表的在住房间列表"""
     try:
@@ -264,12 +262,12 @@ def reading_rooms():
         result = dorm_svc.get_rooms_for_reading(year_month)
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @dorm_bp.route('/reading/save', methods=['POST'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_edit')
 def reading_save():
     """保存电表读数"""
     try:
@@ -281,17 +279,72 @@ def reading_save():
             reading_date=data.get('reading_date'),
         )
         return jsonify({'success': True, 'message': '保存成功', 'data': result})
-    except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': f'保存失败：{str(e)}'}), 500
+        return handle_exception(e)
+
+
+# ==================== 水表抄表 ====================
+
+@dorm_bp.route('/water_reading/list', methods=['GET'])
+@login_required
+@check_permission('dorm_view')
+def water_reading_list():
+    """水表读数列表"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        year_month = request.args.get('year_month', '').strip()
+        room_id = request.args.get('room_id', type=int)
+
+        result = dorm_svc.get_water_readings(
+            page=page, per_page=per_page,
+            year_month=year_month or None,
+            room_id=room_id
+        )
+        return jsonify({'success': True, 'data': result})
+    except Exception as e:
+        return handle_exception(e)
+
+
+@dorm_bp.route('/water_reading/rooms_for_reading', methods=['GET'])
+@login_required
+@check_permission('dorm_view')
+def water_reading_rooms():
+    """获取需要水表抄表的在住房间列表"""
+    try:
+        year_month = request.args.get('year_month', '').strip()
+        if not year_month:
+            return jsonify({'success': False, 'message': '请选择抄表月份'}), 400
+
+        result = dorm_svc.get_rooms_for_water_reading(year_month)
+        return jsonify({'success': True, 'data': result})
+    except Exception as e:
+        return handle_exception(e)
+
+
+@dorm_bp.route('/water_reading/save', methods=['POST'])
+@login_required
+@check_permission('dorm_edit')
+def water_reading_save():
+    """保存水表读数"""
+    try:
+        data = request.json
+        result = dorm_svc.save_water_reading(
+            room_id=data.get('room_id'),
+            year_month=data.get('year_month', '').strip(),
+            current_reading=data.get('current_reading'),
+            reading_date=data.get('reading_date'),
+        )
+        return jsonify({'success': True, 'message': '保存成功', 'data': result})
+    except Exception as e:
+        return handle_exception(e)
 
 
 # ==================== 月度账单 ====================
 
 @dorm_bp.route('/bill')
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_view')
 def bill():
     """月度账单页面"""
     return render_template('dorm/bill.html')
@@ -299,7 +352,7 @@ def bill():
 
 @dorm_bp.route('/bill/list', methods=['GET'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_view')
 def bill_list():
     """月度账单列表"""
     try:
@@ -315,12 +368,12 @@ def bill_list():
         )
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @dorm_bp.route('/bill/generate', methods=['POST'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_create')
 def bill_generate():
     """按月批量生成账单"""
     try:
@@ -331,29 +384,25 @@ def bill_generate():
             return jsonify(result)
         else:
             return jsonify(result), 400
-    except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': f'生成失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @dorm_bp.route('/bill/confirm/<int:bill_id>', methods=['POST'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_edit')
 def bill_confirm(bill_id):
     """确认单条账单"""
     try:
         dorm_svc.confirm_bill(bill_id)
         return jsonify({'success': True, 'message': '确认成功'})
-    except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': f'确认失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @dorm_bp.route('/bill/batch_confirm', methods=['POST'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_edit')
 def bill_batch_confirm():
     """批量确认账单"""
     try:
@@ -362,32 +411,30 @@ def bill_batch_confirm():
         result = dorm_svc.batch_confirm_bills(bill_ids)
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': f'批量确认失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @dorm_bp.route('/bill/create_receivable/<int:bill_id>', methods=['POST'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_edit')
 def bill_create_receivable(bill_id):
     """开账→联动应收"""
     try:
         result = dorm_svc.create_receivable(bill_id, created_by=current_user.user_id)
         return jsonify(result)
-    except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': f'开账失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 # ==================== 统计概览 ====================
 
 @dorm_bp.route('/stats', methods=['GET'])
 @login_required
-@check_permission('dorm_manage')
+@check_permission('dorm_view')
 def stats():
     """宿舍概览统计"""
     try:
         result = dorm_svc.get_dashboard_stats()
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取统计失败：{str(e)}'}), 500
+        return handle_exception(e)

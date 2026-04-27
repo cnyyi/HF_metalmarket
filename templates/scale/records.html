@@ -176,44 +176,13 @@ function renderTable(data) {
     tbody.html(html);
 
     $('#recordCountInfo').text('共 ' + data.total_count + ' 条记录');
-    renderPagination(data);
+    renderPagination('#paginationList', data, function(page) { loadRecords(page); });
 }
 
 function renderWeighType(type) {
     var map = {'皮毛重': 'primary', '毛重': 'success', '皮重': 'warning', '入口': 'info'};
     var cls = map[type] || 'secondary';
     return '<span class="badge bg-' + cls + '">' + escapeHtml(type || '-') + '</span>';
-}
-
-function renderPagination(data) {
-    var totalPages = data.total_pages;
-    var curPage = data.current_page;
-    if (totalPages <= 1) { $('#paginationNav').hide(); return; }
-
-    var html = '';
-    html += '<li class="page-item ' + (curPage === 1 ? 'disabled' : '') + '">';
-    html += '<a class="page-link" href="#" data-page="' + (curPage - 1) + '">上一页</a></li>';
-
-    var startPage = Math.max(1, curPage - 2);
-    var endPage = Math.min(totalPages, curPage + 2);
-    if (startPage > 1) {
-        html += '<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>';
-        if (startPage > 2) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-    }
-    for (var i = startPage; i <= endPage; i++) {
-        html += '<li class="page-item ' + (i === curPage ? 'active' : '') + '">';
-        html += '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
-    }
-    if (endPage < totalPages) {
-        if (endPage < totalPages - 1) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-        html += '<li class="page-item"><a class="page-link" href="#" data-page="' + totalPages + '">' + totalPages + '</a></li>';
-    }
-
-    html += '<li class="page-item ' + (curPage === totalPages ? 'disabled' : '') + '">';
-    html += '<a class="page-link" href="#" data-page="' + (curPage + 1) + '">下一页</a></li>';
-
-    $('#paginationList').html(html);
-    $('#paginationNav').show();
 }
 
 function showDetail(recordId) {
@@ -263,15 +232,7 @@ function showDetail(recordId) {
 $(document).ready(function() {
     loadRecords(1);
 
-    $(document).on('click', '#paginationList .page-link', function(e) {
-        e.preventDefault();
-        var page = $(this).data('page');
-        if (page && page >= 1) loadRecords(page);
-    });
-
-    $('#btnSearch').on('click', function() {
-        loadRecords(1);
-    });
+    bindSearch('searchKeyword', 'btnSearch', function() { loadRecords(1); });
 
     $('#btnReset').on('click', function() {
         $('#searchKeyword').val('');
@@ -280,9 +241,6 @@ $(document).ready(function() {
         loadRecords(1);
     });
 
-    $('#searchKeyword').on('keypress', function(e) {
-        if (e.which === 13) loadRecords(1);
-    });
 
     $(document).on('click', '.btn-detail', function() {
         var id = $(this).data('id');

@@ -1,0 +1,104 @@
+{% extends "admin_base.html" %}
+
+{% block title %}新增角色{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<a href="{{ url_for('role.role_list') }}" class="breadcrumb-link">角色管理</a>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">新增角色</span>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title mb-0"><i class="fa fa-plus-circle"></i> 新增角色</h5>
+    </div>
+    <div class="card-body">
+        <form id="addRoleForm">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">角色名称 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="role_name" name="role_name" placeholder="请输入角色名称" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">角色编码 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="role_code" name="role_code" placeholder="请输入角色编码（英文，如 operator）" required>
+                    <small class="text-muted">编码创建后不可修改，建议使用英文小写</small>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <label class="form-label fw-bold">描述</label>
+                    <textarea class="form-control" id="description" name="description" rows="3" placeholder="请输入角色描述（可选）"></textarea>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    <button type="button" class="btn btn-primary" id="btnSubmit" onclick="submitForm()">
+                        <i class="fa fa-save"></i> 保存
+                    </button>
+                    <a href="{{ url_for('role.role_list') }}" class="btn btn-secondary">
+                        <i class="fa fa-times"></i> 取消
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function submitForm() {
+    var roleName = $.trim($('#role_name').val());
+    var roleCode = $.trim($('#role_code').val());
+    var description = $.trim($('#description').val());
+
+    if (!roleName) {
+        showToast('warning', '请输入角色名称');
+        return;
+    }
+    if (!roleCode) {
+        showToast('warning', '请输入角色编码');
+        return;
+    }
+
+    var $btn = $('#btnSubmit');
+    $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 保存中...');
+
+    $.ajax({
+        url: '{{ url_for("role.role_add") }}',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            role_name: roleName,
+            role_code: roleCode,
+            description: description
+        }),
+        headers: { 'X-CSRFToken': $('meta[name="csrf-token"]').attr('content') },
+        dataType: 'json',
+        success: function(res) {
+            if (res.success) {
+                showToast('success', '角色创建成功');
+                setTimeout(function() {
+                    window.location.href = '{{ url_for("role.role_list") }}';
+                }, 500);
+            } else {
+                showToast('error', res.message || '创建失败');
+            }
+        },
+        error: function(xhr) {
+            var msg = '创建失败';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                msg = xhr.responseJSON.message;
+            }
+            showToast('error', msg);
+        },
+        complete: function() {
+            $btn.prop('disabled', false).html('<i class="fa fa-save"></i> 保存');
+        }
+    });
+}
+</script>
+{% endblock %}

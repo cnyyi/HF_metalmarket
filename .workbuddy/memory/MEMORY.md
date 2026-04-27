@@ -16,6 +16,7 @@
 - **权限控制**：`@check_permission('xxx_manage')` 装饰器（定义在 `app/routes/user.py`）
 - **字典管理**：所有字典从 `Sys_Dictionary` 表动态获取
 - **Receivable/Payable 状态值**：`N'未付款'` / `N'部分付款'` / `N'已付款'`（统一体系，字段名 `Amount` 非 `TotalAmount`）
+- **合同-商户关系**（2026-04-22 修复）：同一商户允许创建多合同。`get_available_merchants()` 从 NOT IN 改为 LEFT JOIN 标注合同数，`generate_contract_number()` 增加同日编号查重自动追加序号（-2, -3...）。前端下拉显示"已有N份合同"标注。
 - **Receivable 商品字段**（2026-04-18）：ProductName/Specification/Quantity/UnitID/UnitPrice（均可空），UnitID 关联字典表 unit_type（Kg/吨/车/瓶），数量×单价=应收金额
   - 列表不显示这4列（用户要求移除），但添加弹窗和详情弹窗保留
   - 详情弹窗按费用类型显示关联数据：租金→关联合同信息（ContractID via ReferenceID），电费/水费→关联抄表明细列表（含表号/位置/月份/表底/倍率/用量/单价/小计/合计）
@@ -63,6 +64,8 @@
 - **Dead code**：app/extensions.py 未被引用
 - **调试代码**：utility.py 仍有部分 print() 语句
 - **财务导出**：应收/应付/现金流水导出Excel功能均未实现
+- **SCOPE_IDENTITY 不稳定**：add_contract 原来用 SCOPE_IDENTITY 获取新ID，可能导致 None（合同13-16无 ContractPlot 数据为证），已改为 OUTPUT INSERTED.ContractID + SCOPE_IDENTITY 回退
+- **合同-应收联动**（2026-04-23 修复）：`add_contract()` 创建合同后自动创建租金应收；`update_contract()` 更新合同时同步更新/创建应收（之前缺失此逻辑）。`rent_adjust` 参数统一做 `float()` 类型保护
 
 ## 前端架构（2026-04-16 UI 全面改版后）
 - **模板体系**：admin_base.html(管理端-侧边栏布局) / auth_base.html(认证页-双栏分屏) / public_base.html(公共) / merchant_base.html(商户端)

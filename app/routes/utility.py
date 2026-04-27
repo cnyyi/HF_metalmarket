@@ -4,6 +4,8 @@ import logging
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from app.services.utility_service import UtilityService
+from app.api_response import handle_exception
+from app.routes.user import check_permission, check_api_permission
 
 # 创建蓝图
 utility_bp = Blueprint('utility', __name__)
@@ -15,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 @utility_bp.route('/list')
 @login_required
+@check_permission('utility_view')
 def utility_list():
     """
     水电表列表页面
@@ -24,6 +27,7 @@ def utility_list():
 
 @utility_bp.route('/list_data', methods=['GET'])
 @login_required
+@check_api_permission('utility_view')
 def list_data():
     """
     获取水电表列表数据（带分页和筛选）
@@ -43,14 +47,12 @@ def list_data():
         return jsonify(result)
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'获取数据失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 @utility_bp.route('/detail/<int:meter_id>', methods=['GET'])
 @login_required
+@check_api_permission('utility_view')
 def detail(meter_id):
     """
     查看水电表明细
@@ -61,14 +63,12 @@ def detail(meter_id):
         return jsonify(result)
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'获取详情失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 @utility_bp.route('/create', methods=['POST'])
 @login_required
+@check_api_permission('utility_create')
 def create():
     """
     新增水电表
@@ -115,12 +115,13 @@ def create():
         logger.exception("/utility/create 创建失败: %s", e)
         return jsonify({
             'success': False,
-            'message': f'[CREATE_V3] 创建失败：{str(e)}'
+            'message': ''
         }), 500
 
 
 @utility_bp.route('/edit/<int:meter_id>', methods=['POST'])
 @login_required
+@check_api_permission('utility_edit')
 def edit(meter_id):
     """
     编辑水电表
@@ -139,14 +140,12 @@ def edit(meter_id):
         return jsonify(result)
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'编辑失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 @utility_bp.route('/delete/<int:meter_id>', methods=['POST'])
 @login_required
+@check_api_permission('utility_delete')
 def delete(meter_id):
     """
     删除水电表
@@ -157,14 +156,12 @@ def delete(meter_id):
         return jsonify(result)
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'删除失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 @utility_bp.route('/unlink/<int:meter_id>', methods=['POST'])
 @login_required
+@check_api_permission('utility_edit')
 def unlink(meter_id):
     """
     解除水电表与合同的关联
@@ -175,14 +172,12 @@ def unlink(meter_id):
         return jsonify(result)
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'解除关联失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 @utility_bp.route('/water_meter')
 @login_required
+@check_permission('utility_reading')
 def water_meter():
     """
     水表抄表页面
@@ -223,6 +218,7 @@ def water_meter():
 
 @utility_bp.route('/water_meter_data', methods=['GET'])
 @login_required
+@check_api_permission('utility_reading')
 def water_meter_data():
     """
     获取待抄水表列表（按所属月份过滤已抄表记录）
@@ -232,14 +228,12 @@ def water_meter_data():
         result = utility_service.get_meters_to_read('water', belong_month=belong_month or None)
         return jsonify(result)
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'获取数据失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 @utility_bp.route('/water_meter_submit', methods=['POST'])
 @login_required
+@check_api_permission('utility_reading')
 def water_meter_submit():
     """
     提交水表抄表数据
@@ -263,14 +257,12 @@ def water_meter_submit():
         return jsonify(result)
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'提交失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 @utility_bp.route('/electricity_meter')
 @login_required
+@check_permission('utility_reading')
 def electricity_meter():
     """
     电表抄表页面
@@ -311,6 +303,7 @@ def electricity_meter():
 
 @utility_bp.route('/electricity_meter_data', methods=['GET'])
 @login_required
+@check_api_permission('utility_reading')
 def electricity_meter_data():
     """
     获取待抄电表列表（按所属月份过滤已抄表记录）
@@ -320,14 +313,12 @@ def electricity_meter_data():
         result = utility_service.get_meters_to_read('electricity', belong_month=belong_month or None)
         return jsonify(result)
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'获取数据失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 @utility_bp.route('/electricity_meter_submit', methods=['POST'])
 @login_required
+@check_api_permission('utility_reading')
 def electricity_meter_submit():
     """
     提交电表抄表数据
@@ -351,10 +342,7 @@ def electricity_meter_submit():
         return jsonify(result)
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'提交失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 @utility_bp.route('/merchants', methods=['GET'])
@@ -367,10 +355,7 @@ def merchants():
         result = utility_service.get_merchants_list()
         return jsonify(result)
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'获取商户列表失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 @utility_bp.route('/contracts', methods=['GET'])
@@ -383,10 +368,7 @@ def contracts():
         result = utility_service.get_contracts_list()
         return jsonify(result)
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'获取合同列表失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 # [已移除] debug_contracts 和 test_contracts 路由 — 生产环境不需要调试页面
@@ -403,14 +385,12 @@ def valid_contracts():
         result = utility_service.get_valid_contracts()
         return jsonify(result)
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'获取有效合同失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 @utility_bp.route('/bind', methods=['POST'])
 @login_required
+@check_api_permission('utility_edit')
 def bind():
     """
     绑定水电表到合同
@@ -444,14 +424,12 @@ def bind():
         return jsonify(result)
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'绑定失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 @utility_bp.route('/unbind', methods=['POST'])
 @login_required
+@check_api_permission('utility_edit')
 def unbind():
     """
     解绑水电表
@@ -477,14 +455,12 @@ def unbind():
         return jsonify(result)
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'解绑失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 @utility_bp.route('/toggle_meter_status', methods=['POST'])
 @login_required
+@check_api_permission('utility_edit')
 def toggle_meter_status():
     """
     切换水电表绑定的启用/停用状态
@@ -511,10 +487,7 @@ def toggle_meter_status():
         return jsonify(result)
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'操作失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 # [已移除] diagnose_electricity 和 diagnose_electricity_page 路由 — 生产环境不需要调试页面
@@ -522,6 +495,7 @@ def toggle_meter_status():
 
 @utility_bp.route('/reading_data')
 @login_required
+@check_permission('utility_reading')
 def reading_data():
     from datetime import date
     from dateutil.relativedelta import relativedelta
@@ -543,6 +517,7 @@ def reading_data():
 
 @utility_bp.route('/reading_data_list', methods=['GET'])
 @login_required
+@check_api_permission('utility_reading')
 def reading_data_list():
     try:
         belong_month = request.args.get('belong_month', '').strip()
@@ -555,14 +530,12 @@ def reading_data_list():
         return jsonify(result)
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'获取数据失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 @utility_bp.route('/reading_data/pay', methods=['POST'])
 @login_required
+@check_api_permission('utility_pay')
 def pay_reading():
     """
     抄表数据快捷收费
@@ -575,34 +548,23 @@ def pay_reading():
         account_id = data.get('account_id')
         amount = float(data.get('amount', 0))
 
+        logger.info(f"收费请求: merchant_id={merchant_id}, belong_month={belong_month}, meter_type={meter_type}, account_id={account_id}, amount={amount}")
+
         if not merchant_id:
-            return jsonify({'success': False, 'message': '商户ID不能为空'}), 400
-        if not belong_month:
-            return jsonify({'success': False, 'message': '所属月份不能为空'}), 400
-        if not account_id:
-            return jsonify({'success': False, 'message': '请选择收款账户'}), 400
-        if amount <= 0:
-            return jsonify({'success': False, 'message': '交费金额必须大于0'}), 400
+            return jsonify({'success': False, 'message': '缺少商户ID'}), 400
 
         result = utility_service.pay_reading(
-            merchant_id=merchant_id,
-            belong_month=belong_month,
-            meter_type=meter_type,
-            account_id=account_id,
-            amount=amount,
-            created_by=current_user.user_id
+            merchant_id, belong_month, meter_type, account_id, amount,
+            created_by=current_user.id
         )
         return jsonify(result)
-
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'收费失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 @utility_bp.route('/reading_data/delete/<int:reading_id>', methods=['POST'])
 @login_required
+@check_api_permission('utility_reading')
 def delete_reading(reading_id):
     """
     删除单条抄表记录
@@ -611,14 +573,12 @@ def delete_reading(reading_id):
         result = utility_service.delete_reading(reading_id)
         return jsonify(result)
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'删除失败：{str(e)}'
-        }), 500
+        return handle_exception(e)
 
 
 @utility_bp.route('/reading_data/delete_batch', methods=['POST'])
 @login_required
+@check_api_permission('utility_reading')
 def delete_readings_batch():
     """
     批量删除抄表记录
@@ -636,7 +596,4 @@ def delete_readings_batch():
         result = utility_service.delete_readings_batch(reading_ids)
         return jsonify(result)
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'批量删除失败：{str(e)}'
-        }), 500
+        return handle_exception(e)

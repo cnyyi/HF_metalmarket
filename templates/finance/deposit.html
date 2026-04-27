@@ -277,7 +277,7 @@ function loadSummary() {
 function loadAccounts() {
     $.get('/finance/account/active_list', function(res) {
         if (res.success) {
-            const opts = res.data.map(a => `<option value="${a.account_id}">${a.account_name} (¥${a.balance.toFixed(2)})</option>`).join('');
+            const opts = res.data.map(a => `<option value="${a.account_id}">${escapeHtml(a.account_name)} (¥${a.balance.toFixed(2)})</option>`).join('');
             $('#createAccount, #opAccount').html('<option value="">选择账户</option>' + opts);
         }
     });
@@ -310,15 +310,15 @@ function loadList(page) {
                 const canOperate = item.status !== '已结清';
                 html += `<tr>
                     <td>${item.deposit_id}</td>
-                    <td>${item.customer_name}</td>
-                    <td>${item.deposit_type_name}</td>
+                    <td>${escapeHtml(item.customer_name)}</td>
+                    <td>${escapeHtml(item.deposit_type_name)}</td>
                     <td class="fw-bold">¥${item.amount.toFixed(2)}</td>
                     <td class="text-success">¥${item.refund_amount.toFixed(2)}</td>
                     <td class="text-danger">¥${item.deduct_amount.toFixed(2)}</td>
                     <td class="text-info">¥${item.transfer_amount.toFixed(2)}</td>
                     <td class="text-primary fw-bold">¥${item.remaining_amount.toFixed(2)}</td>
-                    <td><span class="badge ${statusBadge}">${item.status}</span></td>
-                    <td>${item.create_time}</td>
+                    <td><span class="badge ${statusBadge}">${escapeHtml(item.status)}</span></td>
+                    <td>${escapeHtml(item.create_time)}</td>
                     <td>
                         <div class="btn-group btn-group-sm">
                             <button class="btn btn-outline-info" onclick="showDetail(${item.deposit_id})"><i class="fa fa-eye"></i> 详情</button>
@@ -335,19 +335,8 @@ function loadList(page) {
 
         $('#dataBody').html(html);
         $('#pageInfo').text(`共 ${data.total_count} 条，第 ${data.current_page}/${data.total_pages} 页`);
-        renderPagination(data);
+        renderPagination('#pagination', data, function(page) { loadList(page); });
     });
-}
-
-function renderPagination(data) {
-    if (data.total_pages <= 1) { $('#pagination').html(''); return; }
-    let html = '<ul class="pagination pagination-sm mb-0">';
-    for (let i = 1; i <= data.total_pages; i++) {
-        html += `<li class="page-item ${i === data.current_page ? 'active' : ''}">
-            <a class="page-link" href="#" onclick="loadList(${i});return false">${i}</a></li>`;
-    }
-    html += '</ul>';
-    $('#pagination').html(html);
 }
 
 function resetFilters() {
@@ -375,7 +364,7 @@ function searchCustomers(keyword) {
         list.forEach(item => {
             const name = cType === 'Merchant' ? item.merchant_name : item.customer_name;
             const id = cType === 'Merchant' ? item.merchant_id : item.customer_id;
-            html += `<a class="dropdown-item" href="#" onclick="selectCustomer('${id}','${name}');return false">${name}</a>`;
+            html += `<a class="dropdown-item" href="#" onclick="selectCustomer('${id}','${escapeHtml(name)}');return false">${escapeHtml(name)}</a>`;
         });
         if (!html) html = '<span class="dropdown-item text-muted">无结果</span>';
         $('#customerDropdown').html(html).show();
@@ -470,7 +459,7 @@ function showOpModal(depositId, opType) {
     $.get(`/finance/deposit/detail/${depositId}`, function(res) {
         if (!res.success) return;
         const d = res.data;
-        $('#opInfo').html(`<strong>${d.deposit_type_name}#${d.deposit_id}</strong> — ${d.customer_name} | 金额: ¥${d.amount.toFixed(2)} | 剩余: <strong class="text-primary">¥${d.remaining_amount.toFixed(2)}</strong>`);
+        $('#opInfo').html(`<strong>${escapeHtml(d.deposit_type_name)}#${d.deposit_id}</strong> — ${escapeHtml(d.customer_name)} | 金额: ¥${d.amount.toFixed(2)} | 剩余: <strong class="text-primary">¥${d.remaining_amount.toFixed(2)}</strong>`);
     });
 
     new bootstrap.Modal('#operationModal').show();
@@ -560,9 +549,9 @@ function showDetail(depositId) {
             d.operations.forEach(op => {
                 let ref = '-';
                 if (op.receivable_id) ref = `应收#${op.receivable_id}`;
-                else if (op.account_name) ref = op.account_name;
-                opHtml += `<tr><td><span class="badge ${op.operation_type === 'refund' ? 'bg-success' : op.operation_type === 'deduct' ? 'bg-danger' : 'bg-info'}">${op.operation_type_text}</span></td>
-                    <td>¥${op.amount.toFixed(2)}</td><td>${ref}</td><td>${op.description}</td><td>${op.operator_name}</td><td>${op.create_time}</td></tr>`;
+                else if (op.account_name) ref = escapeHtml(op.account_name);
+                opHtml += `<tr><td><span class="badge ${op.operation_type === 'refund' ? 'bg-success' : op.operation_type === 'deduct' ? 'bg-danger' : 'bg-info'}">${escapeHtml(op.operation_type_text)}</span></td>
+                    <td>¥${op.amount.toFixed(2)}</td><td>${ref}</td><td>${escapeHtml(op.description || '')}</td><td>${escapeHtml(op.operator_name)}</td><td>${escapeHtml(op.create_time)}</td></tr>`;
             });
             opHtml += '</tbody></table>';
         } else {
@@ -572,8 +561,8 @@ function showDetail(depositId) {
         $('#detailBody').html(`
             <div class="row">
                 <div class="col-6">
-                    <p><strong>客户：</strong>${d.customer_name} (${d.customer_type})</p>
-                    <p><strong>押金类型：</strong>${d.deposit_type_name}</p>
+                    <p><strong>客户：</strong>${escapeHtml(d.customer_name)} (${escapeHtml(d.customer_type)})</p>
+                    <p><strong>押金类型：</strong>${escapeHtml(d.deposit_type_name)}</p>
                     <p><strong>关联合同：</strong>${d.related_contract_id ? '#' + d.related_contract_id : '-'}</p>
                 </div>
                 <div class="col-6">
@@ -582,11 +571,11 @@ function showDetail(depositId) {
                     <p><strong>已扣除：</strong><span class="text-danger">¥${d.deduct_amount.toFixed(2)}</span></p>
                     <p><strong>已转抵：</strong><span class="text-info">¥${d.transfer_amount.toFixed(2)}</span></p>
                     <p><strong>剩余：</strong><span class="text-primary fw-bold">¥${d.remaining_amount.toFixed(2)}</span></p>
-                    <p><strong>状态：</strong><span class="badge ${statusBadge}">${d.status}</span></p>
+                    <p><strong>状态：</strong><span class="badge ${statusBadge}">${escapeHtml(d.status)}</span></p>
                 </div>
             </div>
-            <p><strong>备注：</strong>${d.description || '-'}</p>
-            <p><strong>创建时间：</strong>${d.create_time}</p>
+            <p><strong>备注：</strong>${escapeHtml(d.description || '-')}</p>
+            <p><strong>创建时间：</strong>${escapeHtml(d.create_time)}</p>
             ${opHtml}
         `);
         new bootstrap.Modal('#detailModal').show();

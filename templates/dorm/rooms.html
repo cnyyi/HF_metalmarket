@@ -64,6 +64,7 @@
                         <th>面积(㎡)</th>
                         <th>月租金</th>
                         <th>水费定额</th>
+                        <th>水费模式</th>
                         <th>电费单价</th>
                         <th>电表号</th>
                         <th>状态</th>
@@ -73,7 +74,7 @@
                 </thead>
                 <tbody id="roomTableBody">
                     <tr>
-                        <td colspan="11" class="text-center text-muted">加载中...</td>
+                        <td colspan="12" class="text-center text-muted">加载中...</td>
                     </tr>
                 </tbody>
             </table>
@@ -120,6 +121,17 @@
                     <input type="number" class="form-control" id="waterQuota" step="0.01" min="0" value="0">
                 </div>
                 <div class="mb-3">
+                    <label class="form-label">水费模式</label>
+                    <select class="form-select" id="water_mode" name="water_mode">
+                        <option value="quota">定额</option>
+                        <option value="meter">抄表</option>
+                    </select>
+                </div>
+                <div class="mb-3" id="water_unit_price_group" style="display:none;">
+                    <label class="form-label">水费单价（元/吨）</label>
+                    <input type="number" class="form-control" id="water_unit_price" name="water_unit_price" step="0.01" min="0" value="0">
+                </div>
+                <div class="mb-3">
                     <label class="form-label">电费单价(元/度)</label>
                     <input type="number" class="form-control" id="electricityUnitPrice" step="0.01" min="0" value="1.0">
                 </div>
@@ -157,7 +169,7 @@ $(function() {
             var data = res.data;
             var html = '';
             if (data.items.length === 0) {
-                html = '<tr><td colspan="11" class="text-center text-muted">暂无数据</td></tr>';
+                html = '<tr><td colspan="12" class="text-center text-muted">暂无数据</td></tr>';
             } else {
                 data.items.forEach(function(item, i) {
                     var statusBadge = getStatusBadge(item.status);
@@ -168,6 +180,7 @@ $(function() {
                         '<td>' + (item.area ? item.area : '-') + '</td>' +
                         '<td>' + item.monthly_rent.toFixed(2) + '</td>' +
                         '<td>' + item.water_quota.toFixed(2) + '</td>' +
+                        '<td>' + (item.water_mode === 'meter' ? '<span class="badge bg-info">抄表</span>' : '<span class="badge bg-secondary">定额</span>') + '</td>' +
                         '<td>' + item.electricity_unit_price.toFixed(2) + '</td>' +
                         '<td>' + escapeHtml(item.meter_number) + '</td>' +
                         '<td>' + statusBadge + '</td>' +
@@ -181,7 +194,7 @@ $(function() {
                 });
             }
             $('#roomTableBody').html(html);
-            renderPagination(data);
+            renderPagination('#paginationList', data, function(page) { loadRooms(page); });
         });
     }
 
@@ -194,24 +207,18 @@ $(function() {
         return map[status] || '<span class="badge bg-secondary">' + escapeHtml(status) + '</span>';
     }
 
-    function renderPagination(data) {
-        if (data.total_pages <= 1) {
-            $('#paginationNav').hide();
-            return;
-        }
-        $('#paginationNav').show();
-        var html = '';
-        html += '<li class="page-item ' + (data.current_page <= 1 ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="loadRooms(' + (data.current_page - 1) + ');return false;">&laquo;</a></li>';
-        for (var i = 1; i <= data.total_pages; i++) {
-            html += '<li class="page-item ' + (i === data.current_page ? 'active' : '') + '"><a class="page-link" href="#" onclick="loadRooms(' + i + ');return false;">' + i + '</a></li>';
-        }
-        html += '<li class="page-item ' + (data.current_page >= data.total_pages ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="loadRooms(' + (data.current_page + 1) + ');return false;">&raquo;</a></li>';
-        $('#paginationList').html(html);
-    }
-
     // 搜索
     $('#btnSearch').click(function() { loadRooms(1); });
     $('#searchInput').keypress(function(e) { if (e.which === 13) loadRooms(1); });
+
+    // 水费模式切换
+    $('#water_mode').on('change', function() {
+        if ($(this).val() === 'meter') {
+            $('#water_unit_price_group').show();
+        } else {
+            $('#water_unit_price_group').hide();
+        }
+    });
 
     // 新增房间
     $('#btnAddRoom').click(function() {
@@ -222,6 +229,8 @@ $(function() {
         $('#area').val('');
         $('#monthlyRent').val('0');
         $('#waterQuota').val('0');
+        $('#water_mode').val('quota').trigger('change');
+        $('#water_unit_price').val('0');
         $('#electricityUnitPrice').val('1.0');
         $('#meterNumber').val('');
         $('#description').val('');
@@ -236,6 +245,8 @@ $(function() {
             area: $('#area').val() || null,
             monthly_rent: parseFloat($('#monthlyRent').val()) || 0,
             water_quota: parseFloat($('#waterQuota').val()) || 0,
+            water_mode: $('#water_mode').val(),
+            water_unit_price: parseFloat($('#water_unit_price').val()) || 0,
             electricity_unit_price: parseFloat($('#electricityUnitPrice').val()) || 1.0,
             meter_number: $('#meterNumber').val().trim(),
             description: $('#description').val().trim()
@@ -279,6 +290,8 @@ $(function() {
             $('#area').val(item.area || '');
             $('#monthlyRent').val(item.monthly_rent);
             $('#waterQuota').val(item.water_quota);
+            $('#water_mode').val(item.water_mode || 'quota').trigger('change');
+            $('#water_unit_price').val(item.water_unit_price || 0);
             $('#electricityUnitPrice').val(item.electricity_unit_price);
             $('#meterNumber').val(item.meter_number);
             $('#description').val(item.description);

@@ -6,6 +6,7 @@
 import logging
 from datetime import datetime
 from utils.database import DBConnection
+from utils.format_utils import format_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +51,8 @@ class AccountService:
                     'is_default': bool(row.IsDefault),
                     'status': row.Status,
                     'remark': row.Remark or '',
-                    'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
-                    'update_time': row.UpdateTime.strftime('%Y-%m-%d %H:%M') if row.UpdateTime else '',
+                    'create_time': format_datetime(row.CreateTime),
+                    'update_time': format_datetime(row.UpdateTime),
                 })
             return result
 

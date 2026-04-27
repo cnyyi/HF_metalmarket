@@ -81,9 +81,12 @@ class MerchantService:
             params.extend([search_param, search_param, search_param])
         
         # 添加分页条件
-        offset = (page - 1) * per_page
-        base_query += " ORDER BY MerchantID DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
-        params.extend([offset, per_page])
+        if per_page > 0:
+            offset = (page - 1) * per_page
+            base_query += " ORDER BY MerchantID DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
+            params.extend([offset, per_page])
+        else:
+            base_query += " ORDER BY MerchantID DESC"
         
         # 执行查询
         merchants = []
@@ -109,7 +112,7 @@ class MerchantService:
         # 获取总页数
         count_result = execute_query(count_query, tuple(params[:-2]) if search else tuple(), fetch_type='one')
         total_count = count_result.count
-        total_pages = (total_count + per_page - 1) // per_page
+        total_pages = 1 if per_page <= 0 else (total_count + per_page - 1) // per_page
         
         return merchants, total_count, total_pages
     

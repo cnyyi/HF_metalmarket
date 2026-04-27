@@ -1,0 +1,233 @@
+{% extends "admin_base.html" %}
+
+{% block title %}编辑角色{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<a href="{{ url_for('role.role_list') }}" class="breadcrumb-link">角色管理</a>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">编辑角色</span>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title mb-0"><i class="fa fa-edit"></i> 编辑角色 - {{ role.role_name }}</h5>
+    </div>
+    <div class="card-body">
+        <form id="editRoleForm">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">角色名称 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="role_name" name="role_name" value="{{ role.role_name }}" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">角色编码</label>
+                    <input type="text" class="form-control" value="{{ role.role_code }}" disabled>
+                    <small class="text-muted">编码不可修改</small>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <label class="form-label fw-bold">描述</label>
+                    <textarea class="form-control" id="description" name="description" rows="2" placeholder="请输入角色描述（可选）">{{ role.description or '' }}</textarea>
+                </div>
+            </div>
+
+            <hr class="my-4">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <h5 class="mb-0"><i class="fa fa-key"></i> 权限分配</h5>
+                </div>
+                <div class="col-md-6 text-end">
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-primary" onclick="batchCheck('view')">全选查看</button>
+                        <button type="button" class="btn btn-outline-success" onclick="batchCheck('create')">全选新增</button>
+                        <button type="button" class="btn btn-outline-warning" onclick="batchCheck('edit')">全选编辑</button>
+                        <button type="button" class="btn btn-outline-danger" onclick="batchCheck('delete')">全选删除</button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="batchUncheckAll()">全部取消</button>
+                    </div>
+                </div>
+            </div>
+
+            {% set role_pids = role_permission_ids %}
+            {% for module_name, permissions in permissions_grouped.items() %}
+            <div class="permission-group mb-3">
+                <div class="permission-group-header d-flex align-items-center p-2 rounded" style="background: var(--color-surface-alt, #f8f9fa);">
+                    <input type="checkbox" class="form-check-input me-2 module-check" id="module_{{ loop.index }}" data-module="{{ module_name }}" onchange="onModuleCheckChange(this)">
+                    <label class="form-check-label fw-bold mb-0" for="module_{{ loop.index }}">
+                        <i class="fa fa-folder-open me-1"></i>{{ module_name }}
+                    </label>
+                </div>
+                <div class="permission-group-body ms-3 mt-2">
+                    {% set ns = namespace(current_prefix='') %}
+                    {% for perm in permissions %}
+                        {% set prefix = perm.permission_code.rsplit('_', 1)[0] %}
+                        {% if prefix != ns.current_prefix %}
+                            {% if ns.current_prefix != '' %}
+                    </div>
+                            {% endif %}
+                    <div class="permission-row d-flex align-items-center mb-1 p-1 rounded" data-prefix="{{ prefix }}">
+                        <span class="permission-label me-3" style="min-width: 100px; font-weight: 500;">{{ perm.permission_name | replace('查看','') | replace('新增','') | replace('编辑','') | replace('删除','') | replace('抄表','') | replace('缴费','') }}管理</span>
+                        {% set ns.current_prefix = prefix %}
+                        {% endif %}
+                        <div class="form-check form-check-inline me-3">
+                            <input type="checkbox" class="form-check-input perm-check" name="permission_ids" value="{{ perm.permission_id }}" id="perm_{{ perm.permission_code }}" data-code="{{ perm.permission_code }}" data-prefix="{{ prefix }}" data-op="{{ perm.operation_code }}" {% if perm.permission_id in role_pids %}checked{% endif %} onchange="onPermissionChange(this)">
+                            <label class="form-check-label" for="perm_{{ perm.permission_code }}">{{ perm.operation_code }}</label>
+                        </div>
+                        {% if loop.last %}
+                    </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <button type="button" class="btn btn-primary" id="btnSubmit" onclick="submitForm()">
+                        <i class="fa fa-save"></i> 保存
+                    </button>
+                    <a href="{{ url_for('role.role_list') }}" class="btn btn-secondary">
+                        <i class="fa fa-times"></i> 取消
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function onPermissionChange(checkbox) {
+    var code = checkbox.dataset.code;
+    var prefix = checkbox.dataset.prefix;
+    var op = checkbox.dataset.op;
+
+    if (checkbox.checked && op !== 'view') {
+        var viewCb = document.querySelector('input[data-code="' + prefix + '_view"]');
+        if (viewCb && !viewCb.checked) {
+            viewCb.checked = true;
+        }
+    }
+
+    if (!checkbox.checked && op === 'view') {
+        document.querySelectorAll('input.perm-check[data-prefix="' + prefix + '"]').forEach(function(cb) {
+            if (cb.dataset.op !== 'view') {
+                cb.checked = false;
+            }
+        });
+    }
+
+    updateModuleCheckState(checkbox);
+}
+
+function onModuleCheckChange(moduleCheckbox) {
+    var moduleName = moduleCheckbox.dataset.module;
+    var checked = moduleCheckbox.checked;
+    var group = moduleCheckbox.closest('.permission-group');
+    group.querySelectorAll('.perm-check').forEach(function(cb) {
+        cb.checked = checked;
+    });
+}
+
+function updateModuleCheckState(checkbox) {
+    var group = checkbox.closest('.permission-group');
+    var allChecks = group.querySelectorAll('.perm-check');
+    var checkedCount = group.querySelectorAll('.perm-check:checked').length;
+    var moduleCheck = group.querySelector('.module-check');
+    if (moduleCheck) {
+        moduleCheck.checked = checkedCount === allChecks.length;
+    }
+}
+
+function batchCheck(opCode) {
+    document.querySelectorAll('.perm-check[data-op="' + opCode + '"]').forEach(function(cb) {
+        cb.checked = true;
+        if (opCode !== 'view') {
+            var prefix = cb.dataset.prefix;
+            var viewCb = document.querySelector('input[data-code="' + prefix + '_view"]');
+            if (viewCb && !viewCb.checked) {
+                viewCb.checked = true;
+            }
+        }
+    });
+    document.querySelectorAll('.module-check').forEach(function(mc) {
+        var group = mc.closest('.permission-group');
+        var allChecks = group.querySelectorAll('.perm-check');
+        var checkedCount = group.querySelectorAll('.perm-check:checked').length;
+        mc.checked = checkedCount === allChecks.length;
+    });
+}
+
+function batchUncheckAll() {
+    document.querySelectorAll('.perm-check').forEach(function(cb) {
+        cb.checked = false;
+    });
+    document.querySelectorAll('.module-check').forEach(function(mc) {
+        mc.checked = false;
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.module-check').forEach(function(mc) {
+        var group = mc.closest('.permission-group');
+        var allChecks = group.querySelectorAll('.perm-check');
+        var checkedCount = group.querySelectorAll('.perm-check:checked').length;
+        mc.checked = checkedCount === allChecks.length && allChecks.length > 0;
+    });
+});
+
+function submitForm() {
+    var roleName = $.trim($('#role_name').val());
+    var description = $.trim($('#description').val());
+    var permissionIds = [];
+
+    document.querySelectorAll('.perm-check:checked').forEach(function(cb) {
+        permissionIds.push(parseInt(cb.value));
+    });
+
+    if (!roleName) {
+        showToast('warning', '请输入角色名称');
+        return;
+    }
+
+    var $btn = $('#btnSubmit');
+    $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 保存中...');
+
+    $.ajax({
+        url: '{{ url_for("role.role_edit", role_id=role.role_id) }}',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            role_name: roleName,
+            description: description,
+            permission_ids: permissionIds
+        }),
+        headers: { 'X-CSRFToken': $('meta[name="csrf-token"]').attr('content') },
+        dataType: 'json',
+        success: function(res) {
+            if (res.success) {
+                showToast('success', res.message || '角色更新成功');
+                setTimeout(function() {
+                    window.location.href = '{{ url_for("role.role_list") }}';
+                }, 500);
+            } else {
+                showToast('error', res.message || '更新失败');
+            }
+        },
+        error: function(xhr) {
+            var msg = '更新失败';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                msg = xhr.responseJSON.message;
+            }
+            showToast('error', msg);
+        },
+        complete: function() {
+            $btn.prop('disabled', false).html('<i class="fa fa-save"></i> 保存');
+        }
+    });
+}
+</script>
+{% endblock %}

@@ -182,6 +182,10 @@ function loadContractData() {
                     });
                 }
                 
+                // 立即渲染已选地块和计算金额（不等可用地块加载）
+                renderSelectedPlots();
+                calculateTotal();
+                
                 loadAvailablePlots();
             } else {
                 showToast('error', '加载合同数据失败: ' + response.message);
@@ -196,8 +200,6 @@ function loadContractData() {
 function loadAvailablePlots() {
     if (!currentPeriod) {
         $('#plotTableBody').html('<tr><td colspan="7" class="text-center text-muted">无合同期年信息</td></tr>');
-        renderSelectedPlots();
-        calculateTotal();
         return;
     }
     
@@ -207,17 +209,7 @@ function loadAvailablePlots() {
         success: function(response) {
             if (response.success) {
                 allPlots = response.data;
-                
-                selectedPlots.forEach(function(selectedPlot) {
-                    var exists = allPlots.some(function(p) { return p.plot_id === selectedPlot.plot_id; });
-                    if (!exists) {
-                        allPlots.push(selectedPlot);
-                    }
-                });
-                
                 renderPlotTable(allPlots);
-                renderSelectedPlots();
-                calculateTotal();
             }
         },
         error: function() {

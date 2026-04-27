@@ -23,9 +23,9 @@
                 <a href="/utility/electricity_meter" class="btn btn-warning me-2">
                     <i class="fa fa-bolt"></i> 电表抄表
                 </a>
-                <a href="/utility/reading_data" class="btn btn-success me-2">
+                <button type="button" class="btn btn-success me-2" onclick="openReadingDataModal()">
                     <i class="fa fa-table"></i> 抄表数据
-                </a>
+                </button>
                 <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMeterModal">
                     <i class="fa fa-plus"></i> 新增水电表
                 </button>
@@ -89,10 +89,13 @@
         
         <!-- 分页区域 -->
         <div class="row mt-3">
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div id="pageInfo" class="text-muted"></div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-8 d-flex justify-content-end align-items-center">
+                <button type="button" class="btn btn-sm btn-outline-secondary me-3" id="btnTogglePageSize">
+                    <i class="fa fa-list"></i> <span id="togglePageSizeText">全部数据</span>
+                </button>
                 <nav>
                     <ul class="pagination justify-content-end mb-0" id="pagination"></ul>
                 </nav>
@@ -256,6 +259,219 @@
     </div>
 </div>
 
+<!-- 抄表数据全屏模态窗口 -->
+<div class="modal fade" id="readingDataModal" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #165DFF, #6366F1); color: white;">
+                <h5 class="modal-title"><i class="fa fa-table"></i> 抄表数据</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3" style="overflow-y: auto;">
+                <div class="row mb-3 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold"><i class="fa fa-calendar-check"></i> 所属月份</label>
+                        <select class="form-select" id="rdBelongMonth"></select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold"><i class="fa fa-filter"></i> 表类型</label>
+                        <select class="form-select" id="rdMeterTypeFilter">
+                            <option value="">全部</option>
+                            <option value="electricity">电表</option>
+                            <option value="water">水表</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold"><i class="fa fa-check-circle"></i> 缴费状态</label>
+                        <div class="btn-group" role="group">
+                            <input type="radio" class="btn-check" name="rdPayStatus" id="rdPayAll" value="all" checked>
+                            <label class="btn btn-outline-primary btn-sm" for="rdPayAll">全部</label>
+                            <input type="radio" class="btn-check" name="rdPayStatus" id="rdPayPaid" value="paid">
+                            <label class="btn btn-outline-success btn-sm" for="rdPayPaid">已缴费</label>
+                            <input type="radio" class="btn-check" name="rdPayStatus" id="rdPayUnpaid" value="unpaid">
+                            <label class="btn btn-outline-danger btn-sm" for="rdPayUnpaid">未缴费</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end gap-2">
+                        <button type="button" class="btn btn-danger" id="rdBtnDeleteBatch" disabled>
+                            <i class="fa fa-trash"></i> 批量删除
+                        </button>
+                        <button type="button" class="btn btn-primary" id="rdBtnExportPDF" onclick="rdExportAsPDF()">
+                            <i class="fa fa-file-pdf"></i> 导出PDF
+                        </button>
+                    </div>
+                </div>
+
+                <ul class="nav nav-tabs mb-3" id="rdMeterTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="rd-electricity-tab" data-bs-toggle="tab" data-bs-target="#rdElectricityPane" type="button" role="tab">
+                            <i class="fa fa-bolt"></i> 电表
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="rd-water-tab" data-bs-toggle="tab" data-bs-target="#rdWaterPane" type="button" role="tab">
+                            <i class="fa fa-tint"></i> 水表
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="rdMeterTabContent">
+                    <div class="tab-pane fade show active" id="rdElectricityPane" role="tabpanel">
+                        <div class="table-responsive">
+                            <table class="table reading-table">
+                                <thead>
+                                    <tr>
+                                        <th class="text-center" style="width: 40px;">
+                                            <input type="checkbox" id="rdCheckAllElectricity">
+                                        </th>
+                                        <th class="text-center" style="width: 50px;">序号</th>
+                                        <th class="text-center">公司名（关联商户）</th>
+                                        <th class="text-center" style="width: 100px;">电表编号</th>
+                                        <th class="text-center" style="width: 100px;">上月表底</th>
+                                        <th class="text-center" style="width: 120px;">本月表底</th>
+                                        <th class="text-center" style="width: 80px;">倍率</th>
+                                        <th class="text-center" style="width: 100px;">用电量</th>
+                                        <th class="text-center" style="width: 80px;">单价</th>
+                                        <th class="text-center highlight-subtotal" style="width: 100px;">小计</th>
+                                        <th class="text-center highlight-total" style="width: 100px;">合计</th>
+                                        <th class="text-center" style="width: 100px;">已收金额</th>
+                                        <th class="text-center" style="width: 80px;">缴费情况</th>
+                                        <th class="text-center" style="width: 110px;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rdElectricityTableBody">
+                                    <tr><td colspan="14" class="text-center text-muted">请选择月份后加载数据</td></tr>
+                                </tbody>
+                                <tfoot id="rdElectricityTableFoot" style="display: none;">
+                                    <tr style="background-color: var(--color-bg-light); font-weight: bold; border-top: 3px double var(--color-border);">
+                                        <td colspan="9" class="text-center align-middle">合计（共 <span id="rdElectricityCount">0</span> 个电表）</td>
+                                        <td class="text-center align-middle highlight-subtotal" id="rdElectricitySubtotal">¥0.00</td>
+                                        <td class="text-center align-middle highlight-total" id="rdElectricityTotal">¥0.00</td>
+                                        <td class="text-center align-middle" id="rdElectricityPaid">¥0.00</td>
+                                        <td class="text-center align-middle"></td>
+                                        <td class="text-center align-middle"></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="rdWaterPane" role="tabpanel">
+                        <div class="table-responsive">
+                            <table class="table reading-table">
+                                <thead>
+                                    <tr>
+                                        <th class="text-center" style="width: 40px;">
+                                            <input type="checkbox" id="rdCheckAllWater">
+                                        </th>
+                                        <th class="text-center" style="width: 50px;">序号</th>
+                                        <th class="text-center">公司名（关联商户）</th>
+                                        <th class="text-center" style="width: 100px;">水表编号</th>
+                                        <th class="text-center" style="width: 100px;">上月表底</th>
+                                        <th class="text-center" style="width: 120px;">本月表底</th>
+                                        <th class="text-center" style="width: 80px;">倍率</th>
+                                        <th class="text-center" style="width: 100px;">用水量</th>
+                                        <th class="text-center" style="width: 80px;">单价</th>
+                                        <th class="text-center highlight-subtotal" style="width: 100px;">小计</th>
+                                        <th class="text-center highlight-total" style="width: 100px;">合计</th>
+                                        <th class="text-center" style="width: 100px;">已收金额</th>
+                                        <th class="text-center" style="width: 80px;">缴费情况</th>
+                                        <th class="text-center" style="width: 110px;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rdWaterTableBody">
+                                    <tr><td colspan="14" class="text-center text-muted">请选择月份后加载数据</td></tr>
+                                </tbody>
+                                <tfoot id="rdWaterTableFoot" style="display: none;">
+                                    <tr style="background-color: var(--color-bg-light); font-weight: bold; border-top: 3px double var(--color-border);">
+                                        <td colspan="9" class="text-center align-middle">合计（共 <span id="rdWaterCount">0</span> 个水表）</td>
+                                        <td class="text-center align-middle highlight-subtotal" id="rdWaterSubtotal">¥0.00</td>
+                                        <td class="text-center align-middle highlight-total" id="rdWaterTotal">¥0.00</td>
+                                        <td class="text-center align-middle" id="rdWaterPaid">¥0.00</td>
+                                        <td class="text-center align-middle"></td>
+                                        <td class="text-center align-middle"></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 抄表数据-收费模态窗口 -->
+<div class="modal fade" id="rdPayModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #165DFF, #6366F1); color: white;">
+                <h5 class="modal-title"><i class="fa fa-money-bill-wave"></i> 抄表收费</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center p-2 rounded" style="background: var(--color-bg-light);">
+                            <i class="fa fa-building me-2 text-primary"></i>
+                            <span class="fw-bold me-2">公司名：</span>
+                            <span id="rdPayMerchantName">-</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center p-2 rounded" style="background: var(--color-bg-light);">
+                            <i class="fa fa-calendar me-2 text-primary"></i>
+                            <span class="fw-bold me-2">所属月份：</span>
+                            <span id="rdPayBelongMonth">-</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="table-responsive mb-3">
+                    <table class="table table-sm table-bordered" id="rdPayDetailTable">
+                        <thead style="background: var(--color-bg-light);">
+                            <tr>
+                                <th class="text-center">表编号</th>
+                                <th class="text-center">上月表底</th>
+                                <th class="text-center">本月表底</th>
+                                <th class="text-center">倍率</th>
+                                <th class="text-center">用量</th>
+                                <th class="text-center">单价</th>
+                                <th class="text-center">小计</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rdPayDetailBody"></tbody>
+                        <tfoot>
+                            <tr style="background: var(--color-bg-light); font-weight: bold;">
+                                <td colspan="6" class="text-end">合计</td>
+                                <td class="text-center" id="rdPayTotalAmount">¥0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold"><i class="fa fa-university"></i> 收款账户</label>
+                        <select class="form-select" id="rdPayAccountId">
+                            <option value="">请选择收款账户</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold"><i class="fa fa-yen-sign"></i> 交费金额</label>
+                        <input type="number" class="form-control" id="rdPayAmount" step="0.01" min="0.01" placeholder="请输入交费金额">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="rdBtnConfirmPay" disabled>
+                    <i class="fa fa-check"></i> 确认收费
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 解绑确认模态框 -->
 <div class="modal fade" id="unbindModal" tabindex="-1">
     <div class="modal-dialog">
@@ -368,12 +584,152 @@
 </div>
 {% endblock %}
 
+{% block extra_js_head %}
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+{% endblock %}
+
 {% block extra_css %}
 <style>
 .badge {
     font-size: 0.8rem;
     padding: 0.4em 0.8em;
     border-radius: 0.5rem;
+}
+/* 抄表数据表格样式：按商户分组交替变色 */
+.reading-table tbody tr.group-even {
+    background-color: var(--color-bg-light, #f8f9fc);
+}
+.reading-table tbody tr.group-odd {
+    background-color: var(--bs-white, #fff);
+}
+.reading-table tbody tr.group-first-row {
+    border-top: 2px solid var(--color-border, #e2e8f0);
+}
+.reading-table tbody tr:hover {
+    background-color: rgba(22, 93, 255, 0.04) !important;
+}
+[data-theme="dark"] .reading-table tbody tr.group-even {
+    background-color: rgba(255,255,255,0.02);
+}
+[data-theme="dark"] .reading-table tbody tr.group-odd {
+    background-color: transparent;
+}
+[data-theme="dark"] .reading-table tbody tr:hover {
+    background-color: rgba(129, 140, 248, 0.08) !important;
+}
+.rd-pdf-export {
+    width: 1120px;
+    background: #fff;
+    font-family: "Microsoft YaHei", "PingFang SC", "SimSun", sans-serif;
+    color: #333;
+    line-height: 1.5;
+    overflow: visible;
+}
+.rd-pdf-header {
+    background: linear-gradient(135deg, #165DFF, #6366F1);
+    color: #fff;
+    padding: 20px 28px;
+}
+.rd-pdf-header h2 {
+    margin: 0 0 4px;
+    font-size: 20px;
+    font-weight: 700;
+}
+.rd-pdf-header .rd-pdf-sub {
+    font-size: 13px;
+    opacity: 0.85;
+}
+.rd-pdf-mini-header {
+    background: linear-gradient(135deg, #165DFF, #6366F1);
+    color: #fff;
+    padding: 10px 28px;
+    font-size: 14px;
+    font-weight: 600;
+}
+.rd-pdf-merchant-cont {
+    color: rgba(255,255,255,0.7);
+    font-size: 11px;
+    font-weight: 400;
+}
+.rd-pdf-summary {
+    display: flex;
+    gap: 16px;
+    padding: 14px 28px;
+    background: #f0f4ff;
+    border-bottom: 1px solid #e2e8f0;
+}
+.rd-pdf-summary .rd-pdf-stat {
+    flex: 1;
+    text-align: center;
+}
+.rd-pdf-summary .rd-pdf-stat-val {
+    font-size: 18px;
+    font-weight: 700;
+    color: #165DFF;
+}
+.rd-pdf-summary .rd-pdf-stat-label {
+    font-size: 11px;
+    color: #64748b;
+}
+.rd-pdf-body {
+    padding: 12px 28px 0;
+}
+.rd-pdf-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.rd-pdf-table th {
+    background: #165DFF;
+    color: #fff;
+    padding: 8px 6px;
+    text-align: center;
+    font-weight: 600;
+    border: 1px solid #4f7cff;
+    white-space: nowrap;
+}
+.rd-pdf-table td {
+    padding: 6px;
+    text-align: center;
+    border: 1px solid #e2e8f0;
+    vertical-align: middle;
+}
+.rd-pdf-table td.rd-pdf-merchant {
+    text-align: left;
+    font-weight: 600;
+    background: #f0f4ff;
+}
+.rd-pdf-table td.rd-pdf-amount {
+    font-weight: 700;
+    color: #165DFF;
+}
+.rd-pdf-table td.rd-pdf-total {
+    font-weight: 700;
+    color: #c87533;
+}
+.rd-pdf-table td.rd-pdf-paid {
+    color: #16a34a;
+    font-weight: 600;
+}
+.rd-pdf-table td.rd-pdf-unpaid {
+    color: #dc2626;
+    font-weight: 600;
+}
+.rd-pdf-table td.rd-pdf-partial {
+    color: #d97706;
+    font-weight: 600;
+}
+.rd-pdf-table tfoot td {
+    background: #f0f4ff;
+    font-weight: 700;
+    padding: 8px 6px;
+    border-top: 2px solid #165DFF;
+}
+.rd-pdf-watermark {
+    text-align: center;
+    padding: 10px 28px 14px;
+    font-size: 10px;
+    color: #94a3b8;
 }
 </style>
 {% endblock %}
@@ -390,6 +746,7 @@ let searchParams = {
 
 let currentPage = 1;
 let pageSize = 20;
+let showAll = false;
 let totalCount = 0;
 let totalPages = 0;
 let searchTimer = null;
@@ -418,6 +775,23 @@ $('input[name="meterType"]').on('change', function() {
     loadMeterList();
 });
 
+// 全部数据/分页切换
+$('#btnTogglePageSize').on('click', function() {
+    showAll = !showAll;
+    if (showAll) {
+        $(this).removeClass('btn-outline-secondary').addClass('btn-secondary');
+        $('#togglePageSizeText').text('分页显示');
+        $('#pagination').hide();
+    } else {
+        $(this).removeClass('btn-secondary').addClass('btn-outline-secondary');
+        $('#togglePageSizeText').text('全部数据');
+        currentPage = 1;
+        searchParams.page = 1;
+        $('#pagination').show();
+    }
+    loadMeterList();
+});
+
 // 加载水电表列表
 function loadMeterList() {
     $('#meterTableBody').html(`
@@ -428,15 +802,22 @@ function loadMeterList() {
         </tr>
     `);
     
+    var params = $.extend({}, searchParams);
+    if (showAll) {
+        params.page_size = 0;
+        params.page = 1;
+    }
+    
     $.ajax({
         url: '/utility/list_data',
         method: 'GET',
-        data: searchParams,
+        data: params,
         dataType: 'json',
         success: function(response) {
             if (response && response.success) {
                 totalCount = response.total;
-                totalPages = Math.ceil(totalCount / pageSize);
+                var effectivePageSize = showAll ? totalCount : pageSize;
+                totalPages = Math.ceil(totalCount / effectivePageSize);
                 
                 renderTable(response.data);
                 renderPageNav();
@@ -483,7 +864,7 @@ function renderTable(data) {
 
 // 渲染表格行
 function renderTableRow(item, index) {
-    const rowNum = (currentPage - 1) * pageSize + index + 1;
+    const rowNum = showAll ? index + 1 : (currentPage - 1) * pageSize + index + 1;
     const typeBadge = item.meter_type === 'electricity' 
         ? '<span class="badge bg-warning">电表</span>'
         : '<span class="badge bg-info">水表</span>';
@@ -548,12 +929,13 @@ function renderPageNav() {
 
 // 更新分页信息
 function updatePageInfo() {
-    const start = (currentPage - 1) * pageSize + 1;
-    const end = Math.min(currentPage * pageSize, totalCount);
-    
     if (totalCount === 0) {
         $('#pageInfo').text('暂无数据');
+    } else if (showAll) {
+        $('#pageInfo').text(`共 ${totalCount} 条（全部显示）`);
     } else {
+        var start = (currentPage - 1) * pageSize + 1;
+        var end = Math.min(currentPage * pageSize, totalCount);
         $('#pageInfo').text(`显示 ${start}-${end} 条，共 ${totalCount} 条`);
     }
 }
@@ -878,5 +1260,601 @@ $(document).ready(function() {
     
     loadMeterList();
 });
+
+// ==================== 抄表数据模态窗口 ====================
+
+var _rdElectricityData = [];
+var _rdWaterData = [];
+var _rdModalInstance = null;
+
+function openReadingDataModal() {
+    // 初始化月份选择器
+    initRdMonthOptions();
+    // 显示模态窗口
+    if (!_rdModalInstance) {
+        _rdModalInstance = new bootstrap.Modal(document.getElementById('readingDataModal'));
+    }
+    _rdModalInstance.show();
+    // 加载数据
+    setTimeout(function() { rdLoadReadingData(); }, 200);
+}
+
+function initRdMonthOptions() {
+    var select = $('#rdBelongMonth');
+    if (select.find('option').length > 0) return; // 已初始化
+    var now = new Date();
+    var html = '';
+    for (var i = 12; i >= 0; i--) {
+        var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        var val = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        var label = d.getFullYear() + '年' + String(d.getMonth() + 1).padStart(2, '月');
+        var sel = (i === 0) ? ' selected' : '';
+        html += '<option value="' + val + '"' + sel + '>' + label + '</option>';
+    }
+    select.html(html);
+}
+
+function rdLoadReadingData() {
+    var belongMonth = $('#rdBelongMonth').val();
+    var meterType = $('#rdMeterTypeFilter').val();
+    if (!belongMonth) return;
+
+    $.ajax({
+        url: '/utility/reading_data_list',
+        type: 'GET',
+        cache: false,
+        data: { belong_month: belongMonth, meter_type: meterType, _t: Date.now() },
+        success: function(resp) {
+            if (resp.success) {
+                _rdElectricityData = resp.data.electricity || [];
+                _rdWaterData = resp.data.water || [];
+                rdApplyFilterAndRender();
+            } else {
+                $('#rdElectricityTableBody').html('<tr><td colspan="13" class="text-center text-danger">' + (resp.message || '加载失败') + '</td></tr>');
+                $('#rdWaterTableBody').html('<tr><td colspan="13" class="text-center text-danger">' + (resp.message || '加载失败') + '</td></tr>');
+                _rdElectricityData = [];
+                _rdWaterData = [];
+                rdUpdateBatchButtonState();
+            }
+        },
+        error: function() {
+            $('#rdElectricityTableBody').html('<tr><td colspan="13" class="text-center text-danger">网络错误，请稍后重试</td></tr>');
+            $('#rdWaterTableBody').html('<tr><td colspan="13" class="text-center text-danger">网络错误，请稍后重试</td></tr>');
+            _rdElectricityData = [];
+            _rdWaterData = [];
+            rdUpdateBatchButtonState();
+        }
+    });
+}
+
+function rdApplyFilterAndRender() {
+    var payFilter = $('input[name="rdPayStatus"]:checked').val();
+    var filteredE = _rdElectricityData;
+    var filteredW = _rdWaterData;
+    if (payFilter === 'paid') {
+        filteredE = filteredE.filter(function(item) { return item.pay_status === '已缴费'; });
+        filteredW = filteredW.filter(function(item) { return item.pay_status === '已缴费'; });
+    } else if (payFilter === 'unpaid') {
+        filteredE = filteredE.filter(function(item) { return item.pay_status !== '已缴费'; });
+        filteredW = filteredW.filter(function(item) { return item.pay_status !== '已缴费'; });
+    }
+    rdRenderElectricityTable(filteredE);
+    rdRenderWaterTable(filteredW);
+    rdUpdateBatchButtonState();
+}
+
+function rdUpdateBatchButtonState() {
+    var hasData = _rdElectricityData.length > 0 || _rdWaterData.length > 0;
+    $('#rdBtnDeleteBatch').prop('disabled', !hasData);
+}
+
+function rdEscapeHtml(str) {
+    if (!str) return '';
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+}
+
+function rdRenderElectricityTable(items) {
+    var tbody = $('#rdElectricityTableBody');
+    if (!items || items.length === 0) {
+        tbody.html('<tr><td colspan="14" class="text-center text-muted">暂无数据</td></tr>');
+        $('#rdElectricityTableFoot').hide();
+        return;
+    }
+    var merchantGroups = {};
+    items.forEach(function(item, index) {
+        var key = item.merchant_id;
+        if (!merchantGroups[key]) {
+            merchantGroups[key] = { startIndex: index, count: 0, globalIndex: Object.keys(merchantGroups).length + 1, merchant_id: item.merchant_id, merchant_name: item.merchant_name, pay_status: item.pay_status, paid_amount: item.paid_amount || 0 };
+        }
+        merchantGroups[key].count++;
+    });
+    var contractGroups = {};
+    items.forEach(function(item, index) {
+        var key = item.contract_id || ('no_contract_' + index);
+        if (!contractGroups[key]) { contractGroups[key] = { startIndex: index, count: 0 }; }
+        contractGroups[key].count++;
+    });
+
+    var html = '';
+    var merchantKeys = Object.keys(merchantGroups);
+    items.forEach(function(item, index) {
+        var mg = merchantGroups[item.merchant_id];
+        var cg = contractGroups[item.contract_id || ('no_contract_' + index)];
+        var isFirstMerchant = (index === mg.startIndex);
+        var isFirstContract = (index === cg.startIndex);
+        var groupIdx = merchantKeys.indexOf(String(item.merchant_id));
+        var groupClass = groupIdx % 2 === 0 ? 'group-even' : 'group-odd';
+        var firstRowClass = isFirstMerchant && groupIdx > 0 ? ' group-first-row' : '';
+
+        html += '<tr class="' + groupClass + firstRowClass + '">';
+        if (isFirstMerchant) {
+            html += '<td class="text-center align-middle" rowspan="' + mg.count + '">';
+            html += '<input type="checkbox" class="rd-checkbox-electricity" data-merchant-id="' + item.merchant_id + '" data-reading-id="' + item.reading_id + '">';
+            html += '</td>';
+            html += '<td class="text-center align-middle" rowspan="' + mg.count + '">' + mg.globalIndex + '</td>';
+            html += '<td class="align-middle" rowspan="' + mg.count + '">' + rdEscapeHtml(item.merchant_name) + '</td>';
+        }
+        html += '<td class="text-center align-middle">' + rdEscapeHtml(item.meter_number) + '</td>';
+        html += '<td class="text-center align-middle">' + item.last_reading.toFixed(2) + '</td>';
+        html += '<td class="text-center align-middle">' + item.current_reading.toFixed(2) + '</td>';
+        html += '<td class="text-center align-middle">' + (item.meter_multiplier || 1) + '</td>';
+        html += '<td class="text-center align-middle">' + item.usage.toFixed(2) + '</td>';
+        html += '<td class="text-center align-middle">' + item.unit_price.toFixed(2) + '</td>';
+        html += '<td class="text-center align-middle highlight-subtotal">¥' + item.total_amount.toFixed(2) + '</td>';
+        if (isFirstContract) {
+            html += '<td class="text-center align-middle highlight-total" rowspan="' + cg.count + '">¥' + item.contract_total.toFixed(2) + '</td>';
+        }
+        if (isFirstMerchant) {
+            html += '<td class="text-center align-middle" rowspan="' + mg.count + '">¥' + (mg.paid_amount || 0).toFixed(2) + '</td>';
+        }
+        if (isFirstMerchant) {
+            var payStatus = mg.pay_status || '未缴费';
+            var statusClass = payStatus === '已缴费' ? 'text-success' : (payStatus === '部分缴费' ? 'text-warning' : 'text-danger');
+            var statusIcon = payStatus === '已缴费' ? 'fa-check-circle' : (payStatus === '部分缴费' ? 'fa-exclamation-circle' : 'fa-times-circle');
+            html += '<td class="text-center align-middle" rowspan="' + mg.count + '">';
+            html += '<span class="' + statusClass + ' fw-bold"><i class="fa ' + statusIcon + '"></i> ' + payStatus + '</span>';
+            html += '</td>';
+        }
+        if (isFirstMerchant) {
+            html += '<td class="text-center align-middle" rowspan="' + mg.count + '">';
+            html += '<div class="d-flex justify-content-center gap-1">';
+            if (mg.pay_status !== '已缴费') {
+                html += '<button type="button" class="btn btn-sm btn-success" onclick="rdOpenPayModal(' + item.merchant_id + ', \'electricity\')" title="收费"><i class="fa fa-money-bill-wave"></i></button>';
+            }
+            var readingIds = items.filter(function(it) { return it.merchant_id === item.merchant_id; }).map(function(it) { return it.reading_id; });
+            html += '<button type="button" class="btn btn-sm btn-outline-danger" onclick="rdDeleteMerchantReadings(' + JSON.stringify(readingIds) + ')" title="删除"><i class="fa fa-trash"></i></button>';
+            html += '</div></td>';
+        }
+        html += '</tr>';
+    });
+    tbody.html(html);
+
+    var totalCount = items.length, totalAmount = 0, totalPaid = 0;
+    items.forEach(function(item) { totalAmount += item.total_amount; });
+    Object.keys(merchantGroups).forEach(function(key) { totalPaid += merchantGroups[key].paid_amount || 0; });
+    $('#rdElectricityCount').text(totalCount);
+    $('#rdElectricitySubtotal').text('¥' + totalAmount.toFixed(2));
+    $('#rdElectricityTotal').text('¥' + totalAmount.toFixed(2));
+    $('#rdElectricityPaid').text('¥' + totalPaid.toFixed(2));
+    $('#rdElectricityTableFoot').show();
+    rdBindCheckboxEvents();
+}
+
+function rdRenderWaterTable(items) {
+    var tbody = $('#rdWaterTableBody');
+    if (!items || items.length === 0) {
+        tbody.html('<tr><td colspan="14" class="text-center text-muted">暂无数据</td></tr>');
+        $('#rdWaterTableFoot').hide();
+        return;
+    }
+    var merchantGroups = {};
+    items.forEach(function(item, index) {
+        var key = item.merchant_id;
+        if (!merchantGroups[key]) {
+            merchantGroups[key] = { startIndex: index, count: 0, globalIndex: Object.keys(merchantGroups).length + 1, merchant_id: item.merchant_id, merchant_name: item.merchant_name, pay_status: item.pay_status, paid_amount: item.paid_amount || 0 };
+        }
+        merchantGroups[key].count++;
+    });
+    var contractGroups = {};
+    items.forEach(function(item, index) {
+        var key = item.contract_id || ('no_contract_' + index);
+        if (!contractGroups[key]) { contractGroups[key] = { startIndex: index, count: 0 }; }
+        contractGroups[key].count++;
+    });
+
+    var html = '';
+    var merchantKeys = Object.keys(merchantGroups);
+    items.forEach(function(item, index) {
+        var mg = merchantGroups[item.merchant_id];
+        var cg = contractGroups[item.contract_id || ('no_contract_' + index)];
+        var isFirstMerchant = (index === mg.startIndex);
+        var isFirstContract = (index === cg.startIndex);
+        var groupIdx = merchantKeys.indexOf(String(item.merchant_id));
+        var groupClass = groupIdx % 2 === 0 ? 'group-even' : 'group-odd';
+        var firstRowClass = isFirstMerchant && groupIdx > 0 ? ' group-first-row' : '';
+
+        html += '<tr class="' + groupClass + firstRowClass + '">';
+        if (isFirstMerchant) {
+            html += '<td class="text-center align-middle" rowspan="' + mg.count + '">';
+            html += '<input type="checkbox" class="rd-checkbox-water" data-merchant-id="' + item.merchant_id + '" data-reading-id="' + item.reading_id + '">';
+            html += '</td>';
+            html += '<td class="text-center align-middle" rowspan="' + mg.count + '">' + mg.globalIndex + '</td>';
+            html += '<td class="align-middle" rowspan="' + mg.count + '">' + rdEscapeHtml(item.merchant_name) + '</td>';
+        }
+        html += '<td class="text-center align-middle">' + rdEscapeHtml(item.meter_number) + '</td>';
+        html += '<td class="text-center align-middle">' + item.last_reading.toFixed(2) + '</td>';
+        html += '<td class="text-center align-middle">' + item.current_reading.toFixed(2) + '</td>';
+        html += '<td class="text-center align-middle">' + (item.meter_multiplier || 1) + '</td>';
+        html += '<td class="text-center align-middle">' + item.usage.toFixed(2) + '</td>';
+        html += '<td class="text-center align-middle">' + item.unit_price.toFixed(2) + '</td>';
+        html += '<td class="text-center align-middle highlight-subtotal">¥' + item.total_amount.toFixed(2) + '</td>';
+        if (isFirstContract) {
+            html += '<td class="text-center align-middle highlight-total" rowspan="' + cg.count + '">¥' + item.contract_total.toFixed(2) + '</td>';
+        }
+        if (isFirstMerchant) {
+            html += '<td class="text-center align-middle" rowspan="' + mg.count + '">¥' + (mg.paid_amount || 0).toFixed(2) + '</td>';
+        }
+        if (isFirstMerchant) {
+            var payStatus = mg.pay_status || '未缴费';
+            var statusClass = payStatus === '已缴费' ? 'text-success' : (payStatus === '部分缴费' ? 'text-warning' : 'text-danger');
+            var statusIcon = payStatus === '已缴费' ? 'fa-check-circle' : (payStatus === '部分缴费' ? 'fa-exclamation-circle' : 'fa-times-circle');
+            html += '<td class="text-center align-middle" rowspan="' + mg.count + '">';
+            html += '<span class="' + statusClass + ' fw-bold"><i class="fa ' + statusIcon + '"></i> ' + payStatus + '</span>';
+            html += '</td>';
+        }
+        if (isFirstMerchant) {
+            html += '<td class="text-center align-middle" rowspan="' + mg.count + '">';
+            html += '<div class="d-flex justify-content-center gap-1">';
+            if (mg.pay_status !== '已缴费') {
+                html += '<button type="button" class="btn btn-sm btn-success" onclick="rdOpenPayModal(' + item.merchant_id + ', \'water\')" title="收费"><i class="fa fa-money-bill-wave"></i></button>';
+            }
+            var readingIds = items.filter(function(it) { return it.merchant_id === item.merchant_id; }).map(function(it) { return it.reading_id; });
+            html += '<button type="button" class="btn btn-sm btn-outline-danger" onclick="rdDeleteMerchantReadings(' + JSON.stringify(readingIds) + ')" title="删除"><i class="fa fa-trash"></i></button>';
+            html += '</div></td>';
+        }
+        html += '</tr>';
+    });
+    tbody.html(html);
+
+    var totalCount = items.length, totalAmount = 0, totalPaid = 0;
+    items.forEach(function(item) { totalAmount += item.total_amount; });
+    Object.keys(merchantGroups).forEach(function(key) { totalPaid += merchantGroups[key].paid_amount || 0; });
+    $('#rdWaterCount').text(totalCount);
+    $('#rdWaterSubtotal').text('¥' + totalAmount.toFixed(2));
+    $('#rdWaterTotal').text('¥' + totalAmount.toFixed(2));
+    $('#rdWaterPaid').text('¥' + totalPaid.toFixed(2));
+    $('#rdWaterTableFoot').show();
+    rdBindCheckboxEvents();
+}
+
+function rdBindCheckboxEvents() {
+    $('#rdCheckAllElectricity').off('change').on('change', function() {
+        $('.rd-checkbox-electricity').prop('checked', $(this).prop('checked'));
+    });
+    $('#rdCheckAllWater').off('change').on('change', function() {
+        $('.rd-checkbox-water').prop('checked', $(this).prop('checked'));
+    });
+    $('.rd-checkbox-electricity, .rd-checkbox-water').off('change').on('change', function() {
+        var checkedCount = $('.rd-checkbox-electricity:checked, .rd-checkbox-water:checked').length;
+        $('#rdBtnDeleteBatch').prop('disabled', checkedCount === 0);
+    });
+}
+
+// 收费模态窗口
+function rdOpenPayModal(merchantId, meterType) {
+    var items = meterType === 'electricity' ? _rdElectricityData : _rdWaterData;
+    var merchantItems = items.filter(function(item) { return item.merchant_id === merchantId; });
+    if (merchantItems.length === 0) { showToast('warning', '未找到该商户的抄表数据'); return; }
+
+    var belongMonthVal = $('#rdBelongMonth').val();
+    var parts = belongMonthVal.split('-');
+    var belongMonthDisplay = parts[0] + '年' + parts[1] + '月';
+
+    $('#rdPayMerchantName').text(merchantItems[0].merchant_name);
+    $('#rdPayBelongMonth').text(belongMonthDisplay);
+
+    var usageLabel = meterType === 'electricity' ? '用电量' : '用水量';
+    $('#rdPayDetailTable thead tr th:eq(4)').text(usageLabel);
+
+    var detailHtml = '';
+    var totalAmount = 0;
+    merchantItems.forEach(function(item) {
+        detailHtml += '<tr>';
+        detailHtml += '<td class="text-center">' + rdEscapeHtml(item.meter_number) + '</td>';
+        detailHtml += '<td class="text-center">' + item.last_reading.toFixed(2) + '</td>';
+        detailHtml += '<td class="text-center">' + item.current_reading.toFixed(2) + '</td>';
+        detailHtml += '<td class="text-center">' + (item.meter_multiplier || 1) + '</td>';
+        detailHtml += '<td class="text-center">' + item.usage.toFixed(2) + '</td>';
+        detailHtml += '<td class="text-center">' + item.unit_price.toFixed(2) + '</td>';
+        detailHtml += '<td class="text-center fw-bold">¥' + item.total_amount.toFixed(2) + '</td>';
+        detailHtml += '</tr>';
+        totalAmount += item.total_amount;
+    });
+    $('#rdPayDetailBody').html(detailHtml);
+    $('#rdPayTotalAmount').text('¥' + totalAmount.toFixed(2));
+    $('#rdPayAmount').val(totalAmount.toFixed(2));
+
+    $('#rdPayModal').data('merchantId', merchantId);
+    $('#rdPayModal').data('meterType', meterType);
+    $('#rdPayModal').data('belongMonth', belongMonthDisplay);
+
+    rdLoadAccounts();
+    $('#rdBtnConfirmPay').prop('disabled', true);
+    var payModal = new bootstrap.Modal(document.getElementById('rdPayModal'));
+    payModal.show();
+}
+
+function rdLoadAccounts() {
+    $.ajax({
+        url: '/finance/account/active_list',
+        type: 'GET',
+        success: function(resp) {
+            var select = $('#rdPayAccountId');
+            select.html('<option value="">请选择收款账户</option>');
+            if (resp.success && resp.data) {
+                resp.data.forEach(function(acc) {
+                    var balanceStr = parseFloat(acc.balance).toFixed(2);
+                    var label = acc.account_name + '（余额: ¥' + balanceStr + '）';
+                    var selected = acc.is_default ? ' selected' : '';
+                    select.append('<option value="' + acc.account_id + '"' + selected + '>' + rdEscapeHtml(label) + '</option>');
+                });
+                rdValidatePayForm();
+            }
+        },
+        error: function() { showToast('error', '获取账户列表失败'); }
+    });
+}
+
+function rdValidatePayForm() {
+    var accountId = $('#rdPayAccountId').val();
+    var amount = parseFloat($('#rdPayAmount').val());
+    $('#rdBtnConfirmPay').prop('disabled', !(accountId && amount > 0));
+}
+
+function rdConfirmPay() {
+    var merchantId = $('#rdPayModal').data('merchantId');
+    var meterType = $('#rdPayModal').data('meterType');
+    var belongMonth = $('#rdPayModal').data('belongMonth');
+    var accountId = parseInt($('#rdPayAccountId').val());
+    var amount = parseFloat($('#rdPayAmount').val());
+
+    if (!accountId) { showToast('warning', '请选择收款账户'); return; }
+    if (!amount || amount <= 0) { showToast('warning', '请输入有效的交费金额'); return; }
+
+    var $btn = $('#rdBtnConfirmPay');
+    $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 处理中...');
+
+    $.ajax({
+        url: '/utility/reading_data/pay',
+        type: 'POST',
+        contentType: 'application/json',
+        timeout: 30000,
+        headers: { 'X-CSRFToken': getCSRFToken() },
+        data: JSON.stringify({ merchant_id: merchantId, belong_month: belongMonth, meter_type: meterType, account_id: accountId, amount: amount }),
+        success: function(resp) {
+            if (resp.success) {
+                showToast('success', resp.message);
+                var m = bootstrap.Modal.getInstance(document.getElementById('rdPayModal'));
+                m.hide();
+                rdLoadReadingData();
+            } else {
+                showToast('error', resp.message || '收费失败');
+            }
+        },
+        error: function(xhr, textStatus) {
+            var msg = '收费失败，请稍后重试';
+            if (textStatus === 'timeout') { msg = '请求超时，请检查数据是否已入账后刷新页面'; }
+            else if (xhr.responseJSON && xhr.responseJSON.message) { msg = xhr.responseJSON.message; }
+            showToast('error', msg);
+        },
+        complete: function() {
+            $btn.prop('disabled', false).html('<i class="fa fa-check"></i> 确认收费');
+            rdValidatePayForm();
+        }
+    });
+}
+
+// 删除
+function rdDeleteMerchantReadings(readingIds) {
+    if (!readingIds || readingIds.length === 0) return;
+    var msg = readingIds.length === 1 ? '确定要删除这条抄表记录吗？' : '确定要删除该商户的 ' + readingIds.length + ' 条抄表记录吗？';
+    msg += '删除后将同时删除关联的应收账款记录。';
+    if (!confirm(msg)) return;
+
+    $.ajax({
+        url: '/utility/reading_data/delete_batch',
+        type: 'POST',
+        contentType: 'application/json',
+        headers: { 'X-CSRFToken': getCSRFToken() },
+        data: JSON.stringify({ reading_ids: readingIds }),
+        success: function(resp) {
+            if (resp.success) { showToast('success', resp.message); setTimeout(function() { rdLoadReadingData(); }, 200); }
+            else { showToast('error', resp.message); }
+        },
+        error: function(xhr) {
+            var msg = '删除失败';
+            if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+            showToast('error', msg);
+        }
+    });
+}
+
+function rdDeleteReadingsBatch() {
+    var readingIds = [];
+    $('.rd-checkbox-electricity:checked, .rd-checkbox-water:checked').each(function() {
+        readingIds.push($(this).data('reading-id'));
+    });
+    if (readingIds.length === 0) { showToast('warning', '请选择要删除的抄表记录'); return; }
+    if (!confirm('确定要删除选中的 ' + readingIds.length + ' 条抄表记录吗？删除后将同时删除关联的应收账款记录。')) return;
+
+    $.ajax({
+        url: '/utility/reading_data/delete_batch',
+        type: 'POST',
+        contentType: 'application/json',
+        headers: { 'X-CSRFToken': getCSRFToken() },
+        data: JSON.stringify({ reading_ids: readingIds }),
+        success: function(resp) {
+            if (resp.success) { showToast('success', resp.message); setTimeout(function() { rdLoadReadingData(); }, 200); }
+            else { showToast('error', resp.message); }
+        },
+        error: function(xhr) {
+            var msg = '批量删除失败';
+            if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+            showToast('error', msg);
+        }
+    });
+}
+
+// 抄表数据模态窗口事件绑定
+$('#rdBelongMonth').on('change', function() { rdLoadReadingData(); });
+$('#rdMeterTypeFilter').on('change', function() { rdLoadReadingData(); });
+$('input[name="rdPayStatus"]').on('change', function() { rdApplyFilterAndRender(); });
+$('#rdBtnDeleteBatch').on('click', function() { rdDeleteReadingsBatch(); });
+$('#rdPayAccountId').on('change', rdValidatePayForm);
+$('#rdPayAmount').on('input', rdValidatePayForm);
+$('#rdBtnConfirmPay').on('click', function() { rdConfirmPay(); });
+
+function rdExportAsPDF() {
+    var belongMonth = $('#rdBelongMonth').val();
+    if (!belongMonth) {
+        showToast('warning', '请先选择月份');
+        return;
+    }
+    var activeTab = $('#rdMeterTab .nav-link.active').attr('id');
+    var isElectricity = activeTab === 'rd-electricity-tab';
+    var items = isElectricity ? _rdElectricityData : _rdWaterData;
+    if (!items || items.length === 0) {
+        showToast('warning', '当前没有数据可导出');
+        return;
+    }
+
+    var payFilter = $('input[name="rdPayStatus"]:checked').val();
+    var filteredItems = items;
+    if (payFilter === 'paid') {
+        filteredItems = items.filter(function(item) { return item.pay_status === '已缴费'; });
+    } else if (payFilter === 'unpaid') {
+        filteredItems = items.filter(function(item) { return item.pay_status !== '已缴费'; });
+    }
+    if (filteredItems.length === 0) {
+        showToast('warning', '筛选后无数据可导出');
+        return;
+    }
+
+    var meterLabel = isElectricity ? '电表' : '水表';
+    var usageLabel = isElectricity ? '用电量' : '用水量';
+    var monthLabel = belongMonth.replace('-', '年') + '月';
+
+    var totalCount = filteredItems.length;
+    var totalAmount = 0;
+    var totalPaid = 0;
+    var merchantGroups = {};
+    var merchantKeys = [];
+    filteredItems.forEach(function(item) {
+        totalAmount += item.total_amount;
+        var key = item.merchant_id;
+        if (!merchantGroups[key]) {
+            merchantGroups[key] = { merchant_name: item.merchant_name, pay_status: item.pay_status, paid_amount: item.paid_amount || 0, count: 0, contract_total: item.contract_total || 0 };
+            merchantKeys.push(key);
+        }
+        merchantGroups[key].count++;
+    });
+    Object.keys(merchantGroups).forEach(function(key) { totalPaid += merchantGroups[key].paid_amount || 0; });
+    var merchantCount = merchantKeys.length;
+
+    var h = '';
+    h += '<div id="rdPdfArea" class="rd-pdf-export">';
+
+    h += '<div class="rd-pdf-header"><h2>宏发金属交易市场 - ' + meterLabel + '抄表数据</h2><div class="rd-pdf-sub">所属月份：' + monthLabel + '</div></div>';
+
+    h += '<div class="rd-pdf-summary">';
+    h += '<div class="rd-pdf-stat"><div class="rd-pdf-stat-val">' + merchantCount + '</div><div class="rd-pdf-stat-label">商户数</div></div>';
+    h += '<div class="rd-pdf-stat"><div class="rd-pdf-stat-val">' + totalCount + '</div><div class="rd-pdf-stat-label">表数量</div></div>';
+    h += '<div class="rd-pdf-stat"><div class="rd-pdf-stat-val">¥' + totalAmount.toFixed(2) + '</div><div class="rd-pdf-stat-label">应收合计</div></div>';
+    h += '<div class="rd-pdf-stat"><div class="rd-pdf-stat-val">¥' + totalPaid.toFixed(2) + '</div><div class="rd-pdf-stat-label">已收合计</div></div>';
+    h += '<div class="rd-pdf-stat"><div class="rd-pdf-stat-val">¥' + (totalAmount - totalPaid).toFixed(2) + '</div><div class="rd-pdf-stat-label">未收合计</div></div>';
+    h += '</div>';
+
+    h += '<table class="rd-pdf-table"><thead><tr>';
+    h += '<th>序号</th><th>公司名（关联商户）</th><th>' + meterLabel + '编号</th>';
+    h += '<th>上月表底</th><th>本月表底</th><th>倍率</th>';
+    h += '<th>' + usageLabel + '</th><th>单价</th><th>小计</th><th>合计</th>';
+    h += '<th>已收金额</th><th>缴费情况</th>';
+    h += '</tr></thead><tbody>';
+
+    var prevMerchantId = null;
+    filteredItems.forEach(function(item) {
+        var isFirst = item.merchant_id !== prevMerchantId;
+        var mg = merchantGroups[item.merchant_id];
+        var merchantIdx = merchantKeys.indexOf(item.merchant_id);
+
+        h += '<tr>';
+        if (isFirst) {
+            h += '<td class="rd-pdf-merchant" rowspan="' + mg.count + '">' + (merchantIdx + 1) + '</td>';
+            h += '<td class="rd-pdf-merchant" rowspan="' + mg.count + '">' + rdEscapeHtml(item.merchant_name) + '</td>';
+        }
+        h += '<td>' + rdEscapeHtml(item.meter_number) + '</td>';
+        h += '<td>' + item.last_reading.toFixed(2) + '</td>';
+        h += '<td>' + item.current_reading.toFixed(2) + '</td>';
+        h += '<td>' + (item.meter_multiplier || 1) + '</td>';
+        h += '<td>' + item.usage.toFixed(2) + '</td>';
+        h += '<td>' + item.unit_price.toFixed(2) + '</td>';
+        h += '<td class="rd-pdf-amount">¥' + item.total_amount.toFixed(2) + '</td>';
+        if (isFirst) {
+            h += '<td class="rd-pdf-total" rowspan="' + mg.count + '">¥' + mg.contract_total.toFixed(2) + '</td>';
+            h += '<td rowspan="' + mg.count + '">¥' + (mg.paid_amount || 0).toFixed(2) + '</td>';
+            var statusText = mg.pay_status || '未缴费';
+            var statusCls = statusText === '已缴费' ? 'rd-pdf-paid' : (statusText === '部分缴费' ? 'rd-pdf-partial' : 'rd-pdf-unpaid');
+            h += '<td class="' + statusCls + '" rowspan="' + mg.count + '">' + statusText + '</td>';
+        }
+        h += '</tr>';
+        prevMerchantId = item.merchant_id;
+    });
+
+    h += '</tbody><tfoot><tr>';
+    h += '<td colspan="8" style="text-align:center;">合计（共 ' + totalCount + ' 个' + meterLabel + '）</td>';
+    h += '<td class="rd-pdf-amount">¥' + totalAmount.toFixed(2) + '</td>';
+    h += '<td class="rd-pdf-total">¥' + totalAmount.toFixed(2) + '</td>';
+    h += '<td>¥' + totalPaid.toFixed(2) + '</td>';
+    h += '<td></td>';
+    h += '</tr></tfoot></table>';
+
+    h += '<div class="rd-pdf-watermark">宏发金属交易市场管理系统 · ' + monthLabel + ' ' + meterLabel + '抄表数据 · 导出时间：' + new Date().toLocaleString('zh-CN') + '</div>';
+    h += '</div>';
+
+    // 添加遮罩，防止用户看到导出区域的闪烁
+    var $overlay = $('<div id="rdPdfOverlay" style="position:fixed;inset:0;z-index:9999;background:#fff;display:flex;align-items:center;justify-content:center;"><span style="font-size:18px;color:#555;"><i class="fa fa-spinner fa-spin"></i> 正在生成PDF，请稍候...</span></div>');
+    $('body').append($overlay);
+
+    $('#rdPdfArea').remove();
+    $('body').append(h);
+
+    var fileName = '抄表数据_' + meterLabel + '_' + belongMonth + '.pdf';
+    var element = document.getElementById('rdPdfArea');
+    element.offsetHeight;
+    var contentWidth = element.scrollWidth;
+    var contentHeight = element.scrollHeight;
+    var pdfWidth = Math.ceil(contentWidth * 25.4 / 192) + 10;
+    var pdfHeight = Math.ceil(contentHeight * 25.4 / 192) + 10;
+    var opt = {
+        margin: 0,
+        filename: fileName,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0, width: contentWidth, height: contentHeight },
+        jsPDF: { unit: 'mm', format: [pdfWidth, pdfHeight], orientation: 'landscape' },
+        pagebreak: { mode: ['avoid-all'] }
+    };
+    setTimeout(function() {
+        html2pdf().set(opt).from(element).save().then(function() {
+            $('#rdPdfArea').remove();
+            $('#rdPdfOverlay').remove();
+        }).catch(function() {
+            $('#rdPdfArea').remove();
+            $('#rdPdfOverlay').remove();
+            showToast('error', 'PDF生成失败，请重试');
+        });
+    }, 200);
+}
 </script>
 {% endblock %}

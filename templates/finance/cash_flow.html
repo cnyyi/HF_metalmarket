@@ -185,7 +185,7 @@ function loadCashFlows(page) {
                 renderSummary(resp.summary);
             } else {
                 $('#cashFlowTableBody').html(
-                    '<tr><td colspan="8" class="text-center text-danger">' + (resp.message || '获取数据失败') + '</td></tr>'
+                    '<tr><td colspan="8" class="text-center text-danger">' + escapeHtml(resp.message || '获取数据失败') + '</td></tr>'
                 );
             }
         },
@@ -240,7 +240,7 @@ function renderTable(data) {
 
         html += '<tr>';
         html += '<td>' + rowNo + '</td>';
-        html += '<td>' + item.transaction_date + '</td>';
+        html += '<td>' + escapeHtml(item.transaction_date) + '</td>';
         html += '<td><span class="' + dirClass + '"><i class="fa ' + dirIcon + '"></i> ' + escapeHtml(item.direction) + '</span>' + refLabel + '</td>';
         html += '<td>' + escapeHtml(item.account_name || '-') + '</td>';
         html += '<td>' + escapeHtml(item.expense_type_name) + '</td>';
@@ -249,9 +249,9 @@ function renderTable(data) {
         var descHtml = '';
         var descText = escapeHtml(item.description);
         if (item.linked_receivable_id) {
-            descHtml = '<a class="summary-link" href="#" data-type="receivable" data-id="' + item.linked_receivable_id + '">' + descText + '</a>';
+            descHtml = '<a class="summary-link" href="#" data-type="receivable" data-id="' + escapeHtml(item.linked_receivable_id) + '">' + descText + '</a>';
         } else if (item.linked_payable_id) {
-            descHtml = '<a class="summary-link" href="#" data-type="payable" data-id="' + item.linked_payable_id + '">' + descText + '</a>';
+            descHtml = '<a class="summary-link" href="#" data-type="payable" data-id="' + escapeHtml(item.linked_payable_id) + '">' + descText + '</a>';
         } else {
             descHtml = descText;
         }
@@ -262,37 +262,7 @@ function renderTable(data) {
     }
 
     tbody.html(html);
-    renderPagination(data);
-}
-
-function renderPagination(data) {
-    var totalPages = data.total_pages;
-    var currentPage = data.current_page;
-    if (totalPages <= 1) { $('#paginationNav').hide(); return; }
-
-    var html = '';
-    html += '<li class="page-item ' + (currentPage === 1 ? 'disabled' : '') + '">';
-    html += '<a class="page-link" href="#" data-page="' + (currentPage - 1) + '">上一页</a></li>';
-
-    var startPage = Math.max(1, currentPage - 2);
-    var endPage = Math.min(totalPages, currentPage + 2);
-    if (startPage > 1) {
-        html += '<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>';
-        if (startPage > 2) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-    }
-    for (var i = startPage; i <= endPage; i++) {
-        html += '<li class="page-item ' + (i === currentPage ? 'active' : '') + '">';
-        html += '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
-    }
-    if (endPage < totalPages) {
-        if (endPage < totalPages - 1) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-        html += '<li class="page-item"><a class="page-link" href="#" data-page="' + totalPages + '">' + totalPages + '</a></li>';
-    }
-    html += '<li class="page-item ' + (currentPage === totalPages ? 'disabled' : '') + '">';
-    html += '<a class="page-link" href="#" data-page="' + (currentPage + 1) + '">下一页</a></li>';
-
-    $('#paginationList').html(html);
-    $('#paginationNav').show();
+    renderPagination('#paginationList', data, function(page) { loadCashFlows(page); });
 }
 
 function loadExpenseTypes() {
@@ -346,9 +316,9 @@ function openReceivableDetailModal(id) {
             html += '<div class="col-md-6 detail-field"><span class="label">应收金额：</span><span class="value">¥' + formatNumber(d.amount) + '</span></div>';
             html += '<div class="col-md-6 detail-field"><span class="label">已收金额：</span><span class="value text-success">¥' + formatNumber(d.paid_amount) + '</span></div>';
             html += '<div class="col-md-6 detail-field"><span class="label">剩余金额：</span><span class="value text-danger">¥' + formatNumber(d.remaining_amount) + '</span></div>';
-            html += '<div class="col-md-6 detail-field"><span class="label">到期日期：</span><span class="value">' + d.due_date + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">到期日期：</span><span class="value">' + escapeHtml(d.due_date) + '</span></div>';
             html += '<div class="col-md-6 detail-field"><span class="label">状态：</span><span class="value">' + escapeHtml(d.status) + '</span></div>';
-            html += '<div class="col-md-6 detail-field"><span class="label">创建时间：</span><span class="value">' + d.create_time + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">创建时间：</span><span class="value">' + escapeHtml(d.create_time) + '</span></div>';
             if (d.description) {
                 html += '<div class="col-md-12 detail-field"><span class="label">备注：</span><span class="value">' + escapeHtml(d.description) + '</span></div>';
             }
@@ -360,7 +330,7 @@ function openReceivableDetailModal(id) {
                 html += '<thead><tr><th>日期</th><th>金额</th><th>方式</th><th>备注</th></tr></thead><tbody>';
                 d.collection_records.forEach(function(r) {
                     html += '<tr>';
-                    html += '<td>' + r.transaction_date + '</td>';
+                    html += '<td>' + escapeHtml(r.transaction_date) + '</td>';
                     html += '<td class="text-end">¥' + formatNumber(r.amount) + '</td>';
                     html += '<td>' + escapeHtml(r.payment_method) + '</td>';
                     html += '<td>' + escapeHtml(r.description || '') + '</td>';
@@ -392,9 +362,9 @@ function openPayableDetailModal(id) {
             html += '<div class="col-md-6 detail-field"><span class="label">应付金额：</span><span class="value">¥' + formatNumber(d.amount) + '</span></div>';
             html += '<div class="col-md-6 detail-field"><span class="label">已付金额：</span><span class="value text-success">¥' + formatNumber(d.paid_amount) + '</span></div>';
             html += '<div class="col-md-6 detail-field"><span class="label">剩余金额：</span><span class="value text-danger">¥' + formatNumber(d.remaining_amount) + '</span></div>';
-            html += '<div class="col-md-6 detail-field"><span class="label">到期日期：</span><span class="value">' + d.due_date + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">到期日期：</span><span class="value">' + escapeHtml(d.due_date) + '</span></div>';
             html += '<div class="col-md-6 detail-field"><span class="label">状态：</span><span class="value">' + escapeHtml(d.status) + '</span></div>';
-            html += '<div class="col-md-6 detail-field"><span class="label">创建时间：</span><span class="value">' + d.create_time + '</span></div>';
+            html += '<div class="col-md-6 detail-field"><span class="label">创建时间：</span><span class="value">' + escapeHtml(d.create_time) + '</span></div>';
             if (d.description) {
                 html += '<div class="col-md-12 detail-field"><span class="label">描述：</span><span class="value">' + escapeHtml(d.description) + '</span></div>';
             }
@@ -406,7 +376,7 @@ function openPayableDetailModal(id) {
                 html += '<thead><tr><th>日期</th><th>金额</th><th>方式</th><th>备注</th></tr></thead><tbody>';
                 d.payment_records.forEach(function(r) {
                     html += '<tr>';
-                    html += '<td>' + r.transaction_date + '</td>';
+                    html += '<td>' + escapeHtml(r.transaction_date) + '</td>';
                     html += '<td class="text-end">¥' + formatNumber(r.amount) + '</td>';
                     html += '<td>' + escapeHtml(r.payment_method) + '</td>';
                     html += '<td>' + escapeHtml(r.description || '') + '</td>';
@@ -434,12 +404,6 @@ $(document).ready(function() {
         $('#expenseTypeFilter').val('');
         $('#accountFilter').val('');
         loadCashFlows(1);
-    });
-
-    $(document).on('click', '#paginationList .page-link', function(e) {
-        e.preventDefault();
-        var page = $(this).data('page');
-        if (page && page >= 1) loadCashFlows(page);
     });
 
     $('#btnExportExcel').on('click', function() { showToast('info', '导出功能开发中'); });

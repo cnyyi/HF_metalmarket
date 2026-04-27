@@ -419,6 +419,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/customer-transaction-modal.js') }}"></script>
 <script>
 var currentPage = 1;
 var customerCurrentPage = 1;
@@ -495,7 +496,7 @@ function renderCustomerTable(data) {
         html += '<tr class="customer-row" data-customer-type="' + item.customer_type + '" data-customer-id="' + (item.customer_id || '') + '" data-customer-name="' + escapeHtml(item.customer_name) + '">';
         html += '<td>' + rowNo + '</td>';
         html += '<td>' + getCustomerTypeBadge(item.customer_type) + '</td>';
-        html += '<td>' + escapeHtml(item.customer_name) + '</td>';
+        html += '<td><a href="javascript:void(0)" class="customer-tx-link" data-type="' + item.customer_type + '" data-id="' + (item.customer_id || '') + '" data-name="' + escapeHtml(item.customer_name) + '">' + escapeHtml(item.customer_name) + '</a></td>';
         html += '<td class="text-end summary-amount-cell amount-total">¥' + formatNumber(item.total_amount) + '</td>';
         html += '<td class="text-end summary-amount-cell amount-paid">¥' + formatNumber(item.total_paid) + '</td>';
         html += '<td class="text-end summary-amount-cell ' + remainingClass + '">¥' + formatNumber(item.total_remaining) + '</td>';
@@ -525,44 +526,8 @@ function renderCustomerTable(data) {
         tbody.append(html);
     }
 
-    renderCustomerPagination(data);
-}
-
-function renderCustomerPagination(data) {
-    var totalPages = data.total_pages;
-    var curPage = data.current_page;
-
-    if (showAll) {
-        $('#customerPaginationList').html('');
-        $('#customerPaginationNav').show();
-        return;
-    }
-
-    if (totalPages <= 1) { $('#customerPaginationNav').hide(); return; }
-
-    var html = '';
-    html += '<li class="page-item ' + (curPage === 1 ? 'disabled' : '') + '">';
-    html += '<a class="page-link" href="#" data-page="' + (curPage - 1) + '">上一页</a></li>';
-
-    var startPage = Math.max(1, curPage - 2);
-    var endPage = Math.min(totalPages, curPage + 2);
-    if (startPage > 1) {
-        html += '<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>';
-        if (startPage > 2) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-    }
-    for (var i = startPage; i <= endPage; i++) {
-        html += '<li class="page-item ' + (i === curPage ? 'active' : '') + '">';
-        html += '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
-    }
-    if (endPage < totalPages) {
-        if (endPage < totalPages - 1) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-        html += '<li class="page-item"><a class="page-link" href="#" data-page="' + totalPages + '">' + totalPages + '</a></li>';
-    }
-    html += '<li class="page-item ' + (curPage === totalPages ? 'disabled' : '') + '">';
-    html += '<a class="page-link" href="#" data-page="' + (curPage + 1) + '">下一页</a></li>';
-
-    $('#customerPaginationList').html(html);
-    $('#customerPaginationNav').show();
+    renderPagination('#customerPaginationList', data, function(page) { loadPayablesByCustomer(page); });
+    if (showAll || data.total_pages <= 1) { $('#customerPaginationNav').hide(); } else { $('#customerPaginationNav').show(); }
 }
 
 // 客户明细弹窗：加载该客户所有应付明细
@@ -682,7 +647,7 @@ function renderTable(data) {
         html += '<tr>';
         html += '<td>' + rowNo + '</td>';
         html += '<td>' + getCustomerTypeBadge(item.customer_type) + '</td>';
-        html += '<td>' + escapeHtml(displayName) + '</td>';
+        html += '<td><a href="javascript:void(0)" class="customer-tx-link" data-type="' + item.customer_type + '" data-id="' + (item.customer_id || '') + '" data-name="' + escapeHtml(displayName) + '">' + escapeHtml(displayName) + '</a></td>';
         html += '<td>' + escapeHtml(item.expense_type_name) + '</td>';
         html += '<td class="text-end">¥' + formatNumber(item.amount) + '</td>';
         html += '<td class="text-end">¥' + formatNumber(item.paid_amount) + '</td>';
@@ -716,44 +681,8 @@ function renderTable(data) {
         tbody.append(html);
     }
 
-    renderPagination(data);
-}
-
-function renderPagination(data) {
-    var totalPages = data.total_pages;
-    var curPage = data.current_page;
-
-    if (showAll) {
-        $('#paginationList').html('');
-        $('#paginationNav').show();
-        return;
-    }
-
-    if (totalPages <= 1) { $('#paginationNav').hide(); return; }
-
-    var html = '';
-    html += '<li class="page-item ' + (curPage === 1 ? 'disabled' : '') + '">';
-    html += '<a class="page-link" href="#" data-page="' + (curPage - 1) + '">上一页</a></li>';
-
-    var startPage = Math.max(1, curPage - 2);
-    var endPage = Math.min(totalPages, curPage + 2);
-    if (startPage > 1) {
-        html += '<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>';
-        if (startPage > 2) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-    }
-    for (var i = startPage; i <= endPage; i++) {
-        html += '<li class="page-item ' + (i === curPage ? 'active' : '') + '">';
-        html += '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
-    }
-    if (endPage < totalPages) {
-        if (endPage < totalPages - 1) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-        html += '<li class="page-item"><a class="page-link" href="#" data-page="' + totalPages + '">' + totalPages + '</a></li>';
-    }
-    html += '<li class="page-item ' + (curPage === totalPages ? 'disabled' : '') + '">';
-    html += '<a class="page-link" href="#" data-page="' + (curPage + 1) + '">下一页</a></li>';
-
-    $('#paginationList').html(html);
-    $('#paginationNav').show();
+    renderPagination('#paginationList', data, function(page) { loadPayables(page); });
+    if (showAll || data.total_pages <= 1) { $('#paginationNav').hide(); } else { $('#paginationNav').show(); }
 }
 
 function loadExpenseTypes() {
@@ -1167,6 +1096,7 @@ function submitBatchPay() {
 }
 
 $(document).ready(function() {
+    CustomerTransactionModal.init();
     // 初始加载按客户数据
     loadPayablesByCustomer(1);
 
@@ -1186,21 +1116,12 @@ $(document).ready(function() {
     });
 
     // 搜索/筛选
-    $('#btnSearch').on('click', function() {
+    bindSearch('searchInput', 'btnSearch', function() {
         showAll = false;
-        $('#btnCustomerShowAll').html('<i class="fa fa-expand"></i> 显示全部数据');
-        $('#btnDetailShowAll').html('<i class="fa fa-expand"></i> 显示全部数据');
+        $('#btnCustomerShowAll').html('<i class="fa fa-compress"></i> 分页显示');
+        $('#btnDetailShowAll').html('<i class="fa fa-compress"></i> 分页显示');
         if (currentActiveTab === 'customer') loadPayablesByCustomer(1);
         else loadPayables(1);
-    });
-    $('#searchInput').on('keypress', function(e) {
-        if (e.which === 13) {
-            showAll = false;
-            $('#btnCustomerShowAll').html('<i class="fa fa-expand"></i> 显示全部数据');
-            $('#btnDetailShowAll').html('<i class="fa fa-expand"></i> 显示全部数据');
-            if (currentActiveTab === 'customer') loadPayablesByCustomer(1);
-            else loadPayables(1);
-        }
     });
     $('#statusFilter').on('change', function() {
         showAll = false;
@@ -1208,20 +1129,6 @@ $(document).ready(function() {
         $('#btnDetailShowAll').html('<i class="fa fa-expand"></i> 显示全部数据');
         if (currentActiveTab === 'customer') loadPayablesByCustomer(1);
         else loadPayables(1);
-    });
-
-    // 按客户显示 - 分页
-    $(document).on('click', '#customerPaginationList .page-link', function(e) {
-        e.preventDefault();
-        var page = $(this).data('page');
-        if (page && page >= 1) loadPayablesByCustomer(page);
-    });
-
-    // 按明细显示 - 分页
-    $(document).on('click', '#paginationList .page-link', function(e) {
-        e.preventDefault();
-        var page = $(this).data('page');
-        if (page && page >= 1) loadPayables(page);
     });
 
     // 显示全部 / 分页显示 切换
@@ -1376,6 +1283,17 @@ $(document).ready(function() {
     // 详情
     $(document).on('click', '.btn-detail', function() {
         openDetailModal($(this).data('id'));
+    });
+
+    // 客户名称超链接 - 打开交易历史弹窗
+    $(document).on('click', '.customer-tx-link', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        CustomerTransactionModal.show(
+            $(this).data('type'),
+            $(this).data('id'),
+            $(this).data('name')
+        );
     });
 
     // 导出

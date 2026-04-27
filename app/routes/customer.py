@@ -2,20 +2,22 @@
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required
 from app.services.customer_service import CustomerService
+from app.routes.user import check_permission, check_api_permission
+from app.api_response import handle_exception
 
 customer_bp = Blueprint('customer', __name__)
 customer_svc = CustomerService()
 
 
 @customer_bp.route('/list')
-@login_required
+@check_permission('customer_view')
 def customer_list():
     """客户列表页面"""
     return render_template('customer/list.html')
 
 
 @customer_bp.route('/api/list', methods=['GET'])
-@login_required
+@check_api_permission('customer_view')
 def api_list():
     """客户列表API"""
     try:
@@ -30,25 +32,23 @@ def api_list():
         )
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @customer_bp.route('/api/add', methods=['POST'])
-@login_required
+@check_api_permission('customer_create')
 def api_add():
     """新增客户"""
     try:
         data = request.json
         new_id = customer_svc.create_customer(data)
         return jsonify({'success': True, 'message': '添加成功', 'id': new_id})
-    except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': f'添加失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @customer_bp.route('/api/edit/<int:customer_id>', methods=['POST'])
-@login_required
+@check_api_permission('customer_edit')
 def api_edit(customer_id):
     """编辑客户"""
     try:
@@ -58,14 +58,12 @@ def api_edit(customer_id):
             return jsonify({'success': True, 'message': '更新成功'})
         else:
             return jsonify({'success': False, 'message': '客户不存在'}), 404
-    except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': f'更新失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @customer_bp.route('/api/delete/<int:customer_id>', methods=['POST'])
-@login_required
+@check_api_permission('customer_delete')
 def api_delete(customer_id):
     """删除客户"""
     try:
@@ -74,14 +72,12 @@ def api_delete(customer_id):
             return jsonify({'success': True, 'message': '删除成功'})
         else:
             return jsonify({'success': False, 'message': '客户不存在'}), 404
-    except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': f'删除失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @customer_bp.route('/api/search', methods=['GET'])
-@login_required
+@check_api_permission('customer_view')
 def api_search():
     """搜索客户（用于应收/应付下拉选择）"""
     try:
@@ -91,11 +87,11 @@ def api_search():
         result = customer_svc.search_customers(keyword)
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'搜索失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @customer_bp.route('/api/detail/<int:customer_id>', methods=['GET'])
-@login_required
+@check_api_permission('customer_view')
 def api_detail(customer_id):
     """获取客户详情"""
     try:
@@ -105,4 +101,4 @@ def api_detail(customer_id):
         else:
             return jsonify({'success': False, 'message': '客户不存在'}), 404
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取详情失败：{str(e)}'}), 500
+        return handle_exception(e)

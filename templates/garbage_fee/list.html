@@ -1,0 +1,386 @@
+{% extends "admin_base.html" %}
+
+{% block title %}垃圾费管理{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">垃圾费管理</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .badge { font-size: 0.8rem; padding: 0.4em 0.8em; border-radius: 0.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col-md-6">
+                <h5 class="card-title mb-0"><i class="fa fa-recycle"></i> 垃圾费管理</h5>
+            </div>
+            <div class="col-md-6 text-end">
+                <button type="button" class="btn btn-success me-2" id="btnExport">
+                    <i class="fa fa-file-excel-o"></i> 导出Excel
+                </button>
+                <a href="{{ url_for('garbage_fee.generate_page') }}" class="btn btn-primary">
+                    <i class="fa fa-magic"></i> 批量生成
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="filter-form mb-4">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">年度</label>
+                    <select class="form-select" id="filterYear">
+                        <option value="">全部年度</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">业态类型</label>
+                    <select class="form-select" id="filterBusinessType">
+                        <option value="">全部业态</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">状态</label>
+                    <select class="form-select" id="filterStatus">
+                        <option value="">全部状态</option>
+                        <option value="待收取">待收取</option>
+                        <option value="已收取">已收取</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">搜索</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="searchInput" placeholder="搜索商户名/备注">
+                        <button class="btn btn-primary" id="btnSearch"><i class="fa fa-search"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th class="text-center" style="width:50px;">序号</th>
+                        <th class="text-center" style="width:160px;">商户名称</th>
+                        <th class="text-center" style="width:70px;">年度</th>
+                        <th class="text-center" style="width:100px;">业态类型</th>
+                        <th class="text-center" style="width:100px;">面积(亩)</th>
+                        <th class="text-center" style="width:120px;">单价(元/亩/年)</th>
+                        <th class="text-center" style="width:100px;">保底(元)</th>
+                        <th class="text-center" style="width:100px;">计算金额</th>
+                        <th class="text-center" style="width:110px;">最终金额</th>
+                        <th class="text-center" style="width:70px;">状态</th>
+                        <th class="text-center" style="width:150px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTableBody">
+                    <tr><td colspan="11" class="text-center text-muted"><i class="fa fa-spinner fa-spin"></i> 加载中...</td></tr>
+                </tbody>
+                <tfoot id="tableFoot" style="display:none;">
+                    <tr class="summary-row">
+                        <td class="text-center" colspan="4">合计</td>
+                        <td class="text-end" id="summaryArea">0.00</td>
+                        <td colspan="3"></td>
+                        <td class="text-end" id="summaryFee">¥0.00</td>
+                        <td class="text-center" id="summaryCount">0 条</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-md-6"><div id="pageInfo" class="text-muted"></div></div>
+            <div class="col-md-6"><nav><ul class="pagination justify-content-end mb-0" id="pagination"></ul></nav></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa fa-edit"></i> 编辑垃圾费</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editId">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">商户名称</label>
+                        <input type="text" class="form-control" id="editMerchantName" readonly>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">年度</label>
+                        <input type="text" class="form-control" id="editYear" readonly>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">业态类型</label>
+                        <input type="text" class="form-control" id="editBusinessType" readonly>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">租赁面积(亩)</label>
+                        <input type="number" class="form-control" id="editRentalArea" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">单价(元/亩/年)</label>
+                        <input type="number" class="form-control" id="editUnitPrice" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">保底金额(元)</label>
+                        <input type="number" class="form-control" id="editMinAmount" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">最终金额(元)</label>
+                        <input type="number" class="form-control" id="editFinalFee" step="0.01" min="0">
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">计算金额(元)</label>
+                        <input type="text" class="form-control" id="editCalculatedFee" readonly>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">状态</label>
+                        <select class="form-select" id="editStatus">
+                            <option value="待收取">待收取</option>
+                            <option value="已收取">已收取</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">备注</label>
+                        <input type="text" class="form-control" id="editDescription" placeholder="备注（可选）">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="btnSaveEdit"><i class="fa fa-check"></i> 保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(function() {
+    let currentPage = 1;
+    let perPage = 10;
+
+    function initYearFilter() {
+        const currentYear = new Date().getFullYear();
+        let html = '<option value="">全部年度</option>';
+        for (let y = currentYear + 1; y >= currentYear - 5; y--) {
+            html += '<option value="' + y + '">' + y + '年</option>';
+        }
+        $('#filterYear').html(html);
+        $('#filterYear').val(currentYear);
+    }
+
+    function loadBusinessTypes() {
+        $.get('{{ url_for("garbage_fee.business_types") }}', function(res) {
+            if (res.success) {
+                let html = '<option value="">全部业态</option>';
+                res.data.forEach(function(item) {
+                    html += '<option value="' + item.value + '">' + item.label + '</option>';
+                });
+                $('#filterBusinessType').html(html);
+            }
+        });
+    }
+
+    function loadData() {
+        const year = $('#filterYear').val();
+        const businessType = $('#filterBusinessType').val();
+        const status = $('#filterStatus').val();
+        const search = $('#searchInput').val().trim();
+
+        $('#dataTableBody').html('<tr><td colspan="11" class="text-center text-muted"><i class="fa fa-spinner fa-spin"></i> 加载中...</td></tr>');
+        $('#tableFoot').hide();
+
+        $.ajax({
+            url: '{{ url_for("garbage_fee.fee_list") }}',
+            method: 'GET',
+            data: { page: currentPage, per_page: perPage, year: year, business_type: businessType, status: status, search: search },
+            success: function(res) {
+                if (res.success) {
+                    renderTable(res.data.items);
+                    renderSummary(res.data.summary);
+                    renderPagination('#pagination', { current_page: res.data.page, total_pages: res.data.total_pages, total: res.data.total }, function(page) {
+                        currentPage = page;
+                        loadData();
+                    });
+                    const start = (res.data.page - 1) * perPage + 1;
+                    const end = Math.min(res.data.page * perPage, res.data.total);
+                    $('#pageInfo').text(res.data.total === 0 ? '暂无数据' : '显示 ' + start + '-' + end + ' 条，共 ' + res.data.total + ' 条');
+                } else {
+                    showToast(res.message || '加载失败', 'danger');
+                }
+            },
+            error: function() { showToast('网络错误', 'danger'); }
+        });
+    }
+
+    function renderTable(data) {
+        const tbody = $('#dataTableBody');
+        tbody.empty();
+        if (data.length === 0) {
+            tbody.html('<tr><td colspan="11" class="text-center text-muted py-5"><i class="fa fa-inbox fa-3x mb-3"></i><p>暂无数据</p></td></tr>');
+            return;
+        }
+        data.forEach(function(item, index) {
+            const rowNum = (currentPage - 1) * perPage + index + 1;
+            let statusBadge = '';
+            if (item.status === '待收取') statusBadge = '<span class="badge bg-warning">待收取</span>';
+            else if (item.status === '已收取') statusBadge = '<span class="badge bg-success">已收取</span>';
+            else statusBadge = '<span class="badge bg-secondary">' + item.status + '</span>';
+
+            tbody.append(`
+                <tr>
+                    <td class="text-center">${rowNum}</td>
+                    <td class="text-center">${item.merchant_name}</td>
+                    <td class="text-center">${item.year}</td>
+                    <td class="text-center">${item.business_type || '—'}</td>
+                    <td class="text-end">${item.rental_area.toFixed(2)}</td>
+                    <td class="text-end">${item.unit_price.toFixed(2)}</td>
+                    <td class="text-end">${item.min_amount.toFixed(2)}</td>
+                    <td class="text-end">${item.calculated_fee.toFixed(2)}</td>
+                    <td class="text-end fw-bold">¥${item.final_fee.toFixed(2)}</td>
+                    <td class="text-center">${statusBadge}</td>
+                    <td class="text-center" style="white-space:nowrap;">
+                        <a href="/garbage_fee/detail/${item.garbage_fee_id}" class="btn btn-sm btn-outline-info me-1"><i class="fa fa-eye"></i></a>
+                        <button class="btn btn-sm btn-outline-primary me-1 btn-edit" data-id="${item.garbage_fee_id}"><i class="fa fa-edit"></i></button>
+                        <button class="btn btn-sm btn-outline-danger btn-delete" data-id="${item.garbage_fee_id}"><i class="fa fa-trash"></i></button>
+                    </td>
+                </tr>
+            `);
+        });
+    }
+
+    function renderSummary(summary) {
+        if (!summary || summary.total_count === 0) { $('#tableFoot').hide(); return; }
+        $('#summaryArea').text(summary.total_area.toFixed(2));
+        $('#summaryFee').text('¥' + summary.total_fee.toFixed(2));
+        $('#summaryCount').text(summary.total_count + ' 条');
+        $('#tableFoot').show();
+    }
+
+    bindSearch('searchInput', 'btnSearch', function() { currentPage = 1; loadData(); });
+    $('#filterYear, #filterBusinessType, #filterStatus').change(function() { currentPage = 1; loadData(); });
+
+    $(document).on('click', '.btn-edit', function() {
+        const id = $(this).data('id');
+        $.get('{{ url_for("garbage_fee.detail_data", garbage_fee_id=0) }}'.replace('/0', '/' + id), function(res) {
+            if (res.success) {
+                const d = res.data;
+                $('#editId').val(d.garbage_fee_id);
+                $('#editMerchantName').val(d.merchant_name);
+                $('#editYear').val(d.year);
+                $('#editBusinessType').val(d.business_type || '—');
+                $('#editRentalArea').val(d.rental_area);
+                $('#editUnitPrice').val(d.unit_price);
+                $('#editMinAmount').val(d.min_amount);
+                $('#editCalculatedFee').val(d.calculated_fee.toFixed(2));
+                $('#editFinalFee').val(d.final_fee);
+                $('#editStatus').val(d.status);
+                $('#editDescription').val(d.description || '');
+                new bootstrap.Modal($('#editModal')[0]).show();
+            } else {
+                showToast(res.message || '加载失败', 'danger');
+            }
+        });
+    });
+
+    function recalcEditFee() {
+        const area = parseFloat($('#editRentalArea').val()) || 0;
+        const price = parseFloat($('#editUnitPrice').val()) || 0;
+        const minAmt = parseFloat($('#editMinAmount').val()) || 0;
+        const calculated = area * price;
+        $('#editCalculatedFee').val(calculated.toFixed(2));
+        const finalFee = Math.max(calculated, minAmt);
+        $('#editFinalFee').val(finalFee.toFixed(2));
+    }
+    $('#editRentalArea, #editUnitPrice, #editMinAmount').on('input', recalcEditFee);
+
+    $('#btnSaveEdit').click(function() {
+        const id = $('#editId').val();
+        const data = {
+            rental_area: $('#editRentalArea').val(),
+            unit_price: $('#editUnitPrice').val(),
+            min_amount: $('#editMinAmount').val(),
+            final_fee: $('#editFinalFee').val(),
+            status: $('#editStatus').val(),
+            description: $('#editDescription').val().trim()
+        };
+        $.ajax({
+            url: '{{ url_for("garbage_fee.update_fee", garbage_fee_id=0) }}'.replace('/0', '/' + id),
+            method: 'POST',
+            contentType: 'application/json',
+            headers: { 'X-CSRFToken': getCSRFToken() },
+            data: JSON.stringify(data),
+            success: function(res) {
+                if (res.success) {
+                    showToast('更新成功', 'success');
+                    bootstrap.Modal.getInstance($('#editModal')[0]).hide();
+                    loadData();
+                } else {
+                    showToast(res.message || '更新失败', 'danger');
+                }
+            },
+            error: function(xhr) {
+                var msg = '网络错误';
+                try { msg = xhr.responseJSON.message || msg; } catch(e) {}
+                showToast(msg, 'danger');
+            }
+        });
+    });
+
+    $(document).on('click', '.btn-delete', function() {
+        const id = $(this).data('id');
+        if (confirm('确定要删除这条垃圾费记录吗？')) {
+            $.ajax({
+                url: '{{ url_for("garbage_fee.delete", garbage_fee_id=0) }}'.replace('/0', '/' + id),
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCSRFToken() },
+                success: function(res) {
+                    if (res.success) { showToast('删除成功', 'success'); loadData(); }
+                    else { showToast(res.message || '删除失败', 'danger'); }
+                },
+                error: function(xhr) {
+                    var msg = '网络错误';
+                    try { msg = xhr.responseJSON.message || msg; } catch(e) {}
+                    showToast(msg, 'danger');
+                }
+            });
+        }
+    });
+
+    $('#btnExport').click(function() {
+        const params = new URLSearchParams();
+        const year = $('#filterYear').val();
+        const bt = $('#filterBusinessType').val();
+        const st = $('#filterStatus').val();
+        const search = $('#searchInput').val().trim();
+        if (year) params.set('year', year);
+        if (bt) params.set('business_type', bt);
+        if (st) params.set('status', st);
+        if (search) params.set('search', search);
+        window.location.href = '{{ url_for("garbage_fee.export") }}?' + params.toString();
+    });
+
+    initYearFilter();
+    loadBusinessTypes();
+    loadData();
+});
+</script>
+{% endblock %}

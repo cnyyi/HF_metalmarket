@@ -6,6 +6,8 @@
 import logging
 from datetime import datetime
 from utils.database import DBConnection
+from utils.format_utils import format_date, format_datetime
+from utils.sequence import generate_serial_no
 from app.services.account_service import AccountService
 
 logger = logging.getLogger(__name__)
@@ -96,7 +98,7 @@ class PrepaymentService:
                     'account_id': row.AccountID,
                     'account_name': row.AccountName,
                     'operator_name': row.OperatorName,
-                    'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                    'create_time': format_datetime(row.CreateTime),
                 })
 
             total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 0
@@ -143,7 +145,7 @@ class PrepaymentService:
                 'account_id': row.AccountID,
                 'cash_flow_id': row.CashFlowID,
                 'created_by': row.CreatedBy,
-                'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                'create_time': format_datetime(row.CreateTime),
             }
 
     def create_prepayment(self, direction, customer_type, customer_id,
@@ -205,9 +207,7 @@ class PrepaymentService:
                 prepayment_id = row[0]
 
                 # 2. INSERT CashFlow
-                from app.services.finance_service import FinanceService
-                finance_svc = FinanceService()
-                transaction_no = finance_svc._generate_transaction_no(cursor, 'CF')
+                transaction_no = generate_serial_no(cursor, 'CF', 'CashFlow', 'TransactionNo')
 
                 cursor.execute("""
                     INSERT INTO CashFlow (
@@ -425,7 +425,7 @@ class PrepaymentService:
                     'amount': float(row.Amount),
                     'description': row.Description or '',
                     'operator_name': row.OperatorName,
-                    'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                    'create_time': format_datetime(row.CreateTime),
                 })
             return result
 
@@ -454,7 +454,7 @@ class PrepaymentService:
                     'applied_amount': float(row.AppliedAmount),
                     'remaining_amount': float(row.RemainingAmount),
                     'status': row.Status,
-                    'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                    'create_time': format_datetime(row.CreateTime),
                 })
             return result
 

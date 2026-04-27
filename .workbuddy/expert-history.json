@@ -199,7 +199,47 @@
         "usedAt": 1776609085551,
         "industryId": "all"
       }
+    ],
+    "f2008c24bac24fd884823f4a802ab33f": [
+      {
+        "expertId": "SeniorDeveloper",
+        "name": "吴八哥",
+        "profession": "高级开发工程师",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/02-Engineering/SeniorDeveloper/SeniorDeveloper.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/02-Engineering/SeniorDeveloper/SeniorDeveloper_zh.md",
+        "usedAt": 1776837695927,
+        "industryId": "all"
+      }
+    ],
+    "74289ee1b9bb456585476ad40b708f4c": [
+      {
+        "expertId": "SeniorDeveloper",
+        "name": "吴八哥",
+        "profession": "高级开发工程师",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/02-Engineering/SeniorDeveloper/SeniorDeveloper.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/02-Engineering/SeniorDeveloper/SeniorDeveloper_zh.md",
+        "usedAt": 1777134777949,
+        "industryId": "all"
+      },
+      {
+        "expertId": "FrontendDeveloper",
+        "name": "像素匠",
+        "profession": "前端开发工程师",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/02-Engineering/FrontendDeveloper/FrontendDeveloper.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/02-Engineering/FrontendDeveloper/FrontendDeveloper_zh.md",
+        "usedAt": 1777041012785,
+        "industryId": "all"
+      },
+      {
+        "expertId": "UiDesigner",
+        "name": "像素君",
+        "profession": "UI设计师",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/01-Design/UiDesigner/UiDesigner.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/01-Design/UiDesigner/UiDesigner_zh.md",
+        "usedAt": 1777040517867,
+        "industryId": "all"
+      }
     ]
   },
-  "lastUpdated": 1776619406853
+  "lastUpdated": 1777135780882
 }

@@ -355,7 +355,7 @@ $(function() {
                 });
             }
             $('#salaryTableBody').html(html);
-            renderPagination(data);
+            renderPagination('#paginationList', data, function(page) { loadRecords(page); });
             updateBatchButton();
 
             // 汇总
@@ -376,31 +376,7 @@ $(function() {
         });
     }
 
-    function renderPagination(data) {
-        if (data.total_pages <= 1) {
-            $('#paginationNav').hide();
-            return;
-        }
-        $('#paginationNav').show();
-        var html = '<li class="page-item ' + (data.current_page <= 1 ? 'disabled' : '') + '">' +
-            '<a class="page-link" href="#" data-page="' + (data.current_page - 1) + '">&laquo;</a></li>';
-        for (var i = 1; i <= data.total_pages; i++) {
-            html += '<li class="page-item ' + (i === data.current_page ? 'active' : '') + '">' +
-                '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
-        }
-        html += '<li class="page-item ' + (data.current_page >= data.total_pages ? 'disabled' : '') + '">' +
-            '<a class="page-link" href="#" data-page="' + (data.current_page + 1) + '">&raquo;</a></li>';
-        $('#paginationList').html(html);
-    }
-
-    $(document).on('click', '#paginationList .page-link', function(e) {
-        e.preventDefault();
-        var page = $(this).data('page');
-        if (page) loadRecords(page);
-    });
-
-    $('#btnSearch').click(function() { loadRecords(1); });
-    $('#searchInput').keypress(function(e) { if (e.which === 13) loadRecords(1); });
+    bindSearch('searchInput', 'btnSearch', function() { loadRecords(1); });
     $('#yearMonthFilter, #statusFilter').change(function() { loadRecords(1); });
 
     // 全选
@@ -434,6 +410,7 @@ $(function() {
             url: '/salary/monthly/generate',
             method: 'POST',
             contentType: 'application/json',
+            headers: { 'X-CSRFToken': getCSRFToken() },
             data: JSON.stringify({ year_month: month }),
             success: function(res) {
                 bootstrap.Modal.getInstance($('#generateModal')[0]).hide();
@@ -456,6 +433,7 @@ $(function() {
             url: '/salary/monthly/approve/' + id,
             method: 'POST',
             contentType: 'application/json',
+            headers: { 'X-CSRFToken': getCSRFToken() },
             success: function(res) {
                 if (res.success) {
                     showToast('审核成功', 'success');
@@ -478,6 +456,7 @@ $(function() {
             url: '/salary/monthly/batch_approve',
             method: 'POST',
             contentType: 'application/json',
+            headers: { 'X-CSRFToken': getCSRFToken() },
             data: JSON.stringify({ record_ids: ids }),
             success: function(res) {
                 if (res.success) {
@@ -548,6 +527,7 @@ $(function() {
             url: '/salary/monthly/edit/' + $('#editRecordId').val(),
             method: 'POST',
             contentType: 'application/json',
+            headers: { 'X-CSRFToken': getCSRFToken() },
             data: JSON.stringify(payload),
             success: function(res) {
                 if (res.success) {
@@ -568,6 +548,7 @@ $(function() {
             url: '/salary/monthly/delete/' + id,
             method: 'POST',
             contentType: 'application/json',
+            headers: { 'X-CSRFToken': getCSRFToken() },
             success: function(res) {
                 if (res.success) { showToast('删除成功', 'success'); loadRecords(currentPage); }
                 else { alert(res.message); }
@@ -591,6 +572,7 @@ $(function() {
             url: '/salary/monthly/pay/' + $('#payRecordId').val(),
             method: 'POST',
             contentType: 'application/json',
+            headers: { 'X-CSRFToken': getCSRFToken() },
             data: JSON.stringify({
                 payment_method: $('#payMethod').val(),
                 transaction_date: $('#payDate').val()

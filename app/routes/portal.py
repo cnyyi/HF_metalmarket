@@ -4,6 +4,7 @@ from functools import wraps
 from flask import Blueprint, render_template, redirect, url_for, request, jsonify, abort
 from flask_login import login_required, current_user
 from app.services.portal_service import PortalService
+from app.api_response import handle_exception
 
 portal_bp = Blueprint('portal', __name__, url_prefix='/portal')
 portal_svc = PortalService()
@@ -40,7 +41,7 @@ def api_dashboard():
         stats = PortalService.get_dashboard(current_user.merchant_id)
         return jsonify({'success': True, 'data': stats})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @portal_bp.route('/contracts')
@@ -62,7 +63,7 @@ def api_contracts():
         result = PortalService.get_contracts(current_user.merchant_id, page=page, per_page=per_page)
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @portal_bp.route('/receivables')
@@ -88,7 +89,7 @@ def api_receivables():
         )
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @portal_bp.route('/scale-records')
@@ -110,7 +111,7 @@ def api_scale_records():
         result = PortalService.get_scale_records(current_user.merchant_id, page=page, per_page=per_page)
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @portal_bp.route('/utility-readings')
@@ -132,7 +133,7 @@ def api_utility_readings():
         result = PortalService.get_utility_readings(current_user.merchant_id, page=page, per_page=per_page)
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @portal_bp.route('/profile')

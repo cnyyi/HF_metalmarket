@@ -15,7 +15,7 @@
                 <h5 class="card-title mb-0">字典数据列表</h5>
             </div>
             <div class="col-md-6 text-end">
-                {% if current_user.has_permission('dict_manage') %}
+                {% if current_user.has_permission('dict_create') %}
                 <button type="button" class="btn btn-primary" id="btnAdd">
                     <i class="fa fa-plus"></i> 新增字典项
                 </button>
@@ -46,7 +46,7 @@
                 </button>
             </div>
             <div class="col-md-2 text-end">
-                {% if current_user.has_permission('dict_manage') %}
+                {% if current_user.has_permission('dict_delete') %}
                 <div class="btn-group" id="batchActions" style="display:none;">
                     <button type="button" class="btn btn-sm btn-success" id="btnBatchEnable" title="批量启用">
                         <i class="fa fa-check-circle"></i> 启用
@@ -66,7 +66,7 @@
             <table class="table table-striped table-hover">
                 <thead>
                     <tr>
-                        {% if current_user.has_permission('dict_manage') %}
+                        {% if current_user.has_permission('dict_edit') %}
                         <th style="width:40px;"><input type="checkbox" id="checkAll"></th>
                         {% endif %}
                         <th>ID</th>
@@ -76,9 +76,10 @@
                         <th>描述</th>
                         <th>排序</th>
                         <th class="unit-price-col" style="display:none;">单价</th>
+                        <th class="min-amount-col" style="display:none;">保底金额</th>
                         <th>状态</th>
                         <th>更新时间</th>
-                        {% if current_user.has_permission('dict_manage') %}
+                        {% if current_user.has_permission('dict_edit') %}
                         <th>操作</th>
                         {% endif %}
                     </tr>
@@ -94,6 +95,9 @@
         <div class="row align-items-center">
             <div class="col-md-6">
                 <span class="text-muted" id="pageInfo"></span>
+                <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="btnToggleAll" style="display:none;">
+                    <i class="fa fa-list"></i> <span id="toggleAllText">全部数据</span>
+                </button>
             </div>
             <div class="col-md-6">
                 <nav aria-label="Page navigation">
@@ -149,6 +153,10 @@
                             <label class="form-label fw-bold">单价（元）</label>
                             <input type="number" class="form-control" id="edit_unit_price" step="0.01" min="0" placeholder="请输入单价">
                         </div>
+                        <div class="col-md-6" id="minAmountGroup" style="display:none;">
+                            <label class="form-label fw-bold">保底金额（元/年）</label>
+                            <input type="number" class="form-control" id="edit_min_amount" step="0.01" min="0" placeholder="请输入保底金额">
+                        </div>
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
@@ -177,6 +185,7 @@
 {% block extra_js %}
 <script>
 var currentPage = 1;
+var showAll = false;
 var dictTypes = [];
 
 function loadDictTypes() {
@@ -216,7 +225,7 @@ function loadList(page) {
         type: 'GET',
         data: {
             page: currentPage,
-            per_page: 15,
+            per_page: showAll ? 99999 : 15,
             dict_type: dictType,
             keyword: keyword,
             is_active: isActive
@@ -250,11 +259,13 @@ function renderTable(data) {
         return;
     }
 
-    var showUnitPrice = $('#filterDictType').val() === 'plot_type';
+    var showUnitPrice = $('#filterDictType').val() === 'plot_type' || $('#filterDictType').val() === 'business_type';
+    var showMinAmount = $('#filterDictType').val() === 'business_type';
 
     for (var i = 0; i < items.length; i++) {
         var item = items[i];
-        var showUP = item.dict_type === 'plot_type';
+        var showUP = item.dict_type === 'plot_type' || item.dict_type === 'business_type';
+        var showMA = item.dict_type === 'business_type';
         var tr = '<tr>';
 
         if ($('#checkAll').length > 0) {
@@ -270,6 +281,12 @@ function renderTable(data) {
 
         if (showUP) {
             tr += '<td>' + (item.unit_price !== null ? '¥' + parseFloat(item.unit_price).toFixed(2) : '-') + '</td>';
+        } else {
+            tr += '<td style="display:none;"></td>';
+        }
+
+        if (showMA) {
+            tr += '<td>' + (item.min_amount !== null ? '¥' + parseFloat(item.min_amount).toFixed(2) : '-') + '</td>';
         } else {
             tr += '<td style="display:none;"></td>';
         }
@@ -293,21 +310,43 @@ function renderTable(data) {
         $tbody.append(tr);
     }
 
-    updateUnitPriceColumn();
+    updatePriceColumns();
 
     $('#pageInfo').text('共 ' + data.total_count + ' 条记录，第 ' + data.page + '/' + data.total_pages + ' 页');
     renderPagination('#pagination', { current_page: data.page, total_pages: data.total_pages, total: data.total }, function(page) { loadList(page); });
     updateBatchButtons();
+
+    if (data.total_count > 15) {
+        $('#btnToggleAll').show();
+        if (showAll) {
+            $('#toggleAllText').text('分页显示');
+            $('#btnToggleAll').find('i').attr('class', 'fa fa-columns');
+            $('#pagination').hide();
+        } else {
+            $('#toggleAllText').text('全部数据');
+            $('#btnToggleAll').find('i').attr('class', 'fa fa-list');
+            $('#pagination').show();
+        }
+    } else {
+        $('#btnToggleAll').hide();
+    }
 }
 
-function updateUnitPriceColumn() {
+function updatePriceColumns() {
     var selectedType = $('#filterDictType').val();
-    if (selectedType === 'plot_type') {
+    if (selectedType === 'plot_type' || selectedType === 'business_type') {
         $('.unit-price-col').show();
         $('#dictTableBody td:nth-child(8)').show();
     } else {
         $('.unit-price-col').hide();
         $('#dictTableBody td:nth-child(8)').hide();
+    }
+    if (selectedType === 'business_type') {
+        $('.min-amount-col').show();
+        $('#dictTableBody td:nth-child(9)').show();
+    } else {
+        $('.min-amount-col').hide();
+        $('#dictTableBody td:nth-child(9)').hide();
     }
 }
 
@@ -323,6 +362,8 @@ function openAddModal() {
     $('#edit_is_active').prop('checked', true);
     $('#edit_unit_price').val('');
     $('#unitPriceGroup').hide();
+    $('#edit_min_amount').val('');
+    $('#minAmountGroup').hide();
 
     var $modal = new bootstrap.Modal(document.getElementById('editModal'));
     $modal.show();
@@ -364,9 +405,18 @@ function openEditModal(dictId) {
                 if (d.dict_type === 'plot_type') {
                     $('#unitPriceGroup').show();
                     $('#edit_unit_price').val(d.unit_price !== null ? d.unit_price : '');
+                    $('#minAmountGroup').hide();
+                    $('#edit_min_amount').val('');
+                } else if (d.dict_type === 'business_type') {
+                    $('#unitPriceGroup').show();
+                    $('#edit_unit_price').val(d.unit_price !== null ? d.unit_price : '');
+                    $('#minAmountGroup').show();
+                    $('#edit_min_amount').val(d.min_amount !== null ? d.min_amount : '');
                 } else {
                     $('#unitPriceGroup').hide();
                     $('#edit_unit_price').val('');
+                    $('#minAmountGroup').hide();
+                    $('#edit_min_amount').val('');
                 }
 
                 var $modal = new bootstrap.Modal(document.getElementById('editModal'));
@@ -404,13 +454,25 @@ function saveItem() {
     var sortOrder = parseInt($('#edit_sort_order').val()) || 0;
     var isActive = $('#edit_is_active').is(':checked');
     var unitPrice = null;
+    var minAmount = null;
 
-    if (dictType === 'plot_type') {
+    if (dictType === 'plot_type' || dictType === 'business_type') {
         var upVal = $('#edit_unit_price').val().trim();
         if (upVal) {
             unitPrice = parseFloat(upVal);
             if (isNaN(unitPrice)) {
                 showToast('warning', '单价必须是有效数字');
+                return;
+            }
+        }
+    }
+
+    if (dictType === 'business_type') {
+        var maVal = $('#edit_min_amount').val().trim();
+        if (maVal) {
+            minAmount = parseFloat(maVal);
+            if (isNaN(minAmount)) {
+                showToast('warning', '保底金额必须是有效数字');
                 return;
             }
         }
@@ -423,7 +485,8 @@ function saveItem() {
         description: description,
         sort_order: sortOrder,
         is_active: isActive,
-        unit_price: unitPrice
+        unit_price: unitPrice,
+        min_amount: minAmount
     };
 
     var url, method;
@@ -588,13 +651,25 @@ $(document).ready(function() {
     $('#btnBatchDisable').on('click', function() { batchUpdateStatus(false); });
     $('#btnBatchDelete').on('click', batchDelete);
 
+    $('#btnToggleAll').on('click', function() {
+        showAll = !showAll;
+        loadList(1);
+    });
+
     $('#edit_dict_type_select').on('change', function() {
         var val = $(this).val();
         if (val === 'plot_type') {
             $('#unitPriceGroup').show();
+            $('#minAmountGroup').hide();
+            $('#edit_min_amount').val('');
+        } else if (val === 'business_type') {
+            $('#unitPriceGroup').show();
+            $('#minAmountGroup').show();
         } else {
             $('#unitPriceGroup').hide();
             $('#edit_unit_price').val('');
+            $('#minAmountGroup').hide();
+            $('#edit_min_amount').val('');
         }
         if (val) {
             $('#edit_dict_type_input').val('');
@@ -608,9 +683,16 @@ $(document).ready(function() {
         }
         if (val === 'plot_type') {
             $('#unitPriceGroup').show();
+            $('#minAmountGroup').hide();
+            $('#edit_min_amount').val('');
+        } else if (val === 'business_type') {
+            $('#unitPriceGroup').show();
+            $('#minAmountGroup').show();
         } else {
             $('#unitPriceGroup').hide();
             $('#edit_unit_price').val('');
+            $('#minAmountGroup').hide();
+            $('#edit_min_amount').val('');
         }
     });
 });

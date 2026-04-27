@@ -4,38 +4,41 @@
 """
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, send_file
 from flask_login import login_required
-from app.api_response import success_response, error_response
+from app.api_response import success_response, error_response, handle_exception
 from app.services.contract_service import ContractService
+from app.routes.user import check_permission, check_api_permission
 
 contract_bp = Blueprint('contract', __name__)
 
 
 @contract_bp.route('/list')
-@login_required
+@check_permission('contract_view')
 def contract_list():
     return render_template('contract/list.html')
 
 
 @contract_bp.route('/list_data', methods=['GET'])
-@login_required
+@check_api_permission('contract_view')
 def list_data():
     try:
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 10))
         search = request.args.get('search', '').strip()
+        sort_by = request.args.get('sort_by', 'create_time')
+        sort_order = request.args.get('sort_order', 'desc')
         
-        success, result = ContractService.get_contract_list(page, per_page, search)
+        success, result = ContractService.get_contract_list(page, per_page, search, sort_by, sort_order)
         if not success:
             return error_response(result)
         
         return success_response(result)
         
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        return handle_exception(e)
 
 
 @contract_bp.route('/generate/<int:contract_id>', methods=['POST'])
-@login_required
+@check_api_permission('contract_edit')
 def generate_doc(contract_id):
     """生成合同文档"""
     try:
@@ -57,11 +60,11 @@ def generate_doc(contract_id):
             }), 400
             
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        return handle_exception(e)
 
 
 @contract_bp.route('/download/<path:file_name>', methods=['GET'])
-@login_required
+@check_api_permission('contract_view')
 def download_doc(file_name):
     """下载合同文档"""
     try:
@@ -84,41 +87,41 @@ def download_doc(file_name):
         )
         
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        return handle_exception(e)
 
 
 @contract_bp.route('/periods', methods=['GET'])
-@login_required
+@check_api_permission('contract_view')
 def periods():
     try:
         period_list = ContractService.get_contract_periods()
         return jsonify({'success': True, 'data': period_list})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        return handle_exception(e)
 
 
 @contract_bp.route('/merchants/<period>', methods=['GET'])
-@login_required
+@check_api_permission('contract_view')
 def merchants(period):
     try:
         merchant_list = ContractService.get_available_merchants(period)
         return jsonify({'success': True, 'data': merchant_list})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        return handle_exception(e)
 
 
 @contract_bp.route('/plots/<period>', methods=['GET'])
-@login_required
+@check_api_permission('contract_view')
 def plots(period):
     try:
         plot_list = ContractService.get_available_plots(period)
         return jsonify({'success': True, 'data': plot_list})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        return handle_exception(e)
 
 
 @contract_bp.route('/add', methods=['GET', 'POST'])
-@login_required
+@check_permission('contract_create')
 def add():
     if request.method == 'GET':
         period_list = ContractService.get_contract_periods()
@@ -132,7 +135,7 @@ def add():
         plot_ids = data.get('plot_ids', [])
         start_date = data.get('start_date')
         end_date = data.get('end_date')
-        rent_adjust = data.get('rent_adjust', 0)
+        rent_adjust = float(data.get('rent_adjust', 0))
         description = data.get('description', '')
         
         if not period:
@@ -160,11 +163,11 @@ def add():
         )
             
     except Exception as e:
-        return error_response(str(e), status=500)
+        return handle_exception(e)
 
 
 @contract_bp.route('/detail/<int:contract_id>', methods=['GET'])
-@login_required
+@check_api_permission('contract_view')
 def detail(contract_id):
     try:
         success, result = ContractService.get_contract_detail(contract_id)
@@ -174,11 +177,11 @@ def detail(contract_id):
         return success_response(result)
         
     except Exception as e:
-        return error_response(str(e), status=500)
+        return handle_exception(e)
 
 
 @contract_bp.route('/edit/<int:contract_id>', methods=['GET', 'POST'])
-@login_required
+@check_permission('contract_edit')
 def edit(contract_id):
     if request.method == 'GET':
         period_list = ContractService.get_contract_periods()
@@ -189,7 +192,7 @@ def edit(contract_id):
         
         start_date = data.get('start_date')
         end_date = data.get('end_date')
-        rent_adjust = data.get('rent_adjust', 0)
+        rent_adjust = float(data.get('rent_adjust', 0))
         description = data.get('description', '')
         status = data.get('status', '有效')
         plot_ids = data.get('plot_ids', [])
@@ -209,11 +212,11 @@ def edit(contract_id):
         return success_response(message=message)
             
     except Exception as e:
-        return error_response(str(e), status=500)
+        return handle_exception(e)
 
 
 @contract_bp.route('/delete/<int:contract_id>', methods=['POST'])
-@login_required
+@check_api_permission('contract_delete')
 def delete(contract_id):
     try:
         success, message = ContractService.delete_contract(contract_id)
@@ -223,4 +226,4 @@ def delete(contract_id):
         return success_response(message=message)
         
     except Exception as e:
-        return error_response(str(e), status=500)
+        return handle_exception(e)

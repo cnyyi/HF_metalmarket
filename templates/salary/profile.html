@@ -211,33 +211,9 @@ $(function() {
                 });
             }
             $('#profileTableBody').html(html);
-            renderPagination(data);
+            renderPagination('#paginationList', data, function(page) { loadProfiles(page); });
         });
     }
-
-    function renderPagination(data) {
-        if (data.total_pages <= 1) {
-            $('#paginationNav').hide();
-            return;
-        }
-        $('#paginationNav').show();
-        var html = '<li class="page-item ' + (data.current_page <= 1 ? 'disabled' : '') + '">' +
-            '<a class="page-link" href="#" data-page="' + (data.current_page - 1) + '">&laquo;</a></li>';
-        for (var i = 1; i <= data.total_pages; i++) {
-            html += '<li class="page-item ' + (i === data.current_page ? 'active' : '') + '">' +
-                '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
-        }
-        html += '<li class="page-item ' + (data.current_page >= data.total_pages ? 'disabled' : '') + '">' +
-            '<a class="page-link" href="#" data-page="' + (data.current_page + 1) + '">&raquo;</a></li>';
-        $('#paginationList').html(html);
-    }
-
-    // 分页点击
-    $(document).on('click', '#paginationList .page-link', function(e) {
-        e.preventDefault();
-        var page = $(this).data('page');
-        if (page) loadProfiles(page);
-    });
 
     // 搜索
     $('#btnSearch').click(function() { loadProfiles(1); });
@@ -320,6 +296,7 @@ $(function() {
             method: method,
             contentType: 'application/json',
             data: JSON.stringify(payload),
+            headers: { 'X-CSRFToken': getCSRFToken() },
             success: function(res) {
                 if (res.success) {
                     bootstrap.Modal.getInstance($('#profileModal')[0]).hide();
@@ -343,6 +320,7 @@ $(function() {
             url: '/salary/profile/delete/' + id,
             method: 'POST',
             contentType: 'application/json',
+            headers: { 'X-CSRFToken': getCSRFToken() },
             success: function(res) {
                 if (res.success) {
                     loadProfiles(currentPage);

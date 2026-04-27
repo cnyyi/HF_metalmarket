@@ -1,7 +1,7 @@
 # 财务管理相关路由
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
-from app.api_response import success_response, error_response
+from app.api_response import success_response, error_response, handle_exception
 from app.services.receivable_service import ReceivableService
 from app.services.finance_service import FinanceService
 from app.services.customer_service import CustomerService
@@ -9,7 +9,7 @@ from app.services.dict_service import DictService
 from app.services.account_service import AccountService
 from app.services.prepayment_service import PrepaymentService
 from app.services.deposit_service import DepositService
-from app.routes.user import check_permission
+from app.routes.user import check_permission, check_api_permission
 
 finance_bp = Blueprint('finance', __name__)
 receivable_svc = ReceivableService()
@@ -46,11 +46,12 @@ def receivable_list():
 
         return success_response(result)
     except Exception as e:
-        return error_response(f'获取数据失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/receivable/create', methods=['POST'])
 @login_required
+@check_permission('finance_create')
 def receivable_create():
     try:
         data = request.json
@@ -73,15 +74,13 @@ def receivable_create():
         )
 
         return success_response({'id': new_id}, message='添加成功', id=new_id)
-    except ValueError as e:
-        return error_response(str(e))
     except Exception as e:
-        return error_response(f'添加失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/receivable/delete/<int:receivable_id>', methods=['POST'])
 @login_required
-@check_permission('finance_manage')
+@check_permission('finance_delete')
 def receivable_delete(receivable_id):
     """软删除应收账款"""
     try:
@@ -105,7 +104,7 @@ def receivable_delete(receivable_id):
             return error_response(result.get('message', '操作失败'), data=result_data or None, status=400, **result_data)
 
     except Exception as e:
-        return error_response(f'删除失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/receivable/expense_types', methods=['GET'])
@@ -123,7 +122,7 @@ def receivable_expense_types():
         } for item in items]
         return success_response(result)
     except Exception as e:
-        return error_response(f'获取费用类型失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/receivable/unit_types', methods=['GET'])
@@ -139,7 +138,7 @@ def receivable_unit_types():
         } for item in items]
         return success_response(result)
     except Exception as e:
-        return error_response(f'获取单位类型失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/receivable/search_merchants', methods=['GET'])
@@ -153,7 +152,7 @@ def receivable_search_merchants():
         result = ReceivableService.search_merchants(keyword)
         return success_response(result)
     except Exception as e:
-        return error_response(f'搜索商户失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/receivable/search_customers', methods=['GET'])
@@ -168,11 +167,12 @@ def receivable_search_customers():
         result = customer_svc.search_customers(keyword)
         return success_response(result)
     except Exception as e:
-        return error_response(f'搜索客户失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/receivable/collect/<int:receivable_id>', methods=['POST'])
 @login_required
+@check_permission('finance_create')
 def receivable_collect(receivable_id):
     """收款核销"""
     try:
@@ -193,7 +193,7 @@ def receivable_collect(receivable_id):
             result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
             return error_response(result.get('message', '操作失败'), data=result_data or None, status=400, **result_data)
     except Exception as e:
-        return error_response(f'收款失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/receivable/detail/<int:receivable_id>', methods=['GET'])
@@ -206,7 +206,55 @@ def receivable_detail(receivable_id):
             return error_response('记录不存在', status=404)
         return success_response(detail)
     except Exception as e:
-        return error_response(f'获取详情失败：{str(e)}', status=500)
+        return handle_exception(e)
+
+
+@finance_bp.route('/receivable/list_by_customer', methods=['GET'])
+@login_required
+def receivable_list_by_customer():
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 12, type=int)
+        search = request.args.get('search', '').strip()
+        status = request.args.get('status', '').strip()
+        expense_type_id = request.args.get('expense_type_id', type=int)
+
+        result = receivable_svc.get_receivables_by_customer(
+            page=page, per_page=per_page,
+            search=search or None, status=status or None,
+            expense_type_id=expense_type_id
+        )
+
+        return success_response(result)
+    except Exception as e:
+        return handle_exception(e)
+
+
+@finance_bp.route('/receivable/batch_collect', methods=['POST'])
+@login_required
+@check_permission('finance_create')
+def receivable_batch_collect():
+    try:
+        data = request.json
+        result = finance_svc.batch_collect_by_customer(
+            customer_type=data.get('customer_type', 'Merchant'),
+            customer_id=int(data.get('customer_id', 0)),
+            total_amount=float(data.get('amount', 0)),
+            payment_method=data.get('payment_method', ''),
+            transaction_date=data.get('transaction_date', ''),
+            description=data.get('description', ''),
+            created_by=current_user.user_id,
+            account_id=data.get('account_id'),
+            collect_mode=data.get('collect_mode', 'cash'),
+            prepayment_id=data.get('prepayment_id')
+        )
+        if result['success']:
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return success_response(result_data or None, message=result.get('message', '批量收款成功'))
+        else:
+            return error_response(result.get('message', '批量收款失败'), status=400)
+    except Exception as e:
+        return handle_exception(e)
 
 
 # ==================== 应付账款 ====================
@@ -233,7 +281,7 @@ def payable_list():
 
         return success_response(result)
     except Exception as e:
-        return error_response(f'获取数据失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/payable/list_by_customer', methods=['GET'])
@@ -253,11 +301,12 @@ def payable_list_by_customer():
 
         return success_response(result)
     except Exception as e:
-        return error_response(f'获取数据失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/payable/batch_pay', methods=['POST'])
 @login_required
+@check_permission('finance_create')
 def payable_batch_pay():
     """按客户批量付款核销"""
     try:
@@ -278,7 +327,7 @@ def payable_batch_pay():
         else:
             return error_response(result.get('message', '批量付款失败'), status=400)
     except Exception as e:
-        return error_response(f'批量付款失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/payable/delete/<int:payable_id>', methods=['POST'])
@@ -304,11 +353,12 @@ def payable_delete(payable_id):
         else:
             return error_response(result.get('message', '删除失败'), status=400)
     except Exception as e:
-        return error_response(f'删除失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/payable/add', methods=['POST'])
 @login_required
+@check_permission('finance_create')
 def payable_add():
     try:
         data = request.json
@@ -325,14 +375,13 @@ def payable_add():
         )
 
         return success_response({'id': new_id}, message='添加成功', id=new_id)
-    except ValueError as e:
-        return error_response(str(e))
     except Exception as e:
-        return error_response(f'添加失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/payable/pay/<int:payable_id>', methods=['POST'])
 @login_required
+@check_permission('finance_create')
 def payable_pay(payable_id):
     """付款核销"""
     try:
@@ -353,7 +402,7 @@ def payable_pay(payable_id):
             result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
             return error_response(result.get('message', '操作失败'), data=result_data or None, status=400, **result_data)
     except Exception as e:
-        return error_response(f'付款失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/payable/detail/<int:payable_id>', methods=['GET'])
@@ -387,7 +436,7 @@ def payable_detail(payable_id):
 
         return success_response(data)
     except Exception as e:
-        return error_response(f'获取详情失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/payable/expense_types', methods=['GET'])
@@ -405,7 +454,7 @@ def payable_expense_types():
         } for item in items]
         return success_response(result)
     except Exception as e:
-        return error_response(f'获取费用类型失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 # ==================== 现金流水 ====================
@@ -445,7 +494,7 @@ def cash_flow_list():
 
         return success_response(result, summary=summary)
     except Exception as e:
-        return error_response(f'获取数据失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/cash_flow/expense_types', methods=['GET'])
@@ -474,7 +523,7 @@ def cash_flow_expense_types():
             })
         return success_response(result)
     except Exception as e:
-        return error_response(f'获取费用类型失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 # ==================== 其他 ====================
@@ -490,26 +539,26 @@ def finance_list():
 
 @finance_bp.route('/account')
 @login_required
-@check_permission('account_manage')
+@check_permission('account_view')
 def account():
     return render_template('finance/account.html')
 
 
 @finance_bp.route('/account/list', methods=['GET'])
 @login_required
-@check_permission('account_manage')
+@check_permission('account_view')
 def account_list():
     try:
         status = request.args.get('status', '').strip()
         result = account_svc.get_accounts(status=status or None)
         return success_response(result)
     except Exception as e:
-        return error_response(f'获取数据失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/account/create', methods=['POST'])
 @login_required
-@check_permission('account_manage')
+@check_permission('account_create')
 def account_create():
     try:
         data = request.json
@@ -522,15 +571,13 @@ def account_create():
             remark=data.get('remark', '').strip() or None
         )
         return success_response({'id': new_id}, message='创建成功', id=new_id)
-    except ValueError as e:
-        return error_response(str(e))
     except Exception as e:
-        return error_response(f'创建失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/account/update/<int:account_id>', methods=['POST'])
 @login_required
-@check_permission('account_manage')
+@check_permission('account_edit')
 def account_update(account_id):
     try:
         data = request.json
@@ -544,48 +591,44 @@ def account_update(account_id):
             remark=data.get('remark')
         )
         return success_response(message='更新成功')
-    except ValueError as e:
-        return error_response(str(e))
     except Exception as e:
-        return error_response(f'更新失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/account/toggle_status/<int:account_id>', methods=['POST'])
 @login_required
-@check_permission('account_manage')
+@check_permission('account_edit')
 def account_toggle_status(account_id):
     try:
         new_status = account_svc.toggle_account_status(account_id)
         return success_response({'new_status': new_status}, message=f'账户已{new_status}', new_status=new_status)
-    except ValueError as e:
-        return error_response(str(e))
     except Exception as e:
-        return error_response(f'操作失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/account/summary', methods=['GET'])
 @login_required
-@check_permission('account_manage')
+@check_permission('account_view')
 def account_summary():
     try:
         result = account_svc.get_balance_summary()
         return success_response(result)
     except Exception as e:
-        return error_response(f'获取汇总失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 # ==================== 直接记账 ====================
 
 @finance_bp.route('/direct_entry')
 @login_required
-@check_permission('direct_entry')
+@check_permission('account_create')
 def direct_entry():
     return render_template('finance/direct_entry.html')
 
 
 @finance_bp.route('/direct_entry/submit', methods=['POST'])
 @login_required
-@check_permission('direct_entry')
+@check_permission('account_create')
 def direct_entry_submit():
     try:
         data = request.json
@@ -605,7 +648,7 @@ def direct_entry_submit():
             result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
             return error_response(result.get('message', '操作失败'), data=result_data or None, status=400, **result_data)
     except Exception as e:
-        return error_response(f'记账失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/account/active_list', methods=['GET'])
@@ -616,21 +659,21 @@ def account_active_list():
         result = account_svc.get_accounts(status='有效')
         return success_response(result)
     except Exception as e:
-        return error_response(f'获取账户失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 # ==================== 预收/预付管理 ====================
 
 @finance_bp.route('/prepayment')
 @login_required
-@check_permission('prepayment_manage')
+@check_permission('prepayment_view')
 def prepayment():
     return render_template('finance/prepayment.html')
 
 
 @finance_bp.route('/prepayment/list', methods=['GET'])
 @login_required
-@check_permission('prepayment_manage')
+@check_permission('prepayment_view')
 def prepayment_list():
     try:
         page = request.args.get('page', 1, type=int)
@@ -649,12 +692,12 @@ def prepayment_list():
         )
         return success_response(result)
     except Exception as e:
-        return error_response(f'获取数据失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/prepayment/create', methods=['POST'])
 @login_required
-@check_permission('prepayment_manage')
+@check_permission('prepayment_create')
 def prepayment_create():
     try:
         data = request.json
@@ -670,15 +713,13 @@ def prepayment_create():
             created_by=current_user.user_id
         )
         return success_response({'id': new_id}, message='创建成功', id=new_id)
-    except ValueError as e:
-        return error_response(str(e))
     except Exception as e:
-        return error_response(f'创建失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/prepayment/detail/<int:prepayment_id>', methods=['GET'])
 @login_required
-@check_permission('prepayment_manage')
+@check_permission('prepayment_view')
 def prepayment_detail(prepayment_id):
     try:
         detail = prepayment_svc.get_prepayment_by_id(prepayment_id)
@@ -690,12 +731,12 @@ def prepayment_detail(prepayment_id):
 
         return success_response(detail)
     except Exception as e:
-        return error_response(f'获取详情失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/prepayment/apply', methods=['POST'])
 @login_required
-@check_permission('prepayment_manage')
+@check_permission('prepayment_edit')
 def prepayment_apply():
     """预收冲抵应收 / 预付冲抵应付"""
     try:
@@ -712,7 +753,7 @@ def prepayment_apply():
             result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
             return error_response(result.get('message', '操作失败'), data=result_data or None, status=400, **result_data)
     except Exception as e:
-        return error_response(f'冲抵失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/prepayment/available', methods=['GET'])
@@ -729,33 +770,33 @@ def prepayment_available():
         result = prepayment_svc.get_available_prepayments(direction, customer_type, customer_id)
         return success_response(result)
     except Exception as e:
-        return error_response(f'获取数据失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/prepayment/summary', methods=['GET'])
 @login_required
-@check_permission('prepayment_manage')
+@check_permission('prepayment_view')
 def prepayment_summary():
     try:
         direction = request.args.get('direction', '').strip()
         result = prepayment_svc.get_summary(direction=direction or None)
         return success_response(result)
     except Exception as e:
-        return error_response(f'获取汇总失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 # ==================== 押金管理 ====================
 
 @finance_bp.route('/deposit')
 @login_required
-@check_permission('deposit_manage')
+@check_permission('deposit_view')
 def deposit():
     return render_template('finance/deposit.html')
 
 
 @finance_bp.route('/deposit/list', methods=['GET'])
 @login_required
-@check_permission('deposit_manage')
+@check_permission('deposit_view')
 def deposit_list():
     try:
         page = request.args.get('page', 1, type=int)
@@ -774,12 +815,12 @@ def deposit_list():
         )
         return success_response(result)
     except Exception as e:
-        return error_response(f'获取数据失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/deposit/create', methods=['POST'])
 @login_required
-@check_permission('deposit_manage')
+@check_permission('deposit_create')
 def deposit_create():
     try:
         data = request.json
@@ -795,15 +836,13 @@ def deposit_create():
             created_by=current_user.user_id
         )
         return success_response({'id': new_id}, message='收取成功', id=new_id)
-    except ValueError as e:
-        return error_response(str(e))
     except Exception as e:
-        return error_response(f'收取失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/deposit/detail/<int:deposit_id>', methods=['GET'])
 @login_required
-@check_permission('deposit_manage')
+@check_permission('deposit_view')
 def deposit_detail(deposit_id):
     try:
         detail = deposit_svc.get_deposit_by_id(deposit_id)
@@ -815,12 +854,12 @@ def deposit_detail(deposit_id):
 
         return success_response(detail)
     except Exception as e:
-        return error_response(f'获取详情失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/deposit/refund', methods=['POST'])
 @login_required
-@check_permission('deposit_manage')
+@check_permission('deposit_edit')
 def deposit_refund():
     """退还押金"""
     try:
@@ -839,12 +878,12 @@ def deposit_refund():
             result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
             return error_response(result.get('message', '操作失败'), data=result_data or None, status=400, **result_data)
     except Exception as e:
-        return error_response(f'退还失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/deposit/deduct', methods=['POST'])
 @login_required
-@check_permission('deposit_manage')
+@check_permission('deposit_edit')
 def deposit_deduct():
     """扣除押金"""
     try:
@@ -863,12 +902,12 @@ def deposit_deduct():
             result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
             return error_response(result.get('message', '操作失败'), data=result_data or None, status=400, **result_data)
     except Exception as e:
-        return error_response(f'扣除失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/deposit/transfer', methods=['POST'])
 @login_required
-@check_permission('deposit_manage')
+@check_permission('deposit_edit')
 def deposit_transfer():
     """押金转抵应收"""
     try:
@@ -887,15 +926,49 @@ def deposit_transfer():
             result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
             return error_response(result.get('message', '操作失败'), data=result_data or None, status=400, **result_data)
     except Exception as e:
-        return error_response(f'转抵失败：{str(e)}', status=500)
+        return handle_exception(e)
 
 
 @finance_bp.route('/deposit/summary', methods=['GET'])
 @login_required
-@check_permission('deposit_manage')
+@check_permission('deposit_view')
 def deposit_summary():
     try:
         result = deposit_svc.get_summary()
         return success_response(result)
     except Exception as e:
-        return error_response(f'获取汇总失败：{str(e)}', status=500)
+        return handle_exception(e)
+
+
+# ==================== 客户交易历史 ====================
+
+@finance_bp.route('/customer/transactions', methods=['GET'])
+@login_required
+def customer_transactions():
+    try:
+        customer_type = request.args.get('customer_type', '').strip()
+        customer_id = request.args.get('customer_id', type=int)
+        tx_type = request.args.get('type', '').strip()
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+
+        if not customer_type or not customer_id:
+            return error_response('缺少客户类型或客户ID')
+
+        if customer_type not in ('Merchant', 'Customer'):
+            return error_response('客户类型无效')
+
+        if tx_type and tx_type not in ('receivable', 'payable', 'prepayment', 'deposit', 'cashflow'):
+            return error_response('筛选类型无效')
+
+        result = finance_svc.get_customer_transactions(
+            customer_type=customer_type,
+            customer_id=customer_id,
+            tx_type=tx_type or None,
+            page=page,
+            per_page=per_page
+        )
+
+        return success_response(result)
+    except Exception as e:
+        return handle_exception(e)

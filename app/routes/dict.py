@@ -1,21 +1,10 @@
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
-from functools import wraps
 from app.services.dict_service import DictService
+from app.api_response import handle_exception
+from app.routes.user import check_api_permission as check_permission
 
 dict_bp = Blueprint('dict', __name__)
-
-
-def check_permission(permission_code):
-    def decorator(f):
-        @login_required
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if not hasattr(current_user, 'has_permission') or not current_user.has_permission(permission_code):
-                return jsonify({'success': False, 'message': '您没有权限执行此操作'}), 403
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
 
 
 @dict_bp.route('/list')
@@ -59,7 +48,7 @@ def api_list():
             }
         })
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return handle_exception(e)
 
 
 @dict_bp.route('/api/types', methods=['GET'])
@@ -69,7 +58,7 @@ def api_types():
         types = DictService.get_dict_types()
         return jsonify({'success': True, 'data': types})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return handle_exception(e)
 
 
 @dict_bp.route('/api/detail/<int:dict_id>', methods=['GET'])
@@ -81,11 +70,11 @@ def api_detail(dict_id):
             return jsonify({'success': False, 'message': '字典项不存在'}), 404
         return jsonify({'success': True, 'data': item})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return handle_exception(e)
 
 
 @dict_bp.route('/api/add', methods=['POST'])
-@check_permission('dict_manage')
+@check_permission('dict_create')
 def api_add():
     try:
         data = request.json
@@ -103,6 +92,9 @@ def api_add():
         unit_price = data.get('unit_price')
         if unit_price is not None:
             unit_price = float(unit_price)
+        min_amount = data.get('min_amount')
+        if min_amount is not None:
+            min_amount = float(min_amount)
 
         new_id = DictService.create_dict(
             dict_type=dict_type,
@@ -111,7 +103,8 @@ def api_add():
             description=description,
             sort_order=sort_order,
             is_active=is_active,
-            unit_price=unit_price
+            unit_price=unit_price,
+            min_amount=min_amount
         )
 
         if new_id is None:
@@ -119,11 +112,11 @@ def api_add():
 
         return jsonify({'success': True, 'message': '新增成功', 'data': {'dict_id': new_id}})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return handle_exception(e)
 
 
 @dict_bp.route('/api/update/<int:dict_id>', methods=['POST'])
-@check_permission('dict_manage')
+@check_permission('dict_edit')
 def api_update(dict_id):
     try:
         data = request.json
@@ -141,6 +134,9 @@ def api_update(dict_id):
         unit_price = data.get('unit_price')
         if unit_price is not None:
             unit_price = float(unit_price)
+        min_amount = data.get('min_amount')
+        if min_amount is not None:
+            min_amount = float(min_amount)
 
         result = DictService.update_dict(
             dict_id=dict_id,
@@ -150,7 +146,8 @@ def api_update(dict_id):
             description=description,
             sort_order=sort_order,
             is_active=is_active,
-            unit_price=unit_price
+            unit_price=unit_price,
+            min_amount=min_amount
         )
 
         if result:
@@ -158,11 +155,11 @@ def api_update(dict_id):
         else:
             return jsonify({'success': False, 'message': '该字典类型下编码已存在'}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return handle_exception(e)
 
 
 @dict_bp.route('/api/delete/<int:dict_id>', methods=['POST'])
-@check_permission('dict_manage')
+@check_permission('dict_delete')
 def api_delete(dict_id):
     try:
         result = DictService.delete_dict(dict_id)
@@ -171,11 +168,11 @@ def api_delete(dict_id):
         else:
             return jsonify({'success': False, 'message': '删除失败'}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return handle_exception(e)
 
 
 @dict_bp.route('/api/batch_status', methods=['POST'])
-@check_permission('dict_manage')
+@check_permission('dict_edit')
 def api_batch_status():
     try:
         data = request.json
@@ -189,11 +186,11 @@ def api_batch_status():
         status_text = '启用' if is_active else '禁用'
         return jsonify({'success': True, 'message': f'成功{status_text}{rows}条记录'})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return handle_exception(e)
 
 
 @dict_bp.route('/api/batch_delete', methods=['POST'])
-@check_permission('dict_manage')
+@check_permission('dict_delete')
 def api_batch_delete():
     try:
         data = request.json
@@ -205,4 +202,4 @@ def api_batch_delete():
         rows = DictService.batch_delete(dict_ids)
         return jsonify({'success': True, 'message': f'成功删除{rows}条记录'})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return handle_exception(e)

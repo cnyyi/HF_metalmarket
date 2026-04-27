@@ -24,6 +24,7 @@ env/
 .env.local
 .env.production
 config/local.py
+scale_sync/sync_config.json
 
 # ===== 日志 =====
 *.log

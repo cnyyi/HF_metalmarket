@@ -91,32 +91,9 @@ $(function() {
                 });
             }
             $('#payslipTableBody').html(html);
-            renderPagination(data);
+            renderPagination('#paginationList', data, function(page) { loadPayslips(page); });
         });
     }
-
-    function renderPagination(data) {
-        if (data.total_pages <= 1) {
-            $('#paginationNav').hide();
-            return;
-        }
-        $('#paginationNav').show();
-        var html = '<li class="page-item ' + (data.current_page <= 1 ? 'disabled' : '') + '">' +
-            '<a class="page-link" href="#" data-page="' + (data.current_page - 1) + '">&laquo;</a></li>';
-        for (var i = 1; i <= data.total_pages; i++) {
-            html += '<li class="page-item ' + (i === data.current_page ? 'active' : '') + '">' +
-                '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
-        }
-        html += '<li class="page-item ' + (data.current_page >= data.total_pages ? 'disabled' : '') + '">' +
-            '<a class="page-link" href="#" data-page="' + (data.current_page + 1) + '">&raquo;</a></li>';
-        $('#paginationList').html(html);
-    }
-
-    $(document).on('click', '#paginationList .page-link', function(e) {
-        e.preventDefault();
-        var page = $(this).data('page');
-        if (page) loadPayslips(page);
-    });
 
     loadPayslips(1);
 });

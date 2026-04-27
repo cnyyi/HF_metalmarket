@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  web:
+    build: .
+    container_name: hf_metalmarket
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_CONFIG=production
+      - FLASK_HOST=0.0.0.0
+      - FLASK_PORT=5000
+      - DB_DRIVER={ODBC Driver 18 for SQL Server}
+      - DB_SERVER=${DB_SERVER}
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_UID=${DB_UID}
+      - DB_PWD=${DB_PWD}
+      - SECRET_KEY=${SECRET_KEY}
+    volumes:
+      - uploads:/app/uploads
+      - generated_docs:/app/app/generated_docs
+    env_file:
+      - .env.docker
+
+volumes:
+  uploads:
+  generated_docs:

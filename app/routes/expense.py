@@ -7,6 +7,7 @@ from flask_login import login_required, current_user
 from app.routes.user import check_permission
 from app.services.expense_service import ExpenseService
 from app.services.dict_service import DictService
+from app.api_response import handle_exception
 
 expense_bp = Blueprint('expense', __name__)
 expense_svc = ExpenseService()
@@ -16,7 +17,7 @@ expense_svc = ExpenseService()
 
 @expense_bp.route('/')
 @login_required
-@check_permission('expense_manage')
+@check_permission('expense_view')
 def index():
     """费用单列表页"""
     return render_template('expense/list.html')
@@ -24,7 +25,7 @@ def index():
 
 @expense_bp.route('/list')
 @login_required
-@check_permission('expense_manage')
+@check_permission('expense_view')
 def order_list():
     """费用单分页列表数据"""
     try:
@@ -44,14 +45,14 @@ def order_list():
         )
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 # ==================== 新增 ====================
 
 @expense_bp.route('/create')
 @login_required
-@check_permission('expense_manage')
+@check_permission('expense_create')
 def create():
     """新增费用单页面"""
     return render_template('expense/create.html')
@@ -59,7 +60,7 @@ def create():
 
 @expense_bp.route('/create', methods=['POST'])
 @login_required
-@check_permission('expense_manage')
+@check_permission('expense_create')
 def create_order():
     """创建费用单"""
     try:
@@ -73,17 +74,15 @@ def create_order():
             created_by=current_user.id,
         )
         return jsonify({'success': True, 'message': f'费用单创建成功，已生成{result["payable_count"]}笔应付', 'data': result})
-    except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': f'创建失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 # ==================== 详情 ====================
 
 @expense_bp.route('/detail/<int:order_id>')
 @login_required
-@check_permission('expense_manage')
+@check_permission('expense_view')
 def detail(order_id):
     """费用单详情页"""
     return render_template('expense/detail.html', order_id=order_id)
@@ -91,7 +90,7 @@ def detail(order_id):
 
 @expense_bp.route('/detail/<int:order_id>/data')
 @login_required
-@check_permission('expense_manage')
+@check_permission('expense_view')
 def detail_data(order_id):
     """费用单详情数据"""
     try:
@@ -100,30 +99,30 @@ def detail_data(order_id):
             return jsonify({'success': False, 'message': '费用单不存在'}), 404
         return jsonify({'success': True, 'data': order})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取详情失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 # ==================== 字典接口 ====================
 
 @expense_bp.route('/categories')
 @login_required
-@check_permission('expense_manage')
+@check_permission('expense_view')
 def categories():
     """获取费用大类"""
     try:
         items = DictService.get_expense_items('expense_category')
         return jsonify({'success': True, 'data': items})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return handle_exception(e)
 
 
 @expense_bp.route('/expense-items')
 @login_required
-@check_permission('expense_manage')
+@check_permission('expense_view')
 def expense_items():
     """获取支出费用项"""
     try:
         items = DictService.get_expense_items('expense_item_expend')
         return jsonify({'success': True, 'data': items})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return handle_exception(e)

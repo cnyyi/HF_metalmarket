@@ -704,7 +704,7 @@
             <span class="kpi-trend neutral" id="merchantTrend">--</span>
         </div>
         <div class="kpi-value" id="statMerchant">0</div>
-        <div class="kpi-label">在租商户</div>
+        <div class="kpi-label">份合同执行中</div>
         <div class="kpi-sub" id="statMerchantSub">
             <span class="kpi-sub-dot"></span>
             <span>加载中...</span>
@@ -991,13 +991,13 @@ $(function() {
             $('#plotTrend').removeClass('up down').addClass('neutral').html(plotRate + '%');
         }
 
-        // 在租商户
+        // 合同执行中
         animateValue($('#statMerchant')[0], d.merchant.active_count, 800, false);
         $('#statMerchantSub').html('<span class="kpi-sub-dot"></span><span>地块 ' + d.merchant.rented_plots + '/' + d.merchant.total_plots + ' · 空置率 ' + d.merchant.vacancy_rate + '%</span>');
-        if (d.merchant.vacancy_rate < 20) {
-            $('#merchantTrend').removeClass('neutral down').addClass('up').html('<i class="fa fa-arrow-up"></i> 高租');
+        if (d.merchant.active_count > 0) {
+            $('#merchantTrend').removeClass('neutral down').addClass('up').html('<i class="fa fa-file-contract"></i> 执行中');
         } else {
-            $('#merchantTrend').removeClass('up down').addClass('neutral').html(d.merchant.vacancy_rate + '%空置');
+            $('#merchantTrend').removeClass('up down').addClass('neutral').html('暂无');
         }
 
         // 最近电费
@@ -1265,10 +1265,10 @@ $(function() {
                 '<div class="activity-dot ' + dirClass + '"></div>' +
                 '<div class="activity-content">' +
                     '<div class="activity-text">' +
-                        item.item + ' <span class="amount ' + dirClass + '">' + sign + '¥' + formatNumber(item.amount) + '</span>' +
+                        escapeHtml(item.item) + ' <span class="amount ' + dirClass + '">' + sign + '¥' + formatNumber(item.amount) + '</span>' +
                         (item.desc ? ' · ' + escapeHtml(item.desc) : '') +
                     '</div>' +
-                    '<div class="activity-time">' + item.date + '</div>' +
+                    '<div class="activity-time">' + escapeHtml(item.date) + '</div>' +
                 '</div>' +
             '</div>';
         });
@@ -1287,7 +1287,7 @@ $(function() {
             html += '<div class="alert-item" style="animation: fadeSlideUp 0.4s ease ' + (idx * 0.06) + 's both;">' +
                 '<div>' +
                     '<div style="font-weight: 500;">' + escapeHtml(item.customer || item.desc) + '</div>' +
-                    '<div class="alert-date">到期: ' + item.due_date + '</div>' +
+                    '<div class="alert-date">到期: ' + escapeHtml(item.due_date) + '</div>' +
                 '</div>' +
                 '<div class="alert-amount">¥' + formatNumber(item.remaining) + '</div>' +
             '</div>';
@@ -1307,9 +1307,9 @@ $(function() {
             html += '<div class="contract-item" style="animation: fadeSlideUp 0.4s ease ' + (idx * 0.06) + 's both;">' +
                 '<div>' +
                     '<div class="contract-merchant">' + escapeHtml(item.merchant) + '</div>' +
-                    '<div style="font-size: 0.72rem; color: var(--color-text-light);">' + item.number + '</div>' +
+                    '<div style="font-size: 0.72rem; color: var(--color-text-light);">' + escapeHtml(item.number) + '</div>' +
                 '</div>' +
-                '<div class="contract-date"><i class="fa fa-clock"></i> ' + item.end_date + '</div>' +
+                '<div class="contract-date"><i class="fa fa-clock"></i> ' + escapeHtml(item.end_date) + '</div>' +
             '</div>';
         });
         $container.html(html);

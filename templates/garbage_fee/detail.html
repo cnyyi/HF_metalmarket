@@ -1,0 +1,99 @@
+{% extends "admin_base.html" %}
+
+{% block title %}垃圾费详情{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<a href="{{ url_for('garbage_fee.index') }}" class="breadcrumb-chip">垃圾费管理</a>
+<span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
+<span class="breadcrumb-current">记录详情</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .detail-item { margin-bottom: 12px; }
+    .detail-label { font-weight: 600; color: var(--color-text-muted); }
+    .detail-value { font-size: 1.05rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col-md-6">
+                <h5 class="card-title mb-0"><i class="fa fa-eye"></i> 垃圾费详情</h5>
+            </div>
+            <div class="col-md-6 text-end">
+                <a href="{{ url_for('garbage_fee.index') }}" class="btn btn-secondary">
+                    <i class="fa fa-arrow-left"></i> 返回列表
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="detailContent">
+            <div class="text-center py-5">
+                <i class="fa fa-spinner fa-spin fa-3x text-muted"></i>
+                <p class="mt-2 text-muted">加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(function() {
+    const id = '{{ garbage_fee_id }}';
+
+    $.get('{{ url_for("garbage_fee.detail_data", garbage_fee_id=0) }}'.replace('/0', '/' + id), function(res) {
+        if (res.success) {
+            renderDetail(res.data);
+        } else {
+            $('#detailContent').html('<div class="text-center py-5"><i class="fa fa-exclamation-triangle fa-3x text-danger"></i><p class="mt-2 text-danger">' + (res.message || '加载失败') + '</p></div>');
+        }
+    });
+
+    function renderDetail(data) {
+        let statusBadge = '';
+        if (data.status === '待收取') statusBadge = '<span class="badge bg-warning">待收取</span>';
+        else if (data.status === '已收取') statusBadge = '<span class="badge bg-success">已收取</span>';
+        else statusBadge = '<span class="badge bg-secondary">' + data.status + '</span>';
+
+        let receivableHtml = '—';
+        if (data.receivable_info) {
+            const r = data.receivable_info;
+            receivableHtml = '<a href="{{ url_for("finance.receivable") }}" target="_blank" class="text-primary">应收 #' + r.receivable_id + '</a>'
+                + ' <small class="text-muted">(' + r.status + '，¥' + r.remaining_amount.toFixed(2) + ' 未收)</small>';
+        }
+
+        const html = `
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="detail-item"><span class="detail-label">商户名称：</span><span class="detail-value">${data.merchant_name}</span></div>
+                    <div class="detail-item"><span class="detail-label">年度：</span><span class="detail-value">${data.year}</span></div>
+                    <div class="detail-item"><span class="detail-label">业态类型：</span><span class="detail-value">${data.business_type || '—'}</span></div>
+                    <div class="detail-item"><span class="detail-label">租赁面积：</span><span class="detail-value">${data.rental_area.toFixed(2)} 亩</span></div>
+                    <div class="detail-item"><span class="detail-label">业态单价：</span><span class="detail-value">¥${data.unit_price.toFixed(2)}/亩/年</span></div>
+                </div>
+                <div class="col-md-6">
+                    <div class="detail-item"><span class="detail-label">保底金额：</span><span class="detail-value">¥${data.min_amount.toFixed(2)}</span></div>
+                    <div class="detail-item"><span class="detail-label">计算金额：</span><span class="detail-value">¥${data.calculated_fee.toFixed(2)}</span></div>
+                    <div class="detail-item"><span class="detail-label">最终金额：</span><span class="detail-value fw-bold text-primary">¥${data.final_fee.toFixed(2)}</span></div>
+                    <div class="detail-item"><span class="detail-label">状态：</span><span class="detail-value">${statusBadge}</span></div>
+                    <div class="detail-item"><span class="detail-label">关联应收：</span><span class="detail-value">${receivableHtml}</span></div>
+                    <div class="detail-item"><span class="detail-label">备注：</span><span class="detail-value">${data.description || '无'}</span></div>
+                </div>
+            </div>
+            <hr>
+            <div class="row text-muted small">
+                <div class="col-md-6"><span class="detail-label">创建人：</span>${data.create_user_name || '—'} &nbsp; <span class="detail-label">创建时间：</span>${data.create_time}</div>
+                <div class="col-md-6">${data.update_time ? '<span class="detail-label">更新时间：</span>' + data.update_time : ''}</div>
+            </div>
+        `;
+        $('#detailContent').html(html);
+    }
+});
+</script>
+{% endblock %}

@@ -201,6 +201,116 @@ class ReceivableRepository:
             conn.commit()
             return affected
 
+    _CUSTOMER_EXPR = """
+        CASE
+            WHEN r.CustomerType = 'Customer' THEN c.CustomerName
+            ELSE m.MerchantName
+        END
+    """
+
+    _BASE_JOINS = """
+        LEFT JOIN Sys_Dictionary sd ON r.ExpenseTypeID = sd.DictID AND sd.DictType = 'expense_item_income'
+        LEFT JOIN ExpenseType et ON r.ExpenseTypeID = et.ExpenseTypeID AND sd.DictID IS NULL
+        LEFT JOIN Merchant m ON r.CustomerType <> 'Customer' AND r.MerchantID = m.MerchantID
+        LEFT JOIN Customer c ON r.CustomerType = 'Customer' AND r.CustomerID = c.CustomerID
+    """
+
+    def get_list_by_customer(self, page=1, per_page=10, search=None, status=None, expense_type_id=None):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+
+            base_query = f"""
+                SELECT
+                    r.CustomerType,
+                    r.CustomerID,
+                    {self._CUSTOMER_EXPR} AS CustomerName,
+                    COUNT(*) AS RecordCount,
+                    SUM(r.Amount) AS TotalAmount,
+                    SUM(r.PaidAmount) AS TotalPaid,
+                    SUM(r.RemainingAmount) AS TotalRemaining,
+                    SUM(CASE WHEN r.DueDate >= CAST(GETDATE() AS DATE) THEN r.RemainingAmount ELSE 0 END) AS NotDueAmount,
+                    SUM(CASE WHEN r.DueDate >= DATEADD(DAY, -30, CAST(GETDATE() AS DATE)) AND r.DueDate < CAST(GETDATE() AS DATE) THEN r.RemainingAmount ELSE 0 END) AS Overdue1to30,
+                    SUM(CASE WHEN r.DueDate >= DATEADD(DAY, -60, CAST(GETDATE() AS DATE)) AND r.DueDate < DATEADD(DAY, -30, CAST(GETDATE() AS DATE)) THEN r.RemainingAmount ELSE 0 END) AS Overdue31to60,
+                    SUM(CASE WHEN r.DueDate >= DATEADD(DAY, -90, CAST(GETDATE() AS DATE)) AND r.DueDate < DATEADD(DAY, -60, CAST(GETDATE() AS DATE)) THEN r.RemainingAmount ELSE 0 END) AS Overdue61to90,
+                    SUM(CASE WHEN r.DueDate < DATEADD(DAY, -90, CAST(GETDATE() AS DATE)) THEN r.RemainingAmount ELSE 0 END) AS OverdueOver90,
+                    MIN(r.DueDate) AS EarliestDueDate
+                FROM Receivable r
+                {self._BASE_JOINS}
+                WHERE r.IsActive = 1
+            """
+
+            conditions = []
+            params = []
+
+            if search:
+                conditions.append(f"({self._CUSTOMER_EXPR} LIKE ?)")
+                params.append(f'%{search}%')
+
+            if status:
+                conditions.append("r.Status = ?")
+                params.append(status)
+
+            if expense_type_id:
+                conditions.append("r.ExpenseTypeID = ?")
+                params.append(expense_type_id)
+
+            extra_where = ""
+            if conditions:
+                extra_where = " AND " + " AND ".join(conditions)
+
+            group_clause = f" GROUP BY r.CustomerType, r.CustomerID, {self._CUSTOMER_EXPR}"
+
+            count_query = f"""
+                SELECT COUNT(*) FROM (
+                    SELECT r.CustomerType, r.CustomerID, {self._CUSTOMER_EXPR} AS CustomerName
+                    FROM Receivable r
+                    {self._BASE_JOINS}
+                    WHERE r.IsActive = 1
+                    {extra_where}
+                    GROUP BY r.CustomerType, r.CustomerID, {self._CUSTOMER_EXPR}
+                ) sub
+            """
+            count_params = list(params)
+            cursor.execute(count_query, count_params)
+            total_count = cursor.fetchone()[0]
+
+            sum_query = f"""
+                SELECT ISNULL(SUM(sub.TotalAmount), 0), ISNULL(SUM(sub.TotalPaid), 0),
+                       ISNULL(SUM(sub.TotalRemaining), 0), ISNULL(SUM(sub.RecordCount), 0),
+                       ISNULL(SUM(sub.NotDueAmount), 0), ISNULL(SUM(sub.Overdue1to30), 0),
+                       ISNULL(SUM(sub.Overdue31to60), 0), ISNULL(SUM(sub.Overdue61to90), 0),
+                       ISNULL(SUM(sub.OverdueOver90), 0)
+                FROM (
+                    SELECT
+                        COUNT(*) AS RecordCount,
+                        SUM(r.Amount) AS TotalAmount,
+                        SUM(r.PaidAmount) AS TotalPaid,
+                        SUM(r.RemainingAmount) AS TotalRemaining,
+                        SUM(CASE WHEN r.DueDate >= CAST(GETDATE() AS DATE) THEN r.RemainingAmount ELSE 0 END) AS NotDueAmount,
+                        SUM(CASE WHEN r.DueDate >= DATEADD(DAY, -30, CAST(GETDATE() AS DATE)) AND r.DueDate < CAST(GETDATE() AS DATE) THEN r.RemainingAmount ELSE 0 END) AS Overdue1to30,
+                        SUM(CASE WHEN r.DueDate >= DATEADD(DAY, -60, CAST(GETDATE() AS DATE)) AND r.DueDate < DATEADD(DAY, -30, CAST(GETDATE() AS DATE)) THEN r.RemainingAmount ELSE 0 END) AS Overdue31to60,
+                        SUM(CASE WHEN r.DueDate >= DATEADD(DAY, -90, CAST(GETDATE() AS DATE)) AND r.DueDate < DATEADD(DAY, -60, CAST(GETDATE() AS DATE)) THEN r.RemainingAmount ELSE 0 END) AS Overdue61to90,
+                        SUM(CASE WHEN r.DueDate < DATEADD(DAY, -90, CAST(GETDATE() AS DATE)) THEN r.RemainingAmount ELSE 0 END) AS OverdueOver90
+                    FROM Receivable r
+                    {self._BASE_JOINS}
+                    WHERE r.IsActive = 1
+                    {extra_where}
+                    GROUP BY r.CustomerType, r.CustomerID, {self._CUSTOMER_EXPR}
+                ) sub
+            """
+            cursor.execute(sum_query, count_params)
+            sum_row = cursor.fetchone()
+
+            offset = (page - 1) * per_page
+            base_query += extra_where + group_clause
+            base_query += " ORDER BY TotalRemaining DESC, CustomerName OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
+            params.extend([offset, per_page])
+
+            cursor.execute(base_query, params)
+            rows = cursor.fetchall()
+
+            return rows, total_count, sum_row
+
     def check_has_collection(self, receivable_id):
         """检查应收是否有关联的收款记录"""
         with DBConnection() as conn:

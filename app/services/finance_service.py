@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
-"""
-财务管理服务层
-负责收款核销、付款核销、直接记账、现金流水等核心业务组合逻辑
-"""
 import logging
 import re
 from datetime import datetime
 from utils.database import DBConnection
+from utils.format_utils import format_date, format_datetime, safe_float
+from utils.sequence import generate_serial_no
 from app.repositories.receivable_repo import ReceivableRepository
 from app.repositories.collection_record_repo import CollectionRecordRepository
 from app.repositories.cash_flow_repo import CashFlowRepository
+from app.repositories.payable_repo import PayableRepository
 from app.services.account_service import AccountService
 
 logger = logging.getLogger(__name__)
@@ -22,6 +21,7 @@ class FinanceService:
         self.receivable_repo = ReceivableRepository()
         self.collection_repo = CollectionRecordRepository()
         self.cash_flow_repo = CashFlowRepository()
+        self.payable_repo = PayableRepository()
         self.account_svc = AccountService()
 
     # ========== 应收 — 收款核销 ==========
@@ -76,7 +76,8 @@ class FinanceService:
                     INSERT INTO CollectionRecord (
                         ReceivableID, MerchantID, Amount, PaymentMethod,
                         TransactionDate, Description, CreatedBy
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ) OUTPUT INSERTED.CollectionRecordID
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                 """, (
                     receivable_id,
                     receivable.MerchantID,
@@ -87,8 +88,6 @@ class FinanceService:
                     created_by
                 ))
 
-                # 获取新插入的 CollectionRecordID
-                cursor.execute("SELECT CAST(SCOPE_IDENTITY() AS INT)")
                 collection_id = cursor.fetchone()[0]
 
                 # 2. UPDATE Receivable — 更新已付/剩余金额
@@ -112,7 +111,7 @@ class FinanceService:
                 """, (new_status, receivable_id))
 
                 # 4. INSERT CashFlow（含 AccountID 和 TransactionNo）
-                transaction_no = self._generate_transaction_no(cursor, 'CF')
+                transaction_no = generate_serial_no(cursor, 'CF', 'CashFlow', 'TransactionNo')
                 cursor.execute("""
                     INSERT INTO CashFlow (
                         Amount, Direction, ExpenseTypeID, Description,
@@ -198,7 +197,8 @@ class FinanceService:
                     INSERT INTO PaymentRecord (
                         PayableID, VendorName, Amount, PaymentMethod,
                         TransactionDate, Description, CreatedBy, CustomerType
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ) OUTPUT INSERTED.PaymentRecordID
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     payable_id,
                     payable.VendorName,
@@ -210,8 +210,6 @@ class FinanceService:
                     getattr(payable, 'CustomerType', None)
                 ))
 
-                # 获取新插入的 PaymentRecordID
-                cursor.execute("SELECT CAST(SCOPE_IDENTITY() AS INT)")
                 payment_id = cursor.fetchone()[0]
 
                 # 2. UPDATE Payable — 更新已付/剩余金额
@@ -235,7 +233,7 @@ class FinanceService:
                 """, (new_status, payable_id))
 
                 # 4. INSERT CashFlow（含 AccountID 和 TransactionNo）
-                transaction_no = self._generate_transaction_no(cursor, 'CF')
+                transaction_no = generate_serial_no(cursor, 'CF', 'CashFlow', 'TransactionNo')
                 cursor.execute("""
                     INSERT INTO CashFlow (
                         Amount, Direction, ExpenseTypeID, Description,
@@ -272,269 +270,74 @@ class FinanceService:
     # ========== 应付 CRUD ==========
 
     def _get_payable_by_id(self, payable_id):
-        """获取应付记录详情（费用类型从字典表获取）"""
-        with DBConnection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT p.PayableID, p.VendorName, p.ExpenseTypeID,
-                       ISNULL(sd.DictName, et.ExpenseTypeName) AS ExpenseTypeName,
-                       p.Amount, p.PaidAmount,
-                       p.RemainingAmount, p.DueDate, p.Status,
-                       p.Description, p.ReferenceID, p.ReferenceType,
-                       p.CreateTime, p.UpdateTime,
-                       p.CustomerType, p.CustomerID,
-                       CASE
-                           WHEN p.CustomerType = 'Customer' THEN c.CustomerName
-                           WHEN p.CustomerType = 'Merchant' THEN m.MerchantName
-                           ELSE p.VendorName
-                       END AS CustomerName
-                FROM Payable p
-                LEFT JOIN Sys_Dictionary sd ON p.ExpenseTypeID = sd.DictID AND sd.DictType = 'expense_item_expend'
-                LEFT JOIN ExpenseType et ON p.ExpenseTypeID = et.ExpenseTypeID AND sd.DictID IS NULL
-                LEFT JOIN Merchant m ON p.CustomerType = 'Merchant' AND p.CustomerID = m.MerchantID
-                LEFT JOIN Customer c ON p.CustomerType = 'Customer' AND p.CustomerID = c.CustomerID
-                WHERE p.PayableID = ? AND p.IsActive = 1
-            """, (payable_id,))
-            return cursor.fetchone()
+        """获取应付记录详情"""
+        return self.payable_repo.get_by_id(payable_id)
 
     def get_payables(self, page=1, per_page=10, search=None, status=None):
-        """获取应付账款列表（费用类型从字典表获取）"""
-        with DBConnection() as conn:
-            cursor = conn.cursor()
+        """获取应付账款列表"""
+        rows, total_count, summaries = self.payable_repo.get_list(
+            page=page, per_page=per_page, search=search, status=status
+        )
 
-            base_query = """
-                SELECT p.PayableID, p.VendorName, p.ExpenseTypeID,
-                       ISNULL(sd.DictName, et.ExpenseTypeName) AS ExpenseTypeName,
-                       p.Amount, p.PaidAmount,
-                       p.RemainingAmount, p.DueDate, p.Status,
-                       p.Description, p.CreateTime, p.UpdateTime,
-                       p.CustomerType, p.CustomerID, p.ExpenseOrderID,
-                       CASE
-                           WHEN p.CustomerType = 'Customer' THEN c.CustomerName
-                           WHEN p.CustomerType = 'Merchant' THEN m.MerchantName
-                           ELSE p.VendorName
-                       END AS CustomerName
-                FROM Payable p
-                LEFT JOIN Sys_Dictionary sd ON p.ExpenseTypeID = sd.DictID AND sd.DictType = 'expense_item_expend'
-                LEFT JOIN ExpenseType et ON p.ExpenseTypeID = et.ExpenseTypeID AND sd.DictID IS NULL
-                LEFT JOIN Merchant m ON p.CustomerType = 'Merchant' AND p.CustomerID = m.MerchantID
-                LEFT JOIN Customer c ON p.CustomerType = 'Customer' AND p.CustomerID = c.CustomerID
-                WHERE p.IsActive = 1
-            """
+        result_list = []
+        for row in rows:
+            result_list.append({
+                'payable_id': row.PayableID,
+                'vendor_name': row.VendorName,
+                'customer_type': row.CustomerType or 'Merchant',
+                'customer_id': row.CustomerID,
+                'customer_name': row.CustomerName or row.VendorName,
+                'expense_type_id': row.ExpenseTypeID,
+                'expense_type_name': row.ExpenseTypeName,
+                'amount': safe_float(row.Amount),
+                'paid_amount': safe_float(row.PaidAmount),
+                'remaining_amount': safe_float(row.RemainingAmount),
+                'due_date': format_date(row.DueDate),
+                'status': row.Status,
+                'description': row.Description or '',
+                'create_time': format_datetime(row.CreateTime),
+                'expense_order_id': row.ExpenseOrderID,
+            })
 
-            count_query = """
-                SELECT COUNT(*) FROM Payable p
-                LEFT JOIN Merchant m ON p.CustomerType = 'Merchant' AND p.CustomerID = m.MerchantID
-                LEFT JOIN Customer c ON p.CustomerType = 'Customer' AND p.CustomerID = c.CustomerID
-                WHERE p.IsActive = 1
-            """
-
-            conditions = []
-            params = []
-
-            if search:
-                conditions.append("(p.VendorName LIKE ? OR m.MerchantName LIKE ? OR c.CustomerName LIKE ?)")
-                p = f'%{search}%'
-                params.extend([p, p, p])
-
-            if status:
-                conditions.append("p.Status = ?")
-                params.append(status)
-
-            if conditions:
-                where_clause = " AND " + " AND ".join(conditions)
-                base_query += where_clause
-                count_query += where_clause
-
-            offset = (page - 1) * per_page
-            base_query += " ORDER BY p.PayableID DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
-            params.extend([offset, per_page])
-
-            cursor.execute(base_query, params)
-            rows = cursor.fetchall()
-
-            count_params = params[:-2]
-            cursor.execute(count_query, count_params)
-            total_count = cursor.fetchone()[0]
-
-            sum_query = """
-                SELECT ISNULL(SUM(p.Amount), 0), ISNULL(SUM(p.PaidAmount), 0), ISNULL(SUM(p.RemainingAmount), 0)
-                FROM Payable p
-                LEFT JOIN Merchant m ON p.CustomerType = 'Merchant' AND p.CustomerID = m.MerchantID
-                LEFT JOIN Customer c ON p.CustomerType = 'Customer' AND p.CustomerID = c.CustomerID
-            """
-            if conditions:
-                sum_query += where_clause
-            cursor.execute(sum_query, count_params)
-            sum_row = cursor.fetchone()
-            total_amount_sum = float(sum_row[0])
-            total_paid_sum = float(sum_row[1])
-            total_remaining_sum = float(sum_row[2])
-
-            result_list = []
-            for row in rows:
-                result_list.append({
-                    'payable_id': row.PayableID,
-                    'vendor_name': row.VendorName,
-                    'customer_type': row.CustomerType or 'Merchant',
-                    'customer_id': row.CustomerID,
-                    'customer_name': row.CustomerName or row.VendorName,
-                    'expense_type_id': row.ExpenseTypeID,
-                    'expense_type_name': row.ExpenseTypeName,
-                    'amount': float(row.Amount),
-                    'paid_amount': float(row.PaidAmount),
-                    'remaining_amount': float(row.RemainingAmount),
-                    'due_date': row.DueDate.strftime('%Y-%m-%d') if row.DueDate and hasattr(row.DueDate, 'strftime') else (str(row.DueDate)[:10] if row.DueDate else ''),
-                    'status': row.Status,
-                    'description': row.Description or '',
-                    'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime and hasattr(row.CreateTime, 'strftime') else (str(row.CreateTime)[:16] if row.CreateTime else ''),
-                    'expense_order_id': row.ExpenseOrderID,
-                })
-
-            total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 0
-
-            return {
-                'items': result_list,
-                'total_count': total_count,
-                'total_pages': total_pages,
-                'current_page': page,
-                'summary': {
-                    'total_amount': total_amount_sum,
-                    'total_paid': total_paid_sum,
-                    'total_remaining': total_remaining_sum
-                }
-            }
+        return {
+            'items': result_list,
+            'total_count': total_count,
+            'total_pages': (total_count + per_page - 1) // per_page if total_count > 0 else 0,
+            'current_page': page,
+            'summary': summaries
+        }
 
     def get_payables_by_customer(self, page=1, per_page=10, search=None, status=None):
-        """按客户汇总应付账款：每位客户一条记录，应付/已付/未付合计"""
-        with DBConnection() as conn:
-            cursor = conn.cursor()
+        """按客户汇总应付账款"""
+        rows, total_count, sum_row = self.payable_repo.get_list_by_customer(
+            page=page, per_page=per_page, search=search, status=status
+        )
 
-            # 构建客户名称表达式（与 get_payables 一致）
-            customer_expr = """
-                CASE
-                    WHEN p.CustomerType = 'Customer' THEN c.CustomerName
-                    WHEN p.CustomerType = 'Merchant' THEN m.MerchantName
-                    ELSE p.VendorName
-                END
-            """
+        items = []
+        for row in rows:
+            items.append({
+                'customer_type': row.CustomerType or 'Merchant',
+                'customer_id': row.CustomerID,
+                'customer_name': row.CustomerName or '',
+                'record_count': row.RecordCount,
+                'total_amount': safe_float(row.TotalAmount),
+                'total_paid': safe_float(row.TotalPaid),
+                'total_remaining': safe_float(row.TotalRemaining),
+                'earliest_due_date': format_date(row.EarliestDueDate),
+            })
 
-            base_query = f"""
-                SELECT
-                    p.CustomerType,
-                    p.CustomerID,
-                    {customer_expr} AS CustomerName,
-                    COUNT(*) AS RecordCount,
-                    SUM(p.Amount) AS TotalAmount,
-                    SUM(p.PaidAmount) AS TotalPaid,
-                    SUM(p.RemainingAmount) AS TotalRemaining,
-                    MIN(p.DueDate) AS EarliestDueDate
-                FROM Payable p
-                LEFT JOIN Merchant m ON p.CustomerType = 'Merchant' AND p.CustomerID = m.MerchantID
-                LEFT JOIN Customer c ON p.CustomerType = 'Customer' AND p.CustomerID = c.CustomerID
-                WHERE p.IsActive = 1
-            """
-
-            conditions = []
-            params = []
-
-            if search:
-                conditions.append(f"({customer_expr} LIKE ?)")
-                params.append(f'%{search}%')
-
-            if status:
-                conditions.append("p.Status = ?")
-                params.append(status)
-
-            extra_where = ""
-            if conditions:
-                extra_where = " AND " + " AND ".join(conditions)
-
-            # GROUP BY
-            group_clause = f"""
-                GROUP BY p.CustomerType, p.CustomerID, {customer_expr}
-            """
-
-            # 总数（按客户分组后的组数）
-            count_query = f"""
-                SELECT COUNT(*) FROM (
-                    SELECT p.CustomerType, p.CustomerID, {customer_expr} AS CustomerName
-                    FROM Payable p
-                    LEFT JOIN Merchant m ON p.CustomerType = 'Merchant' AND p.CustomerID = m.MerchantID
-                    LEFT JOIN Customer c ON p.CustomerType = 'Customer' AND p.CustomerID = c.CustomerID
-                    WHERE p.IsActive = 1
-                    {extra_where}
-                    GROUP BY p.CustomerType, p.CustomerID, {customer_expr}
-                ) sub
-            """
-            count_params = list(params)
-            cursor.execute(count_query, count_params)
-            total_count = cursor.fetchone()[0]
-
-            sum_query = f"""
-                SELECT ISNULL(SUM(sub.TotalAmount), 0), ISNULL(SUM(sub.TotalPaid), 0), ISNULL(SUM(sub.TotalRemaining), 0), ISNULL(SUM(sub.RecordCount), 0)
-                FROM (
-                    SELECT
-                        COUNT(*) AS RecordCount,
-                        SUM(p.Amount) AS TotalAmount,
-                        SUM(p.PaidAmount) AS TotalPaid,
-                        SUM(p.RemainingAmount) AS TotalRemaining
-                    FROM Payable p
-                    LEFT JOIN Merchant m ON p.CustomerType = 'Merchant' AND p.CustomerID = m.MerchantID
-                    LEFT JOIN Customer c ON p.CustomerType = 'Customer' AND p.CustomerID = c.CustomerID
-                    WHERE p.IsActive = 1
-                    {extra_where}
-                    GROUP BY p.CustomerType, p.CustomerID, {customer_expr}
-                ) sub
-            """
-            cursor.execute(sum_query, count_params)
-            sum_row = cursor.fetchone()
-            summary_total_amount = float(sum_row[0])
-            summary_total_paid = float(sum_row[1])
-            summary_total_remaining = float(sum_row[2])
-            summary_total_records = int(sum_row[3])
-
-            # 分页数据
-            offset = (page - 1) * per_page
-            base_query += extra_where + group_clause
-            base_query += " ORDER BY TotalRemaining DESC, CustomerName OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
-            params.extend([offset, per_page])
-
-            cursor.execute(base_query, params)
-            rows = cursor.fetchall()
-
-            items = []
-            for row in rows:
-                due_date = row.EarliestDueDate
-                if due_date:
-                    due_date_str = due_date.strftime('%Y-%m-%d') if hasattr(due_date, 'strftime') else str(due_date)[:10]
-                else:
-                    due_date_str = ''
-                items.append({
-                    'customer_type': row.CustomerType or 'Merchant',
-                    'customer_id': row.CustomerID,
-                    'customer_name': row.CustomerName or '',
-                    'record_count': row.RecordCount,
-                    'total_amount': float(row.TotalAmount) if row.TotalAmount else 0,
-                    'total_paid': float(row.TotalPaid) if row.TotalPaid else 0,
-                    'total_remaining': float(row.TotalRemaining) if row.TotalRemaining else 0,
-                    'earliest_due_date': due_date_str,
-                })
-
-            total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 0
-
-            return {
-                'items': items,
-                'total_count': total_count,
-                'total_pages': total_pages,
-                'current_page': page,
-                'summary': {
-                    'total_amount': summary_total_amount,
-                    'total_paid': summary_total_paid,
-                    'total_remaining': summary_total_remaining,
-                    'total_records': summary_total_records
-                }
+        return {
+            'items': items,
+            'total_count': total_count,
+            'total_pages': (total_count + per_page - 1) // per_page if total_count > 0 else 0,
+            'current_page': page,
+            'summary': {
+                'total_amount': safe_float(sum_row[0]),
+                'total_paid': safe_float(sum_row[1]),
+                'total_remaining': safe_float(sum_row[2]),
+                'total_records': int(sum_row[3]),
             }
+        }
 
     def batch_pay_by_customer(self, customer_type, customer_id, total_amount,
                                payment_method, transaction_date, description,
@@ -597,7 +400,8 @@ class FinanceService:
                         INSERT INTO PaymentRecord (
                             PayableID, VendorName, Amount, PaymentMethod,
                             TransactionDate, Description, CreatedBy, CustomerType
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ) OUTPUT INSERTED.PaymentRecordID
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         p.PayableID,
                         p.VendorName,
@@ -609,7 +413,6 @@ class FinanceService:
                         p.CustomerType
                     ))
 
-                    cursor.execute("SELECT CAST(SCOPE_IDENTITY() AS INT)")
                     payment_id = cursor.fetchone()[0]
 
                     # 2. UPDATE Payable — 更新已付/剩余金额
@@ -633,7 +436,7 @@ class FinanceService:
                     """, (new_status, p.PayableID))
 
                     # 4. INSERT CashFlow
-                    transaction_no = self._generate_transaction_no(cursor, 'CF')
+                    transaction_no = generate_serial_no(cursor, 'CF', 'CashFlow', 'TransactionNo')
                     cursor.execute("""
                         INSERT INTO CashFlow (
                             Amount, Direction, ExpenseTypeID, Description,
@@ -677,56 +480,203 @@ class FinanceService:
             logger.error(f'批量付款核销失败: {e}')
             return {'success': False, 'message': f'批量付款失败：{str(e)}'}
 
-    def soft_delete_payable(self, payable_id, deleted_by, delete_reason=None):
-        """
-        软删除应付账款
+    def batch_collect_by_customer(self, customer_type, customer_id, total_amount,
+                                   payment_method, transaction_date, description,
+                                   created_by, account_id=None,
+                                   collect_mode='cash', prepayment_id=None):
+        if collect_mode == 'prepayment':
+            return self._batch_collect_by_prepayment(
+                customer_type, customer_id, total_amount,
+                prepayment_id, description, created_by
+            )
 
-        业务规则：
-        - 已付款/部分付款的应付禁止删除（已有关联付款记录）
-        - 未付款的应付允许软删除，需记录删除原因
-
-        Args:
-            payable_id: 应付ID
-            deleted_by: 删除操作人UserID
-            delete_reason: 删除原因
-
-        Returns:
-            dict: {success, message}
-        """
         with DBConnection() as conn:
             cursor = conn.cursor()
 
-            # 1. 检查应付是否存在且有效
-            cursor.execute("""
-                SELECT PayableID, Status, PaidAmount, RemainingAmount, VendorName, Amount
-                FROM Payable WHERE PayableID = ? AND IsActive = 1
-            """, (payable_id,))
-            row = cursor.fetchone()
-            if not row:
-                return {'success': False, 'message': '应付记录不存在或已删除'}
+            customer_name = self._resolve_customer_name(cursor, customer_type, customer_id)
+            if not customer_name:
+                return {'success': False, 'message': '客户不存在'}
 
-            # 2. 状态检查：已付款/部分付款不允许删除
-            if row.Status in ('已付款', '部分付款'):
-                return {'success': False, 'message': f'状态为"{row.Status}"的应付不允许删除，已有付款记录关联'}
+            receivables = self._get_unpaid_receivables(cursor, customer_type, customer_id)
+            if not receivables:
+                return {'success': False, 'message': '该客户没有未收回应收'}
 
-            # 3. 执行软删除
-            cursor.execute("""
-                UPDATE Payable
-                SET IsActive = 0,
-                    DeletedBy = ?,
-                    DeletedAt = GETDATE(),
-                    DeleteReason = ?,
-                    UpdateTime = GETDATE()
-                WHERE PayableID = ?
-            """, (deleted_by, delete_reason, payable_id))
+            remaining_amount = float(total_amount)
+            collected_count = 0
 
-            affected = cursor.rowcount
+            for r in receivables:
+                if remaining_amount <= 0.01:
+                    break
+
+                receivable_id = r.ReceivableID
+                current_remaining = float(r.RemainingAmount)
+                collect_for_this = min(remaining_amount, current_remaining)
+                new_remaining = current_remaining - collect_for_this
+
+                if new_remaining <= 0.01:
+                    new_status = '已付款'
+                else:
+                    new_status = '部分付款'
+
+                cursor.execute("""
+                    INSERT INTO CollectionRecord (ReceivableID, MerchantID, Amount, PaymentMethod, TransactionDate, Description, CreatedBy, CustomerType)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, receivable_id, customer_id, collect_for_this, payment_method, transaction_date, description, created_by, customer_type)
+
+                cursor.execute("""
+                    UPDATE Receivable
+                    SET PaidAmount = PaidAmount + ?, RemainingAmount = RemainingAmount - ?, UpdateTime = GETDATE()
+                    WHERE ReceivableID = ?
+                """, collect_for_this, collect_for_this, receivable_id)
+
+                cursor.execute("""
+                    UPDATE Receivable SET Status = ?, UpdateTime = GETDATE() WHERE ReceivableID = ?
+                """, new_status, receivable_id)
+
+                default_account = self._get_default_account_id(cursor) if not account_id else account_id
+                cursor.execute("""
+                    INSERT INTO CashFlow (Amount, Direction, ExpenseTypeID, Description, TransactionDate, ReferenceID, ReferenceType, CreatedBy, AccountID)
+                    VALUES (?, N'收入', NULL, ?, ?, ?, N'collection_record', ?, ?)
+                """, collect_for_this, f'批量收款-{customer_name}', transaction_date, receivable_id, created_by, default_account)
+
+                if default_account:
+                    cursor.execute("""
+                        UPDATE Account SET Balance = Balance + ? WHERE AccountID = ?
+                    """, collect_for_this, default_account)
+
+                remaining_amount -= collect_for_this
+                collected_count += 1
+
             conn.commit()
 
-            if affected > 0:
-                return {'success': True, 'message': '删除成功'}
+            return {
+                'success': True,
+                'message': f'批量收款成功，共核销 {collected_count} 条应收',
+                'collected_count': collected_count,
+                'actual_amount': float(total_amount) - remaining_amount,
+            }
+
+    def _resolve_customer_name(self, cursor, customer_type, customer_id):
+        if customer_type == 'Customer':
+            cursor.execute("SELECT CustomerName FROM Customer WHERE CustomerID = ?", customer_id)
+        else:
+            cursor.execute("SELECT MerchantName FROM Merchant WHERE MerchantID = ?", customer_id)
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+    def _get_unpaid_receivables(self, cursor, customer_type, customer_id):
+        cursor.execute("""
+            SELECT ReceivableID, RemainingAmount, DueDate
+            FROM Receivable
+            WHERE CustomerType = ? AND CustomerID = ? AND Status != N'已付款' AND IsActive = 1
+            ORDER BY DueDate ASC
+        """, customer_type, customer_id)
+        return cursor.fetchall()
+
+    def _get_default_account_id(self, cursor):
+        cursor.execute("SELECT AccountID FROM Account WHERE IsDefault = 1 AND Status = N'有效'")
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+    def _batch_collect_by_prepayment(self, customer_type, customer_id, total_amount,
+                                      prepayment_id, description, created_by):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT PrepaymentID, RemainingAmount, CustomerName
+                FROM Prepayment
+                WHERE PrepaymentID = ? AND Direction = N'income' AND Status != N'已核销'
+            """, prepayment_id)
+            prepay_row = cursor.fetchone()
+            if not prepay_row:
+                return {'success': False, 'message': '预收记录不存在或已核销'}
+
+            prepay_remaining = float(prepay_row.RemainingAmount)
+            if float(total_amount) > prepay_remaining:
+                return {'success': False, 'message': f'冲抵金额超过预收余额（¥{prepay_remaining:.2f}）'}
+
+            receivables = self._get_unpaid_receivables(cursor, customer_type, customer_id)
+            if not receivables:
+                return {'success': False, 'message': '该客户没有未收回应收'}
+
+            remaining_amount = float(total_amount)
+            collected_count = 0
+
+            for r in receivables:
+                if remaining_amount <= 0.01:
+                    break
+
+                receivable_id = r.ReceivableID
+                current_remaining = float(r.RemainingAmount)
+                collect_for_this = min(remaining_amount, current_remaining)
+                new_remaining = current_remaining - collect_for_this
+
+                if new_remaining <= 0.01:
+                    new_status = '已付款'
+                else:
+                    new_status = '部分付款'
+
+                cursor.execute("""
+                    INSERT INTO CollectionRecord (ReceivableID, MerchantID, Amount, PaymentMethod, TransactionDate, Description, CreatedBy, CustomerType)
+                    VALUES (?, ?, ?, N'预收冲抵', GETDATE(), ?, ?, ?)
+                """, receivable_id, customer_id, collect_for_this, description, created_by, customer_type)
+
+                cursor.execute("""
+                    UPDATE Receivable
+                    SET PaidAmount = PaidAmount + ?, RemainingAmount = RemainingAmount - ?, Status = ?, UpdateTime = GETDATE()
+                    WHERE ReceivableID = ?
+                """, collect_for_this, collect_for_this, new_status, receivable_id)
+
+                remaining_amount -= collect_for_this
+                collected_count += 1
+
+            actual_amount = float(total_amount) - remaining_amount
+
+            cursor.execute("""
+                UPDATE Prepayment
+                SET AppliedAmount = AppliedAmount + ?, RemainingAmount = RemainingAmount - ?, UpdateTime = GETDATE()
+                WHERE PrepaymentID = ?
+            """, actual_amount, actual_amount, prepayment_id)
+
+            new_prepay_remaining = prepay_remaining - actual_amount
+            if new_prepay_remaining <= 0.01:
+                cursor.execute("UPDATE Prepayment SET Status = N'已核销' WHERE PrepaymentID = ?", prepayment_id)
             else:
-                return {'success': False, 'message': '删除失败，请重试'}
+                cursor.execute("UPDATE Prepayment SET Status = N'部分核销' WHERE PrepaymentID = ?", prepayment_id)
+
+            cursor.execute("""
+                INSERT INTO PrepaymentApply (PrepaymentID, ReceivableID, Amount, Description, CreatedBy)
+                VALUES (?, NULL, ?, ?, ?)
+            """, prepayment_id, actual_amount, description, created_by)
+
+            conn.commit()
+
+            return {
+                'success': True,
+                'message': f'预收冲抵成功，共核销 {collected_count} 条应收',
+                'collected_count': collected_count,
+                'actual_amount': actual_amount,
+            }
+
+    def soft_delete_payable(self, payable_id, deleted_by, delete_reason=None):
+        """软删除应付账款"""
+        payable = self.payable_repo.get_by_id(payable_id)
+        if not payable:
+            return {'success': False, 'message': '应付记录不存在或已删除'}
+
+        if payable.Status in ('已付款', '部分付款'):
+            return {'success': False, 'message': f'状态为"{payable.Status}"的应付不允许删除，已有付款记录关联'}
+
+        payment_count = self.payable_repo.check_has_payment(payable_id)
+        if payment_count > 0:
+            return {'success': False, 'message': f'该应付已有 {payment_count} 条付款记录，不允许删除'}
+
+        affected = self.payable_repo.soft_delete(payable_id, deleted_by, delete_reason)
+        if affected > 0:
+            return {'success': True, 'message': '删除成功'}
+        else:
+            return {'success': False, 'message': '删除失败，请重试'}
 
     def create_payable(self, vendor_name=None, expense_type_id=None, amount=None, due_date=None,
                        description=None, created_by=None,
@@ -771,22 +721,15 @@ class FinanceService:
         if not due_date:
             raise ValueError("请选择到期日期")
 
-        with DBConnection() as conn:
-            cursor = conn.cursor()
-            sql = """
-                INSERT INTO Payable (VendorName, ExpenseTypeID, Amount, DueDate,
-                                     Status, PaidAmount, RemainingAmount, Description,
-                                     CustomerType, CustomerID)
-                OUTPUT INSERTED.PayableID
-                VALUES (?, ?, ?, ?, N'未付款', 0, ?, ?, ?, ?)
-            """
-            cursor.execute(sql, resolved_name, int(expense_type_id),
-                           float(amount), due_date, float(amount), description,
-                           customer_type, int(customer_id) if customer_id else None)
-            row = cursor.fetchone()
-            new_id = row[0] if row else None
-            conn.commit()
-            return new_id
+        return self.payable_repo.create(
+            vendor_name=resolved_name,
+            expense_type_id=int(expense_type_id),
+            amount=float(amount),
+            due_date=due_date,
+            description=description,
+            customer_type=customer_type,
+            customer_id=customer_id,
+        )
 
     def get_payment_records(self, payable_id):
         """获取某条应付的付款历史"""
@@ -811,10 +754,10 @@ class FinanceService:
                     'vendor_name': row.VendorName,
                     'amount': float(row.Amount),
                     'payment_method': row.PaymentMethod,
-                    'transaction_date': row.TransactionDate.strftime('%Y-%m-%d') if row.TransactionDate else '',
+                    'transaction_date': format_date(row.TransactionDate),
                     'description': row.Description or '',
                     'operator_name': row.OperatorName or '',
-                    'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                    'create_time': format_datetime(row.CreateTime),
                 })
             return result
 
@@ -840,11 +783,11 @@ class FinanceService:
                 'expense_type_id': row.ExpenseTypeID,
                 'expense_type_name': row.ExpenseTypeName,
                 'description': row.Description or '',
-                'transaction_date': row.TransactionDate.strftime('%Y-%m-%d') if row.TransactionDate else '',
+                'transaction_date': format_date(row.TransactionDate),
                 'reference_id': row.ReferenceID,
                 'reference_type': row.ReferenceType or '',
                 'operator_name': row.OperatorName or '',
-                'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                'create_time': format_datetime(row.CreateTime),
                 'account_id': row.AccountID,
                 'account_name': getattr(row, 'AccountName', '') or '',
                 'transaction_no': getattr(row, 'TransactionNo', '') or '',
@@ -889,10 +832,10 @@ class FinanceService:
                 'collection_record_id': row.CollectionRecordID,
                 'amount': float(row.Amount),
                 'payment_method': row.PaymentMethod,
-                'transaction_date': row.TransactionDate.strftime('%Y-%m-%d') if row.TransactionDate else '',
+                'transaction_date': format_date(row.TransactionDate),
                 'description': row.Description or '',
                 'operator_name': row.OperatorName or '',
-                'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
+                'create_time': format_datetime(row.CreateTime),
             })
 
         data = {
@@ -912,14 +855,14 @@ class FinanceService:
             'unit_id': receivable.UnitID,
             'unit_name': receivable.UnitName or '',
             'unit_price': float(receivable.UnitPrice) if receivable.UnitPrice else None,
-            'due_date': receivable.DueDate.strftime('%Y-%m-%d') if receivable.DueDate else '',
+            'due_date': format_date(receivable.DueDate),
             'status': receivable.Status,
             'description': receivable.Description or '',
             'reference_id': receivable.ReferenceID,
             'reference_type': receivable.ReferenceType or '',
-            'create_time': receivable.CreateTime.strftime('%Y-%m-%d %H:%M') if receivable.CreateTime else '',
+            'create_time': format_datetime(receivable.CreateTime),
             'is_active': bool(receivable.IsActive) if hasattr(receivable, 'IsActive') else True,
-            'deleted_at': receivable.DeletedAt.strftime('%Y-%m-%d %H:%M') if hasattr(receivable, 'DeletedAt') and receivable.DeletedAt else '',
+            'deleted_at': format_datetime(receivable.DeletedAt) if hasattr(receivable, 'DeletedAt') else '',
             'delete_reason': receivable.DeleteReason or '' if hasattr(receivable, 'DeleteReason') else '',
             'collection_records': collection_list
         }
@@ -982,8 +925,8 @@ class FinanceService:
                     'merchant_name': row.MerchantName or '',
                     'plot_numbers': plot_numbers,
                     'plots': plots,
-                    'start_date': row.StartDate.strftime('%Y-%m-%d') if row.StartDate else '',
-                    'end_date': row.EndDate.strftime('%Y-%m-%d') if row.EndDate else '',
+                    'start_date': format_date(row.StartDate),
+                    'end_date': format_date(row.EndDate),
                     'contract_amount': float(row.ContractAmount) if row.ContractAmount else 0,
                     'amount_reduction': float(row.AmountReduction) if row.AmountReduction else 0,
                     'actual_amount': float(row.ActualAmount) if row.ActualAmount else 0,
@@ -1148,7 +1091,7 @@ class FinanceService:
                 cursor = conn.cursor()
 
                 # 1. INSERT CashFlow
-                transaction_no = self._generate_transaction_no(cursor, 'CF')
+                transaction_no = generate_serial_no(cursor, 'CF', 'CashFlow', 'TransactionNo')
                 cursor.execute("""
                     INSERT INTO CashFlow (
                         Amount, Direction, ExpenseTypeID, Description,
@@ -1187,24 +1130,313 @@ class FinanceService:
             logger.error(f'直接记账失败: {e}')
             return {'success': False, 'message': f'记账失败：{str(e)}'}
 
-    # ========== 辅助方法 ==========
+    # ========== 客户交易历史 ==========
 
-    def _generate_transaction_no(self, cursor, prefix='CF'):
-        """生成交易流水号（格式：CF20260415001）"""
-        today = datetime.now().strftime('%Y%m%d')
-        like_pattern = f'{prefix}{today}%'
+    def get_customer_transactions(self, customer_type, customer_id,
+                                  tx_type=None, page=1, per_page=10):
+        """
+        获取客户的全维度财务交易记录
 
-        cursor.execute("""
-            SELECT TransactionNo FROM CashFlow
-            WHERE TransactionNo LIKE ?
-            ORDER BY TransactionNo DESC
-        """, (like_pattern,))
-        row = cursor.fetchone()
+        合并5类财务数据：应收、应付、预收/预付、押金、现金流水，
+        按时间倒序排列并分页返回。
 
-        if row and row.TransactionNo:
-            last_seq = int(row.TransactionNo[len(prefix) + 8:])
-            new_seq = last_seq + 1
-        else:
-            new_seq = 1
+        Args:
+            customer_type: 'Merchant' 或 'Customer'
+            customer_id: 客户ID
+            tx_type: 可选筛选类型 receivable/payable/prepayment/deposit/cashflow
+            page: 页码
+            per_page: 每页条数
+        """
+        all_items = []
 
-        return f'{prefix}{today}{new_seq:03d}'
+        if not tx_type or tx_type == 'receivable':
+            all_items.extend(self._query_receivable_items(customer_type, customer_id))
+
+        if not tx_type or tx_type == 'payable':
+            all_items.extend(self._query_payable_items(customer_type, customer_id))
+
+        if not tx_type or tx_type == 'prepayment':
+            all_items.extend(self._query_prepayment_items(customer_type, customer_id))
+
+        if not tx_type or tx_type == 'deposit':
+            all_items.extend(self._query_deposit_items(customer_type, customer_id))
+
+        if not tx_type or tx_type == 'cashflow':
+            all_items.extend(self._query_cashflow_items(customer_type, customer_id))
+
+        all_items.sort(key=lambda x: x.get('_sort_date', ''), reverse=True)
+
+        summary = self._calc_customer_summary(customer_type, customer_id)
+
+        total_count = len(all_items)
+        total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 0
+        start = (page - 1) * per_page
+        page_items = all_items[start:start + per_page]
+
+        for item in page_items:
+            item.pop('_sort_date', None)
+
+        return {
+            'items': page_items,
+            'total_count': total_count,
+            'total_pages': total_pages,
+            'current_page': page,
+            'summary': summary
+        }
+
+    def _query_receivable_items(self, customer_type, customer_id):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT r.ReceivableID, r.Amount, r.PaidAmount, r.RemainingAmount,
+                       r.Status, r.DueDate, r.Description, r.CreateTime,
+                       ISNULL(sd.DictName, N'') AS ExpenseTypeName
+                FROM Receivable r
+                LEFT JOIN Sys_Dictionary sd ON r.ExpenseTypeID = sd.DictID
+                WHERE r.CustomerType = ? AND r.CustomerID = ?
+                  AND r.IsActive = 1
+                ORDER BY r.CreateTime DESC
+            """, (customer_type, customer_id))
+            rows = cursor.fetchall()
+            items = []
+            for row in rows:
+                items.append({
+                    'type': 'receivable',
+                    'type_label': '应收',
+                    'id': row.ReceivableID,
+                    'amount': safe_float(row.Amount),
+                    'paid_amount': safe_float(row.PaidAmount),
+                    'remaining_amount': safe_float(row.RemainingAmount),
+                    'status': row.Status or '',
+                    'expense_type_name': row.ExpenseTypeName,
+                    'description': row.Description or '',
+                    'transaction_date': format_date(row.DueDate),
+                    'create_time': format_datetime(row.CreateTime),
+                    '_sort_date': format_datetime(row.CreateTime),
+                })
+            return items
+
+    def _query_payable_items(self, customer_type, customer_id):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT p.PayableID, p.Amount, p.PaidAmount, p.RemainingAmount,
+                       p.Status, p.DueDate, p.Description, p.CreateTime,
+                       ISNULL(sd.DictName, N'') AS ExpenseTypeName
+                FROM Payable p
+                LEFT JOIN Sys_Dictionary sd ON p.ExpenseTypeID = sd.DictID
+                WHERE p.CustomerType = ? AND p.CustomerID = ?
+                  AND p.IsActive = 1
+                ORDER BY p.CreateTime DESC
+            """, (customer_type, customer_id))
+            rows = cursor.fetchall()
+            items = []
+            for row in rows:
+                items.append({
+                    'type': 'payable',
+                    'type_label': '应付',
+                    'id': row.PayableID,
+                    'amount': safe_float(row.Amount),
+                    'paid_amount': safe_float(row.PaidAmount),
+                    'remaining_amount': safe_float(row.RemainingAmount),
+                    'status': row.Status or '',
+                    'expense_type_name': row.ExpenseTypeName,
+                    'description': row.Description or '',
+                    'transaction_date': format_date(row.DueDate),
+                    'create_time': format_datetime(row.CreateTime),
+                    '_sort_date': format_datetime(row.CreateTime),
+                })
+            return items
+
+    def _query_prepayment_items(self, customer_type, customer_id):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT pp.PrepaymentID, pp.Direction, pp.TotalAmount,
+                       pp.AppliedAmount, pp.RemainingAmount,
+                       pp.Status, pp.Description, pp.CreateTime,
+                       ISNULL(sd.DictName, N'') AS ExpenseTypeName
+                FROM Prepayment pp
+                LEFT JOIN Sys_Dictionary sd ON pp.ExpenseTypeID = sd.DictID
+                WHERE pp.CustomerType = ? AND pp.CustomerID = ?
+                ORDER BY pp.CreateTime DESC
+            """, (customer_type, customer_id))
+            rows = cursor.fetchall()
+            items = []
+            for row in rows:
+                direction_text = '预收' if row.Direction == 'income' else '预付'
+                items.append({
+                    'type': 'prepayment',
+                    'type_label': direction_text,
+                    'id': row.PrepaymentID,
+                    'amount': safe_float(row.TotalAmount),
+                    'paid_amount': safe_float(row.AppliedAmount),
+                    'remaining_amount': safe_float(row.RemainingAmount),
+                    'status': row.Status or '',
+                    'expense_type_name': row.ExpenseTypeName,
+                    'description': row.Description or '',
+                    'transaction_date': '',
+                    'create_time': format_datetime(row.CreateTime),
+                    '_sort_date': format_datetime(row.CreateTime),
+                })
+            return items
+
+    def _query_deposit_items(self, customer_type, customer_id):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT d.DepositID, d.DepositType, d.Amount,
+                       d.RefundAmount, d.DeductAmount, d.TransferAmount,
+                       d.Status, d.Description, d.CreateTime,
+                       ISNULL(sd.DictName, N'') AS DepositTypeName
+                FROM Deposit d
+                LEFT JOIN Sys_Dictionary sd ON d.DepositType = sd.DictCode AND sd.DictType = N'deposit_type'
+                WHERE d.CustomerType = ? AND d.CustomerID = ?
+                ORDER BY d.CreateTime DESC
+            """, (customer_type, customer_id))
+            rows = cursor.fetchall()
+            items = []
+            for row in rows:
+                remaining = safe_float(row.Amount) - safe_float(row.RefundAmount) \
+                            - safe_float(row.DeductAmount) - safe_float(row.TransferAmount)
+                items.append({
+                    'type': 'deposit',
+                    'type_label': '押金',
+                    'id': row.DepositID,
+                    'amount': safe_float(row.Amount),
+                    'paid_amount': safe_float(row.RefundAmount) + safe_float(row.DeductAmount) + safe_float(row.TransferAmount),
+                    'remaining_amount': remaining,
+                    'status': row.Status or '',
+                    'expense_type_name': row.DepositTypeName or '',
+                    'description': row.Description or '',
+                    'transaction_date': '',
+                    'create_time': format_datetime(row.CreateTime),
+                    '_sort_date': format_datetime(row.CreateTime),
+                })
+            return items
+
+    def _query_cashflow_items(self, customer_type, customer_id):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            receivable_condition = """
+                EXISTS (
+                    SELECT 1 FROM Receivable r
+                    WHERE r.ReceivableID = cf.ReferenceID
+                      AND cf.ReferenceType = N'collection_record'
+                      AND r.CustomerType = ? AND r.CustomerID = ?
+                )
+            """
+            payable_condition = """
+                EXISTS (
+                    SELECT 1 FROM Payable p
+                    INNER JOIN PaymentRecord pr ON pr.PayableID = p.PayableID
+                    WHERE pr.PaymentRecordID = cf.ReferenceID
+                      AND cf.ReferenceType = N'payment_record'
+                      AND p.CustomerType = ? AND p.CustomerID = ?
+                )
+            """
+            deposit_condition = """
+                EXISTS (
+                    SELECT 1 FROM Deposit d
+                    WHERE d.DepositID = cf.ReferenceID
+                      AND cf.ReferenceType = N'deposit'
+                      AND d.CustomerType = ? AND d.CustomerID = ?
+                )
+            """
+            deposit_refund_condition = """
+                EXISTS (
+                    SELECT 1 FROM DepositOperation dop
+                    INNER JOIN Deposit d ON dop.DepositID = d.DepositID
+                    WHERE dop.OperationID = cf.ReferenceID
+                      AND cf.ReferenceType = N'deposit_refund'
+                      AND d.CustomerType = ? AND d.CustomerID = ?
+                )
+            """
+            prepayment_condition = """
+                EXISTS (
+                    SELECT 1 FROM Prepayment pp
+                    WHERE pp.PrepaymentID = cf.ReferenceID
+                      AND cf.ReferenceType = N'prepayment'
+                      AND pp.CustomerType = ? AND pp.CustomerID = ?
+                )
+            """
+            cursor.execute(f"""
+                SELECT cf.CashFlowID, cf.Amount, cf.Direction,
+                       cf.TransactionDate, cf.Description, cf.CreateTime,
+                       ISNULL(sd.DictName, N'') AS ExpenseTypeName
+                FROM CashFlow cf
+                LEFT JOIN Sys_Dictionary sd ON cf.ExpenseTypeID = sd.DictID
+                WHERE (
+                    ({receivable_condition}) OR ({payable_condition})
+                    OR ({deposit_condition}) OR ({deposit_refund_condition})
+                    OR ({prepayment_condition})
+                )
+                ORDER BY cf.CreateTime DESC
+            """, (customer_type, customer_id, customer_type, customer_id,
+                  customer_type, customer_id, customer_type, customer_id,
+                  customer_type, customer_id))
+            rows = cursor.fetchall()
+            items = []
+            for row in rows:
+                direction_text = '收入' if row.Direction == '收入' else '支出'
+                items.append({
+                    'type': 'cashflow',
+                    'type_label': '流水-' + direction_text,
+                    'id': row.CashFlowID,
+                    'amount': safe_float(row.Amount),
+                    'paid_amount': 0,
+                    'remaining_amount': 0,
+                    'status': direction_text,
+                    'expense_type_name': row.ExpenseTypeName,
+                    'description': row.Description or '',
+                    'transaction_date': format_date(row.TransactionDate),
+                    'create_time': format_datetime(row.CreateTime),
+                    '_sort_date': format_datetime(row.CreateTime),
+                })
+            return items
+
+    def _calc_customer_summary(self, customer_type, customer_id):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT ISNULL(SUM(Amount), 0), ISNULL(SUM(RemainingAmount), 0)
+                FROM Receivable
+                WHERE CustomerType = ? AND CustomerID = ? AND IsActive = 1
+            """, (customer_type, customer_id))
+            row = cursor.fetchone()
+            total_receivable = safe_float(row[1]) if row else 0
+
+            cursor.execute("""
+                SELECT ISNULL(SUM(Amount), 0), ISNULL(SUM(RemainingAmount), 0)
+                FROM Payable
+                WHERE CustomerType = ? AND CustomerID = ? AND IsActive = 1
+            """, (customer_type, customer_id))
+            row = cursor.fetchone()
+            total_payable = safe_float(row[1]) if row else 0
+
+            cursor.execute("""
+                SELECT ISNULL(SUM(RemainingAmount), 0)
+                FROM Prepayment
+                WHERE CustomerType = ? AND CustomerID = ? AND Direction = N'income'
+            """, (customer_type, customer_id))
+            row = cursor.fetchone()
+            total_prepayment = safe_float(row[0]) if row else 0
+
+            cursor.execute("""
+                SELECT ISNULL(SUM(Amount - RefundAmount - DeductAmount - TransferAmount), 0)
+                FROM Deposit
+                WHERE CustomerType = ? AND CustomerID = ?
+            """, (customer_type, customer_id))
+            row = cursor.fetchone()
+            total_deposit = safe_float(row[0]) if row else 0
+
+            total_cashflow = total_receivable - total_payable
+
+            return {
+                'total_receivable': total_receivable,
+                'total_payable': total_payable,
+                'total_prepayment': total_prepayment,
+                'total_deposit': total_deposit,
+                'total_cashflow': total_cashflow,
+            }

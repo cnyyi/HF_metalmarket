@@ -17,6 +17,7 @@ class CustomerService:
             base_query = """
                 SELECT CustomerID, CustomerName, ShortName, ContactPerson, Phone,
                        Address, CustomerType, BusinessScope, TaxNumber,
+                       BankName, BankAccount, AccountName,
                        Description, Status, CreateTime, UpdateTime
                 FROM Customer
             """
@@ -64,6 +65,9 @@ class CustomerService:
                     'customer_type': row.CustomerType or '',
                     'business_scope': row.BusinessScope or '',
                     'tax_number': row.TaxNumber or '',
+                    'bank_name': row.BankName or '',
+                    'bank_account': row.BankAccount or '',
+                    'account_name': row.AccountName or '',
                     'description': row.Description or '',
                     'status': row.Status,
                     'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
@@ -87,6 +91,7 @@ class CustomerService:
             cursor.execute("""
                 SELECT CustomerID, CustomerName, ShortName, ContactPerson, Phone,
                        Address, CustomerType, BusinessScope, TaxNumber,
+                       BankName, BankAccount, AccountName,
                        Description, Status, CreateTime, UpdateTime
                 FROM Customer
                 WHERE CustomerID = ?
@@ -104,6 +109,9 @@ class CustomerService:
                 'customer_type': row.CustomerType or '',
                 'business_scope': row.BusinessScope or '',
                 'tax_number': row.TaxNumber or '',
+                'bank_name': row.BankName or '',
+                'bank_account': row.BankAccount or '',
+                'account_name': row.AccountName or '',
                 'description': row.Description or '',
                 'status': row.Status,
                 'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M') if row.CreateTime else '',
@@ -122,9 +130,10 @@ class CustomerService:
             cursor.execute("""
                 INSERT INTO Customer (CustomerName, ShortName, ContactPerson, Phone,
                                       Address, CustomerType, BusinessScope, TaxNumber,
+                                      BankName, BankAccount, AccountName,
                                       Description, Status)
                 OUTPUT INSERTED.CustomerID
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, N'正常')
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, N'正常')
             """,
                 customer_name,
                 data.get('short_name', '').strip() or None,
@@ -134,6 +143,9 @@ class CustomerService:
                 data.get('customer_type', '').strip() or None,
                 data.get('business_scope', '').strip() or None,
                 data.get('tax_number', '').strip() or None,
+                data.get('bank_name', '').strip() or None,
+                data.get('bank_account', '').strip() or None,
+                data.get('account_name', '').strip() or None,
                 data.get('description', '').strip() or None,
             )
             row = cursor.fetchone()
@@ -154,6 +166,7 @@ class CustomerService:
                 UPDATE Customer
                 SET CustomerName = ?, ShortName = ?, ContactPerson = ?, Phone = ?,
                     Address = ?, CustomerType = ?, BusinessScope = ?, TaxNumber = ?,
+                    BankName = ?, BankAccount = ?, AccountName = ?,
                     Description = ?, Status = ?, UpdateTime = GETDATE()
                 WHERE CustomerID = ?
             """,
@@ -165,6 +178,9 @@ class CustomerService:
                 data.get('customer_type', '').strip() or None,
                 data.get('business_scope', '').strip() or None,
                 data.get('tax_number', '').strip() or None,
+                data.get('bank_name', '').strip() or None,
+                data.get('bank_account', '').strip() or None,
+                data.get('account_name', '').strip() or None,
                 data.get('description', '').strip() or None,
                 data.get('status', '正常'),
                 customer_id,

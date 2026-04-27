@@ -3,6 +3,21 @@
 {% block title %}合同列表{% endblock %}
 
 {% block extra_css %}
+<style>
+th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+th.sortable:hover { color: var(--bs-primary); }
+th.sortable .fa-sort, th.sortable .fa-sort-up, th.sortable .fa-sort-down { margin-left: 4px; opacity: 0.4; font-size: 0.8em; }
+th.sortable.sort-active .fa-sort-up, th.sortable.sort-active .fa-sort-down { opacity: 1; color: var(--bs-primary); }
+.period-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; white-space: nowrap; line-height: 1.4; }
+.period-badge.pb-1 { background: #e8f3ff; color: #1a6fdb; }
+.period-badge.pb-2 { background: #e6f9f0; color: #0d8059; }
+.period-badge.pb-3 { background: #fff3e6; color: #c87533; }
+.period-badge.pb-4 { background: #f3e8ff; color: #7c3aed; }
+.period-badge.pb-5 { background: #e6f7f7; color: #0e7c7b; }
+.period-badge.pb-6 { background: #ffe8f0; color: #c0264e; }
+.period-badge.pb-7 { background: #fef3e2; color: #b45309; }
+.period-badge.pb-8 { background: #eef0ff; color: #4338ca; }
+</style>
 {% endblock %}
 
 {% block breadcrumb %}
@@ -42,18 +57,19 @@
                 <thead>
                     <tr>
                         <th style="width: 50px;">序号</th>
-                        <th>合同编号</th>
-                        <th>商户名称</th>
-                        <th style="width: 100px;">联系人</th>
-                        <th style="width: 100px;">开始日期</th>
-                        <th style="width: 100px;">结束日期</th>
-                        <th style="width: 120px; text-align: right;">合同金额</th>
+                        <th class="sortable" data-sort="contract_number">合同编号 <i class="fa fa-sort"></i></th>
+                        <th class="sortable" data-sort="merchant_name">商户名称 <i class="fa fa-sort"></i></th>
+                        <th class="sortable" data-sort="contract_period" style="width: 120px;">合同期年 <i class="fa fa-sort"></i></th>
+                        <th class="sortable" data-sort="contact_person" style="width: 100px;">联系人 <i class="fa fa-sort"></i></th>
+                        <th class="sortable" data-sort="start_date" style="width: 110px;">开始日期 <i class="fa fa-sort"></i></th>
+                        <th class="sortable" data-sort="end_date" style="width: 110px;">结束日期 <i class="fa fa-sort"></i></th>
+                        <th class="sortable" data-sort="contract_amount" style="width: 120px; text-align: right;">合同金额 <i class="fa fa-sort"></i></th>
                         <th style="width: 130px;">操作</th>
                     </tr>
                 </thead>
                 <tbody id="contractTableBody">
                     <tr>
-                        <td colspan="8" class="text-center text-muted">加载中...</td>
+                        <td colspan="9" class="text-center text-muted">加载中...</td>
                     </tr>
                 </tbody>
             </table>
@@ -67,6 +83,11 @@
                 <nav>
                     <ul class="pagination justify-content-end mb-0" id="pagination">
                     </ul>
+                    <div class="text-end mt-1">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleDisplayMode">
+                            <i class="fa fa-list"></i> 显示全部
+                        </button>
+                    </div>
                 </nav>
             </div>
         </div>
@@ -114,6 +135,21 @@
 var currentPage = 1;
 var perPage = 10;
 var deleteContractId = null;
+var showAll = false;
+var currentSortBy = 'create_time';
+
+var _periodColorMap = {};
+var _periodColorIdx = 0;
+
+function getPeriodBadge(period) {
+    if (!period) return '-';
+    if (!_periodColorMap[period]) {
+        _periodColorIdx++;
+        _periodColorMap[period] = ((_periodColorIdx - 1) % 8) + 1;
+    }
+    return '<span class="period-badge pb-' + _periodColorMap[period] + '">' + escapeHtml(period) + '</span>';
+}
+var currentSortOrder = 'desc';
 
 function loadContractDetail(contractId) {
     $('#viewModalBody').html('<div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">加载中...</span></div></div>');
@@ -227,6 +263,107 @@ function loadContractDetail(contractId) {
                     html += '</tbody></table></div></div>';
                 }
                 
+                if (contract.electricity_meters && contract.electricity_meters.length > 0) {
+                    html += '<div class="col-12 mt-4 mb-3">' +
+                        '<h6 class="border-bottom pb-2 mb-3">绑定电表（共' + contract.electricity_meters.length + '个）</h6>' +
+                        '<div class="table-responsive">' +
+                            '<table class="table table-sm table-bordered">' +
+                                '<thead class="table-light">' +
+                                    '<tr>' +
+                                        '<th>序号</th>' +
+                                        '<th>电表编号</th>' +
+                                        '<th>安装位置</th>' +
+                                        '<th>起始读数</th>' +
+                                        '<th>单价 (元/度)</th>' +
+                                        '<th>状态</th>' +
+                                    '</tr>' +
+                                '</thead>' +
+                                '<tbody>';
+                    
+                    contract.electricity_meters.forEach(function(em, idx) {
+                        var statusBadge = em.status === '启用' ? 'bg-success' : 'bg-secondary';
+                        html += '<tr>' +
+                            '<td>' + (idx + 1) + '</td>' +
+                            '<td>' + escapeHtml(em.meter_number) + '</td>' +
+                            '<td>' + escapeHtml(em.installation_location) + '</td>' +
+                            '<td>' + em.start_reading.toFixed(2) + '</td>' +
+                            '<td>' + em.unit_price.toFixed(4) + '</td>' +
+                            '<td><span class="badge ' + statusBadge + '">' + escapeHtml(em.status) + '</span></td>' +
+                        '</tr>';
+                    });
+                    
+                    html += '</tbody></table></div></div>';
+                }
+                
+                if (contract.payment_progress) {
+                    var pp = contract.payment_progress;
+                    var progressColor = pp.progress_percent >= 100 ? 'bg-success' : (pp.progress_percent >= 50 ? 'bg-primary' : 'bg-warning');
+                    html += '<div class="col-12 mt-4 mb-3">' +
+                        '<h6 class="border-bottom pb-2 mb-3">合同付款进度</h6>' +
+                    '</div>' +
+                    '<div class="col-12 mb-3">' +
+                        '<div class="d-flex justify-content-between align-items-center mb-2">' +
+                            '<span class="text-muted small">收款进度</span>' +
+                            '<span class="fw-bold">' + pp.progress_percent + '%</span>' +
+                        '</div>' +
+                        '<div class="progress" style="height: 10px;">' +
+                            '<div class="progress-bar ' + progressColor + '" role="progressbar" style="width: ' + Math.min(pp.progress_percent, 100) + '%" aria-valuenow="' + pp.progress_percent + '" aria-valuemin="0" aria-valuemax="100"></div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="col-md-4">' +
+                        '<label class="form-label text-muted">应收总额</label>' +
+                        '<p class="fs-6 fw-semibold">¥' + formatNumber(pp.total_receivable) + '</p>' +
+                    '</div>' +
+                    '<div class="col-md-4">' +
+                        '<label class="form-label text-muted">已收金额</label>' +
+                        '<p class="fs-6 fw-semibold text-success">¥' + formatNumber(pp.total_paid) + '</p>' +
+                    '</div>' +
+                    '<div class="col-md-4">' +
+                        '<label class="form-label text-muted">未收金额</label>' +
+                        '<p class="fs-6 fw-semibold text-danger">¥' + formatNumber(pp.total_remaining) + '</p>' +
+                    '</div>';
+                }
+
+                if (contract.collection_records && contract.collection_records.length > 0) {
+                    html += '<div class="col-12 mt-4 mb-3">' +
+                        '<h6 class="border-bottom pb-2 mb-3">收款明细（共' + contract.collection_records.length + '笔）</h6>' +
+                    '</div>' +
+                    '<div class="col-12">' +
+                        '<div class="table-responsive">' +
+                            '<table class="table table-sm table-bordered">' +
+                                '<thead class="table-light">' +
+                                    '<tr>' +
+                                        '<th>序号</th>' +
+                                        '<th>收款日期</th>' +
+                                        '<th>收款金额</th>' +
+                                        '<th>收款方式</th>' +
+                                        '<th>备注</th>' +
+                                        '<th>操作人</th>' +
+                                    '</tr>' +
+                                '</thead>' +
+                                '<tbody>';
+
+                    contract.collection_records.forEach(function(cr, idx) {
+                        html += '<tr>' +
+                            '<td>' + (idx + 1) + '</td>' +
+                            '<td>' + escapeHtml(cr.transaction_date) + '</td>' +
+                            '<td class="text-end">¥' + formatNumber(cr.amount) + '</td>' +
+                            '<td>' + escapeHtml(cr.payment_method) + '</td>' +
+                            '<td>' + escapeHtml(cr.description) + '</td>' +
+                            '<td>' + escapeHtml(cr.operator_name) + '</td>' +
+                        '</tr>';
+                    });
+
+                    html += '</tbody></table></div></div>';
+                } else if (contract.payment_progress && contract.payment_progress.total_receivable > 0) {
+                    html += '<div class="col-12 mt-4 mb-3">' +
+                        '<h6 class="border-bottom pb-2 mb-3">收款明细</h6>' +
+                    '</div>' +
+                    '<div class="col-12">' +
+                        '<div class="text-center text-muted py-3"><i class="fa fa-inbox me-1"></i>暂无收款记录</div>' +
+                    '</div>';
+                }
+                
                 html += '</div>';
                 $('#viewModalBody').html(html);
             } else {
@@ -242,14 +379,17 @@ function loadContractDetail(contractId) {
 function loadContracts(page) {
     currentPage = page;
     var search = $('#searchInput').val();
+    var effectivePerPage = showAll ? 999999 : perPage;
     
     $.ajax({
         url: '/contract/list_data',
         method: 'GET',
         data: {
             page: page,
-            per_page: perPage,
-            search: search
+            per_page: effectivePerPage,
+            search: search,
+            sort_by: currentSortBy,
+            sort_order: currentSortOrder
         },
         dataType: 'json',
         success: function(response) {
@@ -258,7 +398,7 @@ function loadContracts(page) {
                 tbody.empty();
                 
                 if (response.data.contracts.length === 0) {
-                    tbody.append('<tr><td colspan="8" class="text-center text-muted">暂无数据</td></tr>');
+                    tbody.append('<tr><td colspan="9" class="text-center text-muted">暂无数据</td></tr>');
                 } else {
                     var startNum = (currentPage - 1) * perPage + 1;
                     response.data.contracts.forEach(function(contract, index) {
@@ -266,6 +406,7 @@ function loadContracts(page) {
                             '<td>' + (startNum + index) + '</td>' +
                             '<td><span class="detail-link" data-id="' + contract.contract_id + '">' + contract.contract_number + '</span></td>' +
                             '<td>' + contract.merchant_name + '</td>' +
+                            '<td>' + getPeriodBadge(contract.contract_period) + '</td>' +
                             '<td>' + contract.contact_person + '</td>' +
                             '<td>' + (contract.start_date || '-') + '</td>' +
                             '<td>' + (contract.end_date || '-') + '</td>' +
@@ -285,8 +426,19 @@ function loadContracts(page) {
                 renderPagination('#pagination', { current_page: response.data.page, total_pages: response.data.total_pages, total: response.data.total }, function(page) {
                     loadContracts(page);
                 });
+
+                // 显示全部/分页显示模式UI
+                var $toggleBtn = $('#toggleDisplayMode');
+                if (showAll) {
+                    $toggleBtn.html('<i class="fa fa-list-ol"></i> 分页显示');
+                    $('#pagination').closest('nav').find('.pagination').hide();
+                    $('#pageInfo').text('共 ' + response.data.total + ' 条记录（显示全部）');
+                } else {
+                    $toggleBtn.html('<i class="fa fa-list"></i> 显示全部');
+                    $('#pagination').closest('nav').find('.pagination').show();
+                }
             } else {
-                $('#contractTableBody').html('<tr><td colspan="8" class="text-center text-danger">加载失败：' + (response.message || '未知错误') + '</td></tr>');
+                $('#contractTableBody').html('<tr><td colspan="9" class="text-center text-danger">加载失败：' + (response.message || '未知错误') + '</td></tr>');
             }
         },
         error: function(xhr, status, error) {
@@ -294,7 +446,7 @@ function loadContracts(page) {
             if (xhr.status === 401 || xhr.status === 403) {
                 window.location.href = '/auth/login';
             } else {
-                $('#contractTableBody').html('<tr><td colspan="8" class="text-center text-danger">请求失败，请刷新页面重试</td></tr>');
+                $('#contractTableBody').html('<tr><td colspan="9" class="text-center text-danger">请求失败，请刷新页面重试</td></tr>');
             }
         }
     });
@@ -372,6 +524,32 @@ bindSearch('searchInput', 'searchBtn', function() { loadContracts(1); });
 
 $(document).ready(function() {
     loadContracts(1);
+    // 显示全部/分页显示切换
+    $('#toggleDisplayMode').on('click', function() {
+        showAll = !showAll;
+        loadContracts(1);
+    });
+    
+    // 排序列点击事件
+    $(document).on('click', 'th.sortable', function() {
+        var sortBy = $(this).data('sort');
+        if (currentSortBy === sortBy) {
+            currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSortBy = sortBy;
+            currentSortOrder = 'asc';
+        }
+        // 更新表头图标
+        $('th.sortable').removeClass('sort-active').find('i').removeClass('fa-sort-up fa-sort-down').addClass('fa-sort');
+        var $icon = $(this).find('i');
+        $(this).addClass('sort-active');
+        if (currentSortOrder === 'asc') {
+            $icon.removeClass('fa-sort').addClass('fa-sort-up');
+        } else {
+            $icon.removeClass('fa-sort').addClass('fa-sort-down');
+        }
+        loadContracts(1);
+    });
 });
 </script>
 {% endblock %}

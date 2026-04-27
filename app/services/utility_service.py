@@ -71,13 +71,39 @@ class UtilityService:
                            CASE
                                WHEN ur.MeterType = N'electricity' THEN ISNULL(em.MeterMultiplier, 1)
                                WHEN ur.MeterType = N'water' THEN ISNULL(wm.MeterMultiplier, 1)
-                           END AS MeterMultiplier
+                           END AS MeterMultiplier,
+                           ISNULL(rv.PayStatus, N'未缴费') AS PayStatus,
+                           ISNULL(rv.PaidAmount, 0) AS PaidAmount
                     FROM UtilityReading ur
                     INNER JOIN Merchant m ON ur.MerchantID = m.MerchantID
                     LEFT JOIN ElectricityMeter em ON ur.MeterID = em.MeterID AND ur.MeterType = N'electricity'
                     LEFT JOIN WaterMeter wm ON ur.MeterID = wm.MeterID AND ur.MeterType = N'water'
+                    OUTER APPLY (
+                        SELECT TOP 1
+                            CASE
+                                WHEN r.Status = N'已付款' THEN N'已缴费'
+                                WHEN r.Status = N'部分付款' THEN N'部分缴费'
+                                ELSE N'未缴费'
+                            END AS PayStatus,
+                            ISNULL(r.PaidAmount, 0) AS PaidAmount
+                        FROM Receivable r
+                        WHERE r.MerchantID = ur.MerchantID
+                          AND r.ReferenceType IN (N'utility_reading', N'utility_reading_merged')
+                          AND r.IsActive = 1
+                          AND r.Description LIKE ur.BelongMonth + N'%'
+                          AND (
+                              (ur.MeterType = N'electricity' AND r.Description LIKE N'%电%')
+                              OR (ur.MeterType = N'water' AND r.Description LIKE N'%水%')
+                          )
+                        ORDER BY r.ReceivableID DESC
+                    ) rv
                     WHERE ur.BelongMonth = ?
                       AND ur.MeterType = ?
+                      AND (
+                          (ur.MeterType = N'electricity' AND FORMAT(ISNULL(em.InstallationDate, '1900-01-01'), N'yyyy年MM月') <= ur.BelongMonth)
+                          OR
+                          (ur.MeterType = N'water' AND FORMAT(ISNULL(wm.InstallationDate, '1900-01-01'), N'yyyy年MM月') <= ur.BelongMonth)
+                      )
                     ORDER BY m.MerchantName, ur.ContractID, MeterNumber
                 """
                 cursor.execute(sql, belong_month_display, mtype)
@@ -107,7 +133,9 @@ class UtilityService:
                         'unit_price': float(row.UnitPrice) if row.UnitPrice else 0.0,
                         'total_amount': float(row.TotalAmount) if row.TotalAmount else 0.0,
                         'meter_multiplier': float(row.MeterMultiplier) if row.MeterMultiplier else 1.0,
-                        'contract_total': round(contract_totals.get(cid, 0.0), 2)
+                        'contract_total': round(contract_totals.get(cid, 0.0), 2),
+                        'pay_status': getattr(row, 'PayStatus', '未缴费') or '未缴费',
+                        'paid_amount': float(row.PaidAmount) if hasattr(row, 'PaidAmount') and row.PaidAmount else 0.0
                     })
 
                 if mtype == 'electricity':
@@ -291,7 +319,6 @@ class UtilityService:
                 total = total_water + total_elec
                 
                 # 分页查询 - WaterMeter
-                offset = (page - 1) * page_size
                 data_sql_water = f"""
                     SELECT MeterID, MeterNumber, MeterType, MeterMultiplier, InstallationDate, InitReading,
                            CreateTime, Status, 'water' as SourceTable
@@ -306,18 +333,28 @@ class UtilityService:
                     WHERE {where_sql}
                 """
                 
-                # 合并查询结果
-                data_sql = f"""
-                    SELECT * FROM (
-                        {data_sql_water}
-                        UNION ALL
-                        {data_sql_elec}
-                    ) AS CombinedResults
-                    ORDER BY CreateTime DESC
-                    OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
-                """
-                
-                params_with_paging = params + params + [offset, page_size]
+                if page_size > 0:
+                    offset = (page - 1) * page_size
+                    data_sql = f"""
+                        SELECT * FROM (
+                            {data_sql_water}
+                            UNION ALL
+                            {data_sql_elec}
+                        ) AS CombinedResults
+                        ORDER BY CreateTime DESC
+                        OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
+                    """
+                    params_with_paging = params + params + [offset, page_size]
+                else:
+                    data_sql = f"""
+                        SELECT * FROM (
+                            {data_sql_water}
+                            UNION ALL
+                            {data_sql_elec}
+                        ) AS CombinedResults
+                        ORDER BY CreateTime DESC
+                    """
+                    params_with_paging = params + params
                 cursor.execute(data_sql, params_with_paging)
                 rows = cursor.fetchall()
             
@@ -980,10 +1017,12 @@ class UtilityService:
                 WHERE c.StartDate <= GETDATE()
                   AND DATEADD(MONTH, 3, c.EndDate) >= GETDATE()
                   AND (cwm.Status IS NULL OR cwm.Status <> N'未启用')
+                  AND FORMAT(ISNULL(m.InstallationDate, '1900-01-01'), N'yyyy年MM月') <= ?
                   {not_exists_sql}
                 ORDER BY mer.MerchantName, m.MeterNumber
             """, [
                 'water' if meter_type == 'water' else 'electricity',
+                belong_month_display if belong_month else '9999年99月',
                 belong_month_display if belong_month else '9999年99月'
             ] + not_exists_params)
             
@@ -1117,7 +1156,8 @@ class UtilityService:
                             MeterID, MeterType, LastReading, CurrentReading,
                             Usage, UnitPrice, TotalAmount, ReadingDate, ReadingMonth,
                             ContractID, MerchantID, CreatedBy, BelongMonth
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) OUTPUT INSERTED.ReadingID
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         meter_id,
                         'water' if meter_type == 'water' else 'electricity',
@@ -1134,8 +1174,6 @@ class UtilityService:
                         belong_month_display
                     ))
 
-                    # 获取新插入的记录ID
-                    cursor.execute("SELECT CAST(SCOPE_IDENTITY() AS INT)")
                     reading_id = cursor.fetchone()[0]
 
                     # 更新表的更新时间（不再维护 LastReading/CurrentReading，抄表数据统一在 UtilityReading 中查询）
@@ -1294,7 +1332,8 @@ class UtilityService:
                             DueDate, ReferenceID, ReferenceType, Status,
                             PaidAmount, RemainingAmount, CustomerType, CustomerID,
                             CreateTime
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, N'未付款', 0, ?, N'Merchant', ?, GETDATE())
+                        ) OUTPUT INSERTED.ReceivableID
+                        VALUES (?, ?, ?, ?, ?, ?, ?, N'未付款', 0, ?, N'Merchant', ?, GETDATE())
                     """, (
                         merchant_id,
                         expense_type_id,
@@ -1307,8 +1346,7 @@ class UtilityService:
                         merchant_id
                     ))
 
-                    receivable_id_row = cursor.execute("SELECT CAST(SCOPE_IDENTITY() AS INT)")
-                    receivable_id = receivable_id_row.fetchone()[0]
+                    receivable_id = cursor.fetchone()[0]
 
                     # 为本次所有抄表记录建立关联
                     for rid in group['reading_ids']:

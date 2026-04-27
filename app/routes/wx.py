@@ -1,9 +1,10 @@
 from functools import wraps
-from flask import Blueprint, render_template, redirect, url_for, request, jsonify, session
+from flask import Blueprint, render_template, redirect, url_for, request, jsonify, session, current_app
 from flask_login import login_required, current_user, login_user
 from app.services.wx_auth_service import WxAuthService
 from app.services.wx_bind_service import WxBindService
 from app.services.portal_service import PortalService
+from app.api_response import handle_exception
 
 wx_bp = Blueprint('wx', __name__, url_prefix='/wx')
 
@@ -198,7 +199,7 @@ def api_merchants():
     return jsonify({'success': True, 'data': items})
 
 
-@wx_bp.route('/')
+@wx_bp.route('')
 @wx_login_required
 @wx_bound_required
 def index():
@@ -216,7 +217,7 @@ def api_dashboard():
         stats = PortalService.get_dashboard(merchant_id)
         return jsonify({'success': True, 'data': stats})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @wx_bp.route('/contracts')
@@ -238,7 +239,7 @@ def api_contracts():
         result = PortalService.get_contracts(merchant_id, page=page, per_page=per_page)
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @wx_bp.route('/utility')
@@ -260,7 +261,7 @@ def api_utility():
         result = PortalService.get_utility_readings(merchant_id, page=page, per_page=per_page)
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @wx_bp.route('/scale')
@@ -282,7 +283,7 @@ def api_scale_records():
         result = PortalService.get_scale_records(merchant_id, page=page, per_page=per_page)
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @wx_bp.route('/finance')
@@ -305,7 +306,7 @@ def api_receivables():
         result = PortalService.get_receivables(merchant_id, page=page, per_page=per_page, status=status or None)
         return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'获取数据失败：{str(e)}'}), 500
+        return handle_exception(e)
 
 
 @wx_bp.route('/profile')
@@ -341,3 +342,14 @@ def api_current_merchant():
         return jsonify({'success': True, 'data': None})
     bind_role = WxBindService.get_user_bind_role(current_user.user_id, merchant['merchant_id'])
     return jsonify({'success': True, 'data': {'merchant_id': merchant['merchant_id'], 'merchant_name': merchant['merchant_name'], 'bind_role': bind_role}})
+
+
+@wx_bp.route('/debug/login')
+@login_required
+def debug_login():
+    if not current_app.debug:
+        return redirect(url_for('wx.login'))
+    merchant = WxBindService.get_user_current_merchant(current_user.user_id)
+    if not merchant:
+        return redirect(url_for('wx.bind_apply'))
+    return redirect(url_for('wx.index'))

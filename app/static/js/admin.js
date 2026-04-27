@@ -257,6 +257,75 @@ function animateValue(el, target, duration, isMoney) {
 })();
 
 /**
+ * 侧边栏分组折叠
+ */
+(function() {
+    var STORAGE_KEY = 'sidebar_collapsed_sections';
+
+    function getCollapsed() {
+        try {
+            return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+        } catch(e) {
+            return [];
+        }
+    }
+
+    function saveCollapsed(arr) {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+        } catch(e) {}
+    }
+
+    function initSections() {
+        var sections = document.querySelectorAll('.sidebar-section[data-section]');
+        var collapsed = getCollapsed();
+
+        sections.forEach(function(section) {
+            var key = section.getAttribute('data-section');
+            var title = section.querySelector('.sidebar-section-title');
+            var hasActive = section.querySelector('.sidebar-item.active');
+
+            if (hasActive) {
+                section.classList.remove('collapsed');
+                var idx = collapsed.indexOf(key);
+                if (idx > -1) {
+                    collapsed.splice(idx, 1);
+                    saveCollapsed(collapsed);
+                }
+            } else if (collapsed.indexOf(key) > -1) {
+                section.classList.add('collapsed');
+            }
+
+            if (title) {
+                title.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    section.classList.toggle('collapsed');
+                    var isCollapsed = section.classList.contains('collapsed');
+                    var current = getCollapsed();
+                    if (isCollapsed) {
+                        if (current.indexOf(key) === -1) {
+                            current.push(key);
+                        }
+                    } else {
+                        var idx = current.indexOf(key);
+                        if (idx > -1) {
+                            current.splice(idx, 1);
+                        }
+                    }
+                    saveCollapsed(current);
+                });
+            }
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initSections);
+    } else {
+        initSections();
+    }
+})();
+
+/**
  * 金额列自动添加 .col-amount 类
  * 在页面加载后扫描表格中的金额TD
  */

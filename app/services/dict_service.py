@@ -7,7 +7,7 @@ class DictService:
     @staticmethod
     def get_dict_list(page=1, per_page=15, dict_type=None, keyword=None, is_active=None):
         base_query = """
-            SELECT DictID, DictType, DictCode, DictName, Description, SortOrder, IsActive, CreateTime, UpdateTime, UnitPrice
+            SELECT DictID, DictType, DictCode, DictName, Description, SortOrder, IsActive, CreateTime, UpdateTime, UnitPrice, MinAmount
             FROM Sys_Dictionary
         """
         count_query = """
@@ -56,7 +56,8 @@ class DictService:
                 'is_active': r.IsActive,
                 'create_time': r.CreateTime.strftime('%Y-%m-%d %H:%M') if r.CreateTime else '',
                 'update_time': r.UpdateTime.strftime('%Y-%m-%d %H:%M') if r.UpdateTime else '',
-                'unit_price': float(r.UnitPrice) if r.UnitPrice is not None else None
+                'unit_price': float(r.UnitPrice) if r.UnitPrice is not None else None,
+                'min_amount': float(r.MinAmount) if r.MinAmount is not None else None
             })
 
         count_params = tuple(params[:-2])
@@ -69,7 +70,7 @@ class DictService:
     @staticmethod
     def get_dict_by_id(dict_id):
         query = """
-            SELECT DictID, DictType, DictCode, DictName, Description, SortOrder, IsActive, CreateTime, UpdateTime, UnitPrice
+            SELECT DictID, DictType, DictCode, DictName, Description, SortOrder, IsActive, CreateTime, UpdateTime, UnitPrice, MinAmount
             FROM Sys_Dictionary
             WHERE DictID = ?
         """
@@ -88,7 +89,8 @@ class DictService:
             'is_active': result.IsActive,
             'create_time': result.CreateTime.strftime('%Y-%m-%d %H:%M') if result.CreateTime else '',
             'update_time': result.UpdateTime.strftime('%Y-%m-%d %H:%M') if result.UpdateTime else '',
-            'unit_price': float(result.UnitPrice) if result.UnitPrice is not None else None
+            'unit_price': float(result.UnitPrice) if result.UnitPrice is not None else None,
+            'min_amount': float(result.MinAmount) if result.MinAmount is not None else None
         }
 
     @staticmethod
@@ -100,7 +102,7 @@ class DictService:
         return [r.DictType for r in results]
 
     @staticmethod
-    def create_dict(dict_type, dict_code, dict_name, description=None, sort_order=0, is_active=True, unit_price=None):
+    def create_dict(dict_type, dict_code, dict_name, description=None, sort_order=0, is_active=True, unit_price=None, min_amount=None):
         existing = execute_query(
             "SELECT DictID FROM Sys_Dictionary WHERE DictType = ? AND DictCode = ?",
             (dict_type, dict_code),
@@ -110,11 +112,11 @@ class DictService:
             return None
 
         insert_query = """
-            INSERT INTO Sys_Dictionary (DictType, DictCode, DictName, Description, SortOrder, IsActive, UnitPrice, CreateTime)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO Sys_Dictionary (DictType, DictCode, DictName, Description, SortOrder, IsActive, UnitPrice, MinAmount, CreateTime)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         now = datetime.datetime.now()
-        execute_update(insert_query, (dict_type, dict_code, dict_name, description, sort_order, is_active, unit_price, now))
+        execute_update(insert_query, (dict_type, dict_code, dict_name, description, sort_order, is_active, unit_price, min_amount, now))
 
         result = execute_query(
             "SELECT DictID FROM Sys_Dictionary WHERE DictType = ? AND DictCode = ?",
@@ -124,7 +126,7 @@ class DictService:
         return result.DictID if result else None
 
     @staticmethod
-    def update_dict(dict_id, dict_type, dict_code, dict_name, description=None, sort_order=0, is_active=True, unit_price=None):
+    def update_dict(dict_id, dict_type, dict_code, dict_name, description=None, sort_order=0, is_active=True, unit_price=None, min_amount=None):
         existing = execute_query(
             "SELECT DictID FROM Sys_Dictionary WHERE DictType = ? AND DictCode = ? AND DictID != ?",
             (dict_type, dict_code, dict_id),
@@ -135,11 +137,11 @@ class DictService:
 
         update_query = """
             UPDATE Sys_Dictionary
-            SET DictType = ?, DictCode = ?, DictName = ?, Description = ?, SortOrder = ?, IsActive = ?, UnitPrice = ?, UpdateTime = ?
+            SET DictType = ?, DictCode = ?, DictName = ?, Description = ?, SortOrder = ?, IsActive = ?, UnitPrice = ?, MinAmount = ?, UpdateTime = ?
             WHERE DictID = ?
         """
         now = datetime.datetime.now()
-        rows = execute_update(update_query, (dict_type, dict_code, dict_name, description, sort_order, is_active, unit_price, now, dict_id))
+        rows = execute_update(update_query, (dict_type, dict_code, dict_name, description, sort_order, is_active, unit_price, min_amount, now, dict_id))
         return rows > 0
 
     @staticmethod

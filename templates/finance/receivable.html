@@ -2,6 +2,14 @@
 
 {% block title %}应收账款{% endblock %}
 
+{% block extra_css %}
+<style>
+[data-theme="dark"] #deleteInfo {
+    background-color: var(--color-primary-light) !important;
+}
+</style>
+{% endblock %}
+
 {% block breadcrumb %}
 <span class="breadcrumb-sep"><i class="fa fa-chevron-right"></i></span>
 <span class="breadcrumb-chip">财务管理</span>
@@ -14,7 +22,7 @@
     <div class="card-header">
         <div class="row">
             <div class="col-md-6">
-                <h5 class="card-title mb-0">应收账款列表</h5>
+                <h5 class="card-title mb-0">应收账款</h5>
             </div>
             <div class="col-md-6 text-end">
                 <button type="button" class="btn btn-primary" id="btnAddReceivable">
@@ -27,11 +35,11 @@
         </div>
     </div>
     <div class="card-body">
-        <div class="row mb-3">
-            <div class="col-md-3">
+        <div class="filter-form row mb-3">
+            <div class="col-md-4">
                 <div class="input-group">
                     <span class="input-group-text"><i class="fa fa-search"></i></span>
-                    <input type="text" class="form-control" id="searchInput" placeholder="搜索商户/客户名称">
+                    <input type="text" class="form-control" id="searchInput" placeholder="搜索客户名称">
                 </div>
             </div>
             <div class="col-md-2">
@@ -54,67 +62,97 @@
             </div>
         </div>
 
-        <div class="table-responsive">
-            <table class="table table-striped table-hover">
-                <thead>
-                    <tr>
-                        <th>序号</th>
-                        <th>客户类型</th>
-                        <th>名称</th>
-                        <th>费用类型</th>
-                        <th>应收金额</th>
-                        <th>已收金额</th>
-                        <th>未收金额</th>
-                        <th>到期日期</th>
-                        <th>状态</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody id="receivableTableBody">
-                    <tr>
-                        <td colspan="10" class="text-center text-muted">加载中...</td>
-                    </tr>
-                </tbody>
-                <tfoot id="receivableTableFoot" style="display:none;">
-                    <tr class="table-summary-row">
-                        <td colspan="4" class="text-center fw-bold"><i class="fa fa-calculator"></i> 合计（共 <span id="summaryTotalCount">0</span> 条）</td>
-                        <td class="text-end fw-bold" id="summaryTotalAmount">¥0</td>
-                        <td class="text-end fw-bold text-success" id="summaryTotalPaid">¥0</td>
-                        <td class="text-end fw-bold text-danger" id="summaryTotalRemaining">¥0</td>
-                        <td colspan="3"></td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
+        <ul class="nav nav-tabs enhanced-tabs mb-0" id="receivableTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="customer-tab" data-bs-toggle="tab" data-bs-target="#customerView" type="button" role="tab" aria-controls="customerView" aria-selected="true">
+                    <i class="fa fa-users"></i> 按客户显示
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="detail-tab" data-bs-toggle="tab" data-bs-target="#detailView" type="button" role="tab" aria-controls="detailView" aria-selected="false">
+                    <i class="fa fa-list-alt"></i> 按明细显示
+                </button>
+            </li>
+        </ul>
 
-        <div class="d-flex align-items-center justify-content-center flex-wrap gap-3 mt-3" id="paginationArea" style="display:none;">
-            <div class="d-flex align-items-center">
-                <label class="form-label mb-0 me-2 text-nowrap">每页显示</label>
-                <select class="form-select form-select-sm" id="perPageSelect" style="width: auto;">
-                    <option value="10" selected>10</option>
-                    <option value="20">20</option>
-                    <option value="30">30</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                </select>
-                <span class="ms-2 text-nowrap">条</span>
+        <div class="tab-content pt-3" id="receivableTabContent">
+            <div class="tab-pane fade show active" id="customerView" role="tabpanel" aria-labelledby="customer-tab">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;">序号</th>
+                                <th>客户类型</th>
+                                <th>客户名称</th>
+                                <th class="text-end">应收合计</th>
+                                <th class="text-end">已收合计</th>
+                                <th class="text-end">未收合计</th>
+                                <th class="text-end">未到期</th>
+                                <th class="text-end">1-30天</th>
+                                <th class="text-end">31-60天</th>
+                                <th class="text-end">61-90天</th>
+                                <th class="text-end">90天以上</th>
+                                <th>记录数</th>
+                                <th>最早到期</th>
+                                <th style="width: 120px;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customerTableBody">
+                            <tr><td colspan="14" class="text-center text-muted">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <nav aria-label="Page navigation" id="customerPaginationNav" style="display:none;">
+                    <div class="d-flex justify-content-center align-items-center">
+                        <ul class="pagination mb-0 me-3" id="customerPaginationList"></ul>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="btnCustomerShowAll">
+                            <i class="fa fa-expand"></i> 显示全部数据
+                        </button>
+                    </div>
+                </nav>
             </div>
-            <nav aria-label="Page navigation">
-                <ul class="pagination justify-content-center mb-0" id="paginationList">
-                </ul>
-            </nav>
+
+            <div class="tab-pane fade" id="detailView" role="tabpanel" aria-labelledby="detail-tab">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>客户类型</th>
+                                <th>名称</th>
+                                <th>费用类型</th>
+                                <th>品名</th>
+                                <th>应收金额</th>
+                                <th>已收金额</th>
+                                <th>未收金额</th>
+                                <th>到期日期</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="receivableTableBody">
+                            <tr><td colspan="11" class="text-center text-muted">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <nav aria-label="Page navigation" id="paginationNav" style="display:none;">
+                    <div class="d-flex justify-content-center align-items-center">
+                        <ul class="pagination mb-0 me-3" id="paginationList"></ul>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="btnDetailShowAll">
+                            <i class="fa fa-expand"></i> 显示全部数据
+                        </button>
+                    </div>
+                </nav>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- 添加应收账款弹窗 -->
-<div class="modal fade" id="addReceivableModal" tabindex="-1" aria-labelledby="addReceivableModalLabel" aria-hidden="true">
+<div class="modal fade" id="addReceivableModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addReceivableModalLabel">
-                    <i class="fa fa-plus-circle"></i> 添加应收账款
-                </h5>
+                <h5 class="modal-title"><i class="fa fa-plus-circle"></i> 添加应收账款</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -211,13 +249,12 @@
     </div>
 </div>
 
-<!-- 收款弹窗 -->
 <div class="modal fade" id="collectModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header bg-success">
+            <div class="modal-header bg-success text-white">
                 <h5 class="modal-title"><i class="fa fa-money"></i> 收款核销</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="alert alert-info mb-3">
@@ -230,7 +267,6 @@
                     <input type="hidden" id="collectCustomerType">
                     <input type="hidden" id="collectCustomerId">
 
-                    <!-- 收款方式切换 -->
                     <div class="mb-3">
                         <label class="form-label fw-bold">收款方式</label>
                         <div class="btn-group w-100" role="group">
@@ -241,7 +277,6 @@
                         </div>
                     </div>
 
-                    <!-- 现金收款区域 -->
                     <div id="cashCollectArea">
                         <div class="mb-3">
                             <label class="form-label fw-bold">收款金额 <span class="text-danger">*</span></label>
@@ -279,7 +314,6 @@
                         </div>
                     </div>
 
-                    <!-- 预收冲抵区域 -->
                     <div id="prepayCollectArea" style="display:none">
                         <div id="prepayList" class="mb-3">
                             <p class="text-muted">加载中...</p>
@@ -309,15 +343,14 @@
     </div>
 </div>
 
-<!-- 详情弹窗 -->
-<div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="customerDetailModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="fa fa-eye"></i> 应收详情</h5>
+                <h5 class="modal-title"><i class="fa fa-list"></i> <span id="customerDetailTitle">客户应收明细</span></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" id="detailContent">
+            <div class="modal-body" id="customerDetailContent">
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
@@ -326,7 +359,109 @@
     </div>
 </div>
 
-<!-- 删除确认弹窗 -->
+<div class="modal fade" id="batchCollectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fa fa-money"></i> 批量收款核销</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info mb-3">
+                    <div><strong>客户名称：</strong><span id="batchCollectCustomerName"></span></div>
+                    <div><strong>总未收金额：</strong><span class="text-danger fw-bold">¥<span id="batchCollectTotalRemaining"></span></span></div>
+                    <div style="font-size:0.85rem;color:var(--color-text-muted);margin-top:4px;">收款将按到期日从远到近顺序逐条抵扣</div>
+                </div>
+                <form id="batchCollectForm">
+                    <input type="hidden" id="batchCollectCustomerType">
+                    <input type="hidden" id="batchCollectCustomerId">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">收款方式</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="batchCollectMode" id="batchCollectModeCash" value="cash" checked>
+                            <label class="btn btn-outline-success" for="batchCollectModeCash"><i class="fa fa-money"></i> 现金收款</label>
+                            <input type="radio" class="btn-check" name="batchCollectMode" id="batchCollectModePrepay" value="prepayment">
+                            <label class="btn btn-outline-primary" for="batchCollectModePrepay"><i class="fa fa-exchange"></i> 预收冲抵</label>
+                        </div>
+                    </div>
+
+                    <div id="batchCashArea">
+                        <div class="mb-3">
+                            <label class="form-label">收款金额 <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" class="form-control" id="batchCollectAmount" step="0.01" min="0.01" required>
+                            </div>
+                            <div class="form-text">最大可收 ¥<span id="batchCollectMaxAmount"></span></div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">付款方式 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="batchCollectMethod" required>
+                                <option value="">请选择</option>
+                                <option value="现金">现金</option>
+                                <option value="银行转账">银行转账</option>
+                                <option value="微信">微信</option>
+                                <option value="支付宝">支付宝</option>
+                                <option value="支票">支票</option>
+                                <option value="其他">其他</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">收款账户</label>
+                            <select class="form-select" id="batchCollectAccountId">
+                                <option value="">默认账户</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">收款日期 <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="batchCollectDate" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <textarea class="form-control" id="batchCollectDescription" rows="2" placeholder="可选"></textarea>
+                        </div>
+                    </div>
+
+                    <div id="batchPrepayArea" style="display:none">
+                        <div id="batchPrepayList" class="mb-3">
+                            <p class="text-muted">加载中...</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">冲抵金额 <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" class="form-control" id="batchPrepayApplyAmount" step="0.01" min="0.01">
+                            </div>
+                            <div class="form-text">最大可冲抵 ¥<span id="batchPrepayMaxAmount"></span></div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <textarea class="form-control" id="batchPrepayDescription" rows="2" placeholder="可选"></textarea>
+                        </div>
+                    </div>
+                </form>
+                <div id="batchCollectPreview" style="display:none;">
+                    <hr>
+                    <h6 class="mb-2"><i class="fa fa-list-ol"></i> 核销预览</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered mb-0">
+                            <thead><tr><th>应收#</th><th>到期日</th><th class="text-end">原未收</th><th class="text-end">本次抵扣</th><th class="text-end">抵扣后</th><th>状态</th></tr></thead>
+                            <tbody id="batchCollectPreviewBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" id="btnSubmitBatchCollect">
+                    <i class="fa fa-check"></i> 确认收款
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -342,14 +477,12 @@
                     <strong>应收信息：</strong>
                     <div id="deleteInfo" class="mt-2 p-2 bg-light rounded"></div>
                 </div>
-                <form id="deleteForm">
-                    <input type="hidden" id="deleteReceivableId">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">删除原因 <span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="deleteReason" rows="3"
-                                  placeholder="请输入删除原因（必填）" required></textarea>
-                    </div>
-                </form>
+                <div>
+                    <label class="form-label fw-bold">删除原因 <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="deleteReason" rows="3"
+                              placeholder="请输入删除原因（必填）" required></textarea>
+                </div>
+                <input type="hidden" id="deleteReceivableId">
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
@@ -360,16 +493,33 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa fa-eye"></i> 应收详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="detailContent">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/customer-transaction-modal.js') }}"></script>
 <script>
 var currentPage = 1;
-var perPage = 10;
-
-function getCustomerTypeLabel(type) {
-    return type === 'Customer' ? '往来客户' : '内部商户';
-}
+var customerCurrentPage = 1;
+var perPage = 12;
+var showAll = false;
+var searchTimer = null;
+var currentActiveTab = 'customer';
 
 function getCustomerTypeBadge(type) {
     if (type === 'Customer') return '<span class="badge bg-info">往来客户</span>';
@@ -386,26 +536,218 @@ function getStatusClass(status) {
     return map[status] || 'status-unpaid';
 }
 
-function loadReceivables(page) {
+function getAgingCellClass(amount, type) {
+    if (amount <= 0) return '';
+    var classMap = {
+        'not_due': 'amount-paid',
+        '1to30': '',
+        '31to60': 'text-warning',
+        '61to90': 'amount-unpaid',
+        'over90': 'amount-unpaid fw-bold'
+    };
+    return classMap[type] || '';
+}
+
+function loadReceivablesByCustomer(page) {
     if (!page) page = 1;
-    currentPage = page;
+    customerCurrentPage = page;
+
     var search = $('#searchInput').val().trim();
     var status = $('#statusFilter').val();
     var expenseTypeId = $('#expenseTypeFilter').val();
+    var requestPerPage = showAll ? 9999 : perPage;
+
+    $.ajax({
+        url: '/finance/receivable/list_by_customer',
+        type: 'GET',
+        data: { page: showAll ? 1 : page, per_page: requestPerPage, search: search, status: status, expense_type_id: expenseTypeId || '' },
+        success: function(resp) {
+            if (resp.success) {
+                renderCustomerTable(resp.data);
+            } else {
+                $('#customerTableBody').html(
+                    '<tr><td colspan="14" class="text-center text-danger">' + (resp.message || '获取数据失败') + '</td></tr>'
+                );
+            }
+        },
+        error: function() {
+            $('#customerTableBody').html(
+                '<tr><td colspan="14" class="text-center text-danger">网络错误</td></tr>'
+            );
+        }
+    });
+}
+
+function renderCustomerTable(data) {
+    var items = data.items;
+    var tbody = $('#customerTableBody');
+
+    if (!items || items.length === 0) {
+        tbody.html('<tr><td colspan="14" class="text-center text-muted py-4"><i class="fa fa-inbox fa-2x mb-2 d-block"></i>暂无数据</td></tr>');
+        $('#customerPaginationNav').hide();
+        return;
+    }
+
+    var html = '';
+    var startIndex = (data.current_page - 1) * perPage;
+
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        var rowNo = startIndex + i + 1;
+
+        var remainingClass = item.total_remaining > 0 ? 'amount-unpaid' : 'amount-paid';
+
+        html += '<tr class="customer-row" data-customer-type="' + item.customer_type + '" data-customer-id="' + (item.customer_id || '') + '" data-customer-name="' + escapeHtml(item.customer_name) + '">';
+        html += '<td>' + rowNo + '</td>';
+        html += '<td>' + getCustomerTypeBadge(item.customer_type) + '</td>';
+        html += '<td><a href="javascript:void(0)" class="customer-tx-link" data-type="' + item.customer_type + '" data-id="' + (item.customer_id || '') + '" data-name="' + escapeHtml(item.customer_name) + '">' + escapeHtml(item.customer_name) + '</a></td>';
+        html += '<td class="text-end summary-amount-cell amount-total">¥' + formatNumber(item.total_amount) + '</td>';
+        html += '<td class="text-end summary-amount-cell amount-paid">¥' + formatNumber(item.total_paid) + '</td>';
+        html += '<td class="text-end summary-amount-cell ' + remainingClass + '">¥' + formatNumber(item.total_remaining) + '</td>';
+
+        var notDue = item.not_due_amount || 0;
+        var aging1to30 = item.overdue_1to30 || 0;
+        var aging31to60 = item.overdue_31to60 || 0;
+        var aging61to90 = item.overdue_61to90 || 0;
+        var over90 = item.overdue_over90 || 0;
+
+        html += '<td class="text-end ' + getAgingCellClass(notDue, 'not_due') + '">¥' + formatNumber(notDue) + '</td>';
+        html += '<td class="text-end ' + getAgingCellClass(aging1to30, '1to30') + '">¥' + formatNumber(aging1to30) + '</td>';
+        html += '<td class="text-end ' + getAgingCellClass(aging31to60, '31to60') + '">¥' + formatNumber(aging31to60) + '</td>';
+        html += '<td class="text-end ' + getAgingCellClass(aging61to90, '61to90') + '">¥' + formatNumber(aging61to90) + '</td>';
+        html += '<td class="text-end ' + getAgingCellClass(over90, 'over90') + '">¥' + formatNumber(over90) + '</td>';
+
+        html += '<td class="text-center">' + item.record_count + '</td>';
+        html += '<td>' + escapeHtml(item.earliest_due_date) + '</td>';
+        html += '<td>';
+        if (item.total_remaining > 0) {
+            html += '<button class="btn btn-sm btn-outline-success me-1 btn-batch-collect" data-customer-type="' + item.customer_type + '" data-customer-id="' + (item.customer_id || '') + '" data-customer-name="' + escapeHtml(item.customer_name) + '" data-total-remaining="' + item.total_remaining + '"><i class="fa fa-money"></i> 收款</button>';
+        }
+        html += '<button class="btn btn-sm btn-outline-info btn-customer-detail" data-customer-type="' + item.customer_type + '" data-customer-id="' + (item.customer_id || '') + '" data-customer-name="' + escapeHtml(item.customer_name) + '"><i class="fa fa-eye"></i> 明细</button>';
+        html += '</td>';
+        html += '</tr>';
+    }
+
+    tbody.html(html);
+
+    if (data.summary) {
+        var s = data.summary;
+        html = '<tr class="table-active fw-bold" style="background-color: var(--color-primary-light, #e8f0fe) !important;">';
+        html += '<td colspan="3" class="text-center">合计（共 ' + data.total_count + ' 个客户，' + (s.total_records || 0) + ' 条记录）</td>';
+        html += '<td class="text-end summary-amount-cell amount-total">¥' + formatNumber(s.total_amount) + '</td>';
+        html += '<td class="text-end summary-amount-cell amount-paid">¥' + formatNumber(s.total_paid) + '</td>';
+        html += '<td class="text-end summary-amount-cell ' + (s.total_remaining > 0 ? 'amount-unpaid' : 'amount-paid') + '">¥' + formatNumber(s.total_remaining) + '</td>';
+
+        var sNotDue = s.not_due_amount || 0;
+        var sAging1to30 = s.overdue_1to30 || 0;
+        var sAging31to60 = s.overdue_31to60 || 0;
+        var sAging61to90 = s.overdue_61to90 || 0;
+        var sOver90 = s.overdue_over90 || 0;
+
+        html += '<td class="text-end ' + getAgingCellClass(sNotDue, 'not_due') + '">¥' + formatNumber(sNotDue) + '</td>';
+        html += '<td class="text-end ' + getAgingCellClass(sAging1to30, '1to30') + '">¥' + formatNumber(sAging1to30) + '</td>';
+        html += '<td class="text-end ' + getAgingCellClass(sAging31to60, '31to60') + '">¥' + formatNumber(sAging31to60) + '</td>';
+        html += '<td class="text-end ' + getAgingCellClass(sAging61to90, '61to90') + '">¥' + formatNumber(sAging61to90) + '</td>';
+        html += '<td class="text-end ' + getAgingCellClass(sOver90, 'over90') + '">¥' + formatNumber(sOver90) + '</td>';
+
+        html += '<td class="text-center">' + (s.total_records || 0) + '</td>';
+        html += '<td colspan="2"></td>';
+        html += '</tr>';
+        tbody.append(html);
+    }
+
+    renderPagination('#customerPaginationList', data, function(page) { loadReceivablesByCustomer(page); });
+    if (showAll || data.total_pages <= 1) { $('#customerPaginationNav').hide(); } else { $('#customerPaginationNav').show(); }
+}
+
+function openCustomerDetailModal(customerType, customerId, customerName) {
+    $('#customerDetailTitle').text(customerName + ' - 应收明细');
 
     $.ajax({
         url: '/finance/receivable/list',
         type: 'GET',
-        data: { page: page, per_page: perPage, search: search, status: status, expense_type_id: expenseTypeId || '' },
+        data: { page: 1, per_page: 999, search: customerName, status: '' },
+        success: function(resp) {
+            if (!resp.success) { showToast('error', resp.message); return; }
+            var items = resp.data.items;
+            var filtered = items.filter(function(item) {
+                return item.customer_type === customerType && (item.customer_id == customerId || item.customer_name === customerName);
+            });
+
+            var html = '';
+            if (filtered.length === 0) {
+                html = '<p class="text-muted text-center py-4">暂无明细记录</p>';
+            } else {
+                var totalAmt = 0, totalPaid = 0, totalRemaining = 0;
+                filtered.forEach(function(f) { totalAmt += f.amount; totalPaid += f.paid_amount; totalRemaining += f.remaining_amount; });
+
+                html += '<div class="row mb-3">';
+                html += '<div class="col-md-4 text-center"><div class="p-2 rounded" style="background:var(--color-primary-light);"><div style="font-size:0.8rem;color:var(--color-text-muted);">应收合计</div><div class="summary-amount-cell amount-total" style="font-size:1.2rem;">¥' + formatNumber(totalAmt) + '</div></div></div>';
+                html += '<div class="col-md-4 text-center"><div class="p-2 rounded" style="background:var(--color-success-light);"><div style="font-size:0.8rem;color:var(--color-text-muted);">已收合计</div><div class="summary-amount-cell amount-paid" style="font-size:1.2rem;">¥' + formatNumber(totalPaid) + '</div></div></div>';
+                html += '<div class="col-md-4 text-center"><div class="p-2 rounded" style="background:var(--color-danger-light);"><div style="font-size:0.8rem;color:var(--color-text-muted);">未收合计</div><div class="summary-amount-cell amount-unpaid" style="font-size:1.2rem;">¥' + formatNumber(totalRemaining) + '</div></div></div>';
+                html += '</div>';
+
+                html += '<div class="table-responsive"><table class="table table-sm table-striped table-hover">';
+                html += '<thead><tr><th>费用类型</th><th>品名</th><th class="text-end">应收</th><th class="text-end">已收</th><th class="text-end">未收</th><th>到期日</th><th>状态</th><th>操作</th></tr></thead>';
+                html += '<tbody>';
+                filtered.forEach(function(item) {
+                    var statusClass = getStatusClass(item.status);
+                    html += '<tr>';
+                    html += '<td>' + escapeHtml(item.expense_type_name) + '</td>';
+                    html += '<td>' + escapeHtml(item.product_name || '-') + '</td>';
+                    html += '<td class="text-end summary-amount-cell">¥' + formatNumber(item.amount) + '</td>';
+                    html += '<td class="text-end summary-amount-cell amount-paid">¥' + formatNumber(item.paid_amount) + '</td>';
+                    html += '<td class="text-end summary-amount-cell ' + (item.remaining_amount > 0 ? 'amount-unpaid' : '') + '">¥' + formatNumber(item.remaining_amount) + '</td>';
+                    html += '<td>' + escapeHtml(item.due_date) + '</td>';
+                    html += '<td><span class="status-badge ' + statusClass + '">' + escapeHtml(item.status) + '</span></td>';
+                    html += '<td>';
+                    if (item.status !== '已付款') {
+                        html += '<button class="btn btn-sm btn-outline-success btn-collect" data-id="' + item.receivable_id + '" data-merchant="' + escapeHtml(item.customer_name || item.merchant_name) + '" data-amount="' + item.amount + '" data-remaining="' + item.remaining_amount + '" data-customer-type="' + (item.customer_type || 'Merchant') + '" data-customer-id="' + (item.customer_id || item.merchant_id) + '"><i class="fa fa-money"></i></button> ';
+                    }
+                    if (item.status === '未付款') {
+                        html += '<button class="btn btn-sm btn-outline-danger btn-delete" data-id="' + item.receivable_id + '" data-merchant="' + escapeHtml(item.customer_name || item.merchant_name) + '" data-amount="' + item.amount + '"><i class="fa fa-trash-o"></i></button> ';
+                    }
+                    html += '<button class="btn btn-sm btn-outline-info btn-detail" data-id="' + item.receivable_id + '"><i class="fa fa-eye"></i></button>';
+                    html += '</td>';
+                    html += '</tr>';
+                });
+                html += '</tbody></table></div>';
+            }
+
+            $('#customerDetailContent').html(html);
+            var modal = new bootstrap.Modal(document.getElementById('customerDetailModal'));
+            modal.show();
+        },
+        error: function() { showToast('error', '获取客户明细失败'); }
+    });
+}
+
+function loadReceivables(page) {
+    if (!page) page = 1;
+    currentPage = page;
+
+    var search = $('#searchInput').val().trim();
+    var status = $('#statusFilter').val();
+    var expenseTypeId = $('#expenseTypeFilter').val();
+    var requestPerPage = showAll ? 9999 : perPage;
+
+    $.ajax({
+        url: '/finance/receivable/list',
+        type: 'GET',
+        data: { page: showAll ? 1 : page, per_page: requestPerPage, search: search, status: status, expense_type_id: expenseTypeId || '' },
         success: function(resp) {
             if (resp.success) {
                 renderTable(resp.data);
             } else {
-                $('#receivableTableBody').html('<tr><td colspan="10" class="text-center text-danger">' + (resp.message || '获取数据失败') + '</td></tr>');
+                $('#receivableTableBody').html(
+                    '<tr><td colspan="11" class="text-center text-danger">' + (resp.message || '获取数据失败') + '</td></tr>'
+                );
             }
         },
         error: function() {
-            $('#receivableTableBody').html('<tr><td colspan="10" class="text-center text-danger">网络错误，请稍后重试</td></tr>');
+            $('#receivableTableBody').html(
+                '<tr><td colspan="11" class="text-center text-danger">网络错误</td></tr>'
+            );
         }
     });
 }
@@ -413,57 +755,62 @@ function loadReceivables(page) {
 function renderTable(data) {
     var items = data.items;
     var tbody = $('#receivableTableBody');
-    var tfoot = $('#receivableTableFoot');
 
     if (!items || items.length === 0) {
-        tbody.html('<tr><td colspan="10" class="text-center text-muted">暂无数据</td></tr>');
-        tfoot.hide();
-        $('#paginationArea').hide();
+        tbody.html('<tr><td colspan="11" class="text-center text-muted py-4"><i class="fa fa-inbox fa-2x mb-2 d-block"></i>暂无数据</td></tr>');
+        $('#paginationNav').hide();
         return;
     }
+
     var html = '';
     var startIndex = (data.current_page - 1) * perPage;
+
     for (var i = 0; i < items.length; i++) {
         var item = items[i];
         var rowNo = startIndex + i + 1;
         var statusClass = getStatusClass(item.status);
+        var displayName = item.customer_name || item.merchant_name;
+
         html += '<tr>';
         html += '<td>' + rowNo + '</td>';
         html += '<td>' + getCustomerTypeBadge(item.customer_type) + '</td>';
-        html += '<td>' + escapeHtml(item.merchant_name) + '</td>';
+        html += '<td><a href="javascript:void(0)" class="customer-tx-link" data-type="' + (item.customer_type || 'Merchant') + '" data-id="' + (item.customer_id || item.merchant_id) + '" data-name="' + escapeHtml(displayName) + '">' + escapeHtml(displayName) + '</a></td>';
         html += '<td>' + escapeHtml(item.expense_type_name) + '</td>';
+        html += '<td>' + escapeHtml(item.product_name || '-') + '</td>';
         html += '<td class="text-end">¥' + formatNumber(item.amount) + '</td>';
         html += '<td class="text-end">¥' + formatNumber(item.paid_amount) + '</td>';
         html += '<td class="text-end">¥' + formatNumber(item.remaining_amount) + '</td>';
-        html += '<td>' + item.due_date + '</td>';
+        html += '<td>' + escapeHtml(item.due_date) + '</td>';
         html += '<td><span class="status-badge ' + statusClass + '">' + escapeHtml(item.status) + '</span></td>';
         html += '<td class="table-actions">';
         if (item.status !== '已付款') {
-            html += '<button class="btn btn-sm btn-outline-success me-1 btn-collect" data-id="' + item.receivable_id + '" data-merchant="' + escapeHtml(item.merchant_name) + '" data-amount="' + item.amount + '" data-remaining="' + item.remaining_amount + '" data-customer-type="' + (item.customer_type || 'Merchant') + '" data-customer-id="' + (item.customer_id || item.merchant_id) + '"><i class="fa fa-money"></i> 收款</button>';
+            html += '<button class="btn btn-sm btn-outline-success me-1 btn-collect" data-id="' + item.receivable_id + '" data-merchant="' + escapeHtml(displayName) + '" data-amount="' + item.amount + '" data-remaining="' + item.remaining_amount + '" data-customer-type="' + (item.customer_type || 'Merchant') + '" data-customer-id="' + (item.customer_id || item.merchant_id) + '"><i class="fa fa-money"></i> 收款</button>';
         }
         if (item.status === '未付款') {
-            html += '<button class="btn btn-sm btn-outline-danger me-1 btn-delete" data-id="' + item.receivable_id + '" data-merchant="' + escapeHtml(item.merchant_name) + '" data-amount="' + item.amount + '"><i class="fa fa-trash-o"></i> 删除</button>';
+            html += '<button class="btn btn-sm btn-outline-danger me-1 btn-delete" data-id="' + item.receivable_id + '" data-merchant="' + escapeHtml(displayName) + '" data-amount="' + item.amount + '"><i class="fa fa-trash-o"></i> 删除</button>';
         }
         html += '<button class="btn btn-sm btn-outline-info btn-detail" data-id="' + item.receivable_id + '"><i class="fa fa-eye"></i> 详情</button>';
-        html += '</td></tr>';
+        html += '</td>';
+        html += '</tr>';
     }
+
     tbody.html(html);
 
-    // 渲染汇总行
-    if (data.summaries) {
-        $('#summaryTotalCount').text(data.total_count);
-        $('#summaryTotalAmount').text('¥' + formatNumber(data.summaries.total_amount));
-        $('#summaryTotalPaid').text('¥' + formatNumber(data.summaries.total_paid));
-        $('#summaryTotalRemaining').text('¥' + formatNumber(data.summaries.total_remaining));
-        tfoot.show();
-    } else {
-        tfoot.hide();
+    if (data.summary) {
+        var s = data.summary;
+        var pageItemCount = items.length;
+        html = '<tr class="table-active fw-bold" style="background-color: var(--color-primary-light, #e8f0fe) !important;">';
+        html += '<td colspan="5" class="text-center">合计（共 ' + data.total_count + ' 条记录，当前显示 ' + pageItemCount + ' 条）</td>';
+        html += '<td class="text-end summary-amount-cell amount-total">¥' + formatNumber(s.total_amount) + '</td>';
+        html += '<td class="text-end summary-amount-cell amount-paid">¥' + formatNumber(s.total_paid) + '</td>';
+        html += '<td class="text-end summary-amount-cell ' + (s.total_remaining > 0 ? 'amount-unpaid' : 'amount-paid') + '">¥' + formatNumber(s.total_remaining) + '</td>';
+        html += '<td colspan="3"></td>';
+        html += '</tr>';
+        tbody.append(html);
     }
 
-    renderPagination('#paginationList', data, function(page) {
-        currentPage = page;
-        loadData(currentTab, currentPage);
-    });
+    renderPagination('#paginationList', data, function(page) { loadReceivables(page); });
+    if (showAll || data.total_pages <= 1) { $('#paginationNav').hide(); } else { $('#paginationNav').show(); }
 }
 
 function loadExpenseTypes() {
@@ -475,6 +822,24 @@ function loadExpenseTypes() {
             if (resp.success) {
                 var select = $('#expenseTypeSelect');
                 select.html('<option value="">请选择费用类型</option>');
+                for (var i = 0; i < resp.data.length; i++) {
+                    var et = resp.data[i];
+                    select.append('<option value="' + et.expense_type_id + '">' + escapeHtml(et.expense_type_name) + '</option>');
+                }
+            }
+        }
+    });
+}
+
+function loadExpenseTypeFilter() {
+    $.ajax({
+        url: '/finance/receivable/expense_types',
+        type: 'GET',
+        data: { direction: '收入' },
+        success: function(resp) {
+            if (resp.success) {
+                var select = $('#expenseTypeFilter');
+                select.html('<option value="">全部费用类型</option>');
                 for (var i = 0; i < resp.data.length; i++) {
                     var et = resp.data[i];
                     select.append('<option value="' + et.expense_type_id + '">' + escapeHtml(et.expense_type_name) + '</option>');
@@ -501,26 +866,6 @@ function loadUnitTypes() {
     });
 }
 
-function loadExpenseTypeFilter() {
-    $.ajax({
-        url: '/finance/receivable/expense_types',
-        type: 'GET',
-        data: { direction: '收入' },
-        success: function(resp) {
-            if (resp.success) {
-                var select = $('#expenseTypeFilter');
-                select.html('<option value="">全部费用类型</option>');
-                for (var i = 0; i < resp.data.length; i++) {
-                    var et = resp.data[i];
-                    select.append('<option value="' + et.expense_type_id + '">' + escapeHtml(et.expense_type_name) + '</option>');
-                }
-            }
-        }
-    });
-}
-
-var searchTimer = null;
-
 function searchCustomers(keyword) {
     var type = $('#customerTypeSelect').val();
     var searchUrl = type === 'Customer' ? '/finance/receivable/search_customers' : '/finance/receivable/search_merchants';
@@ -544,7 +889,7 @@ function searchCustomers(keyword) {
                     var phone = item.phone || '';
                     html += '<li><a class="dropdown-item" data-id="' + id + '" data-name="' + escapeHtml(name) + '">';
                     html += '<div>' + escapeHtml(name) + '</div>';
-                    html += '<div class="customer-info">' + escapeHtml(contact) + (phone ? ' | ' + escapeHtml(phone) : '') + '</div>';
+                    html += '<div style="font-size:0.8rem;color:var(--color-text-muted);">' + escapeHtml(contact) + (phone ? ' | ' + escapeHtml(phone) : '') + '</div>';
                     html += '</a></li>';
                 }
                 $('#customerDropdown').html(html).addClass('show');
@@ -565,7 +910,6 @@ function updateCustomerLabel() {
         $('#customerLabel').html('商户 <span class="text-danger">*</span>');
         $('#customerSearchInput').attr('placeholder', '输入商户名称搜索');
     }
-    // 清空选择
     $('#selectedCustomerId').val('');
     $('#customerSearchInput').val('');
     $('#selectedCustomerInfo').text('');
@@ -620,6 +964,7 @@ function submitReceivable() {
         success: function(resp) {
             if (resp.success) {
                 bootstrap.Modal.getInstance(document.getElementById('addReceivableModal')).hide();
+                loadReceivablesByCustomer(1);
                 loadReceivables(1);
                 showToast('success', '添加成功');
             } else {
@@ -628,7 +973,7 @@ function submitReceivable() {
         },
         error: function(xhr) {
             var resp = xhr.responseJSON;
-            showToast('error', resp ? resp.message : '网络错误，请稍后重试');
+            showToast('error', resp ? resp.message : '网络错误');
         },
         complete: function() {
             btn.prop('disabled', false).html('<i class="fa fa-check"></i> 确认添加');
@@ -636,7 +981,6 @@ function submitReceivable() {
     });
 }
 
-// 收款核销
 function openCollectModal(id, merchant, amount, remaining, customerType, customerId) {
     $('#collectReceivableId').val(id);
     $('#collectCustomerType').val(customerType || 'Merchant');
@@ -653,21 +997,18 @@ function openCollectModal(id, merchant, amount, remaining, customerType, custome
     $('#collectDescription').val('');
     $('#prepayApplyDescription').val('');
     $('#collectTransactionDate').val(new Date().toISOString().split('T')[0]);
-    // 默认现金收款
     $('#collectModeCash').prop('checked', true);
     $('#cashCollectArea').show();
     $('#prepayCollectArea').hide();
-    // 加载账户选项
     loadAccountOptions('#collectAccountId');
-    // 加载可用预收
-    loadAvailablePrepayments(customerType, customerId);
+    loadAvailablePrepayments(customerType, customerId, '#prepayList', '#prepayMaxAmount');
     var modal = new bootstrap.Modal(document.getElementById('collectModal'));
     modal.show();
 }
 
-function loadAvailablePrepayments(customerType, customerId) {
+function loadAvailablePrepayments(customerType, customerId, listSelector, maxSelector) {
     if (!customerType || !customerId) {
-        $('#prepayList').html('<p class="text-muted small">无可用预收</p>');
+        $(listSelector).html('<p class="text-muted small">无可用预收</p>');
         return;
     }
     $.ajax({
@@ -679,20 +1020,21 @@ function loadAvailablePrepayments(customerType, customerId) {
                 var html = '<div class="list-group">';
                 for (var i = 0; i < resp.data.length; i++) {
                     var p = resp.data[i];
+                    var radioName = listSelector === '#prepayList' ? 'selectedPrepayment' : 'batchSelectedPrepayment';
                     html += '<label class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">';
-                    html += '<div><input type="radio" name="selectedPrepayment" value="' + p.prepayment_id + '" class="me-2" ' + (i === 0 ? 'checked' : '') + '>';
+                    html += '<div><input type="radio" name="' + radioName + '" value="' + p.prepayment_id + '" class="me-2" ' + (i === 0 ? 'checked' : '') + '>';
                     html += '预收#' + p.prepayment_id + ' — ' + escapeHtml(p.customer_name) + '</div>';
                     html += '<span class="badge bg-primary rounded-pill">¥' + formatNumber(p.remaining_amount) + '</span>';
                     html += '</label>';
                 }
                 html += '</div>';
-                $('#prepayList').html(html);
+                $(listSelector).html(html);
             } else {
-                $('#prepayList').html('<p class="text-muted small">该客户暂无可用预收</p>');
+                $(listSelector).html('<p class="text-muted small">该客户暂无可用预收</p>');
             }
         },
         error: function() {
-            $('#prepayList').html('<p class="text-danger small">加载预收失败</p>');
+            $(listSelector).html('<p class="text-danger small">加载预收失败</p>');
         }
     });
 }
@@ -721,7 +1063,6 @@ function submitCollect() {
     var id = $('#collectReceivableId').val();
 
     if (mode === 'prepayment') {
-        // 预收冲抵
         var prepaymentId = $('input[name="selectedPrepayment"]:checked').val();
         var applyAmount = parseFloat($('#prepayApplyAmount').val());
 
@@ -743,6 +1084,7 @@ function submitCollect() {
             success: function(resp) {
                 if (resp.success) {
                     bootstrap.Modal.getInstance(document.getElementById('collectModal')).hide();
+                    loadReceivablesByCustomer(customerCurrentPage);
                     loadReceivables(currentPage);
                     showToast('success', resp.message || '冲抵成功');
                 } else {
@@ -758,7 +1100,6 @@ function submitCollect() {
             }
         });
     } else {
-        // 现金收款
         var amount = parseFloat($('#collectAmount').val());
         var method = $('#collectPaymentMethod').val();
         var date = $('#collectTransactionDate').val();
@@ -781,6 +1122,7 @@ function submitCollect() {
             success: function(resp) {
                 if (resp.success) {
                     bootstrap.Modal.getInstance(document.getElementById('collectModal')).hide();
+                    loadReceivablesByCustomer(customerCurrentPage);
                     loadReceivables(currentPage);
                     showToast('success', resp.message || '收款成功');
                 } else {
@@ -798,7 +1140,194 @@ function submitCollect() {
     }
 }
 
-// 详情
+function openBatchCollectModal(customerType, customerId, customerName, totalRemaining) {
+    $('#batchCollectCustomerType').val(customerType);
+    $('#batchCollectCustomerId').val(customerId);
+    $('#batchCollectCustomerName').text(customerName);
+    $('#batchCollectTotalRemaining').text(formatNumber(totalRemaining));
+    $('#batchCollectMaxAmount').text(formatNumber(totalRemaining));
+    $('#batchPrepayMaxAmount').text(formatNumber(totalRemaining));
+    $('#batchCollectAmount').val('').attr('max', totalRemaining);
+    $('#batchPrepayApplyAmount').val('').attr('max', totalRemaining);
+    $('#batchCollectMethod').val('');
+    $('#batchCollectAccountId').val('');
+    $('#batchCollectDescription').val('');
+    $('#batchPrepayDescription').val('');
+    $('#batchCollectDate').val(new Date().toISOString().split('T')[0]);
+    $('#batchCollectPreview').hide();
+    $('#batchCollectModeCash').prop('checked', true);
+    $('#batchCashArea').show();
+    $('#batchPrepayArea').hide();
+    loadAccountOptions('#batchCollectAccountId');
+    loadAvailablePrepayments(customerType, customerId, '#batchPrepayList', '#batchPrepayMaxAmount');
+
+    $('#batchCollectAmount').off('input').on('input', function() {
+        var val = parseFloat($(this).val());
+        if (!val || val <= 0) { $('#batchCollectPreview').hide(); return; }
+        previewBatchCollect(customerType, customerId, val);
+    });
+
+    var modal = new bootstrap.Modal(document.getElementById('batchCollectModal'));
+    modal.show();
+}
+
+function previewBatchCollect(customerType, customerId, payAmount) {
+    $.ajax({
+        url: '/finance/receivable/list',
+        type: 'GET',
+        data: { page: 1, per_page: 999, search: '', status: '' },
+        success: function(resp) {
+            if (!resp.success) return;
+            var items = resp.data.items;
+            var filtered = items.filter(function(item) {
+                return item.customer_type === customerType &&
+                       (item.customer_id == customerId || item.customer_name === $('#batchCollectCustomerName').text()) &&
+                       item.remaining_amount > 0.01;
+            });
+            filtered.sort(function(a, b) { return (a.due_date || '').localeCompare(b.due_date || ''); });
+
+            var remaining = payAmount;
+            var previewRows = [];
+            for (var i = 0; i < filtered.length && remaining > 0.01; i++) {
+                var item = filtered[i];
+                var payForThis = Math.min(remaining, item.remaining_amount);
+                var newRemaining = item.remaining_amount - payForThis;
+                var newStatus = newRemaining <= 0.01 ? '已付款' : '部分付款';
+                previewRows.push({
+                    receivable_id: item.receivable_id,
+                    due_date: item.due_date,
+                    original_remaining: item.remaining_amount,
+                    pay_amount: payForThis,
+                    new_remaining: newRemaining,
+                    new_status: newStatus
+                });
+                remaining -= payForThis;
+            }
+
+            if (previewRows.length === 0) { $('#batchCollectPreview').hide(); return; }
+
+            var html = '';
+            var totalDeduct = 0;
+            for (var j = 0; j < previewRows.length; j++) {
+                var r = previewRows[j];
+                totalDeduct += r.pay_amount;
+                html += '<tr>';
+                html += '<td>' + r.receivable_id + '</td>';
+                html += '<td>' + r.due_date + '</td>';
+                html += '<td class="text-end summary-amount-cell">¥' + formatNumber(r.original_remaining) + '</td>';
+                html += '<td class="text-end summary-amount-cell amount-paid">¥' + formatNumber(r.pay_amount) + '</td>';
+                html += '<td class="text-end summary-amount-cell ' + (r.new_remaining > 0.01 ? 'amount-unpaid' : '') + '">¥' + formatNumber(r.new_remaining) + '</td>';
+                html += '<td><span class="status-badge ' + getStatusClass(r.new_status) + '">' + r.new_status + '</span></td>';
+                html += '</tr>';
+            }
+            html += '<tr class="fw-bold" style="background:var(--color-primary-light);">';
+            html += '<td colspan="3">合计</td>';
+            html += '<td class="text-end summary-amount-cell amount-paid">¥' + formatNumber(totalDeduct) + '</td>';
+            html += '<td colspan="2"></td>';
+            html += '</tr>';
+
+            $('#batchCollectPreviewBody').html(html);
+            $('#batchCollectPreview').show();
+        }
+    });
+}
+
+function submitBatchCollect() {
+    var mode = $('input[name="batchCollectMode"]:checked').val();
+    var customerType = $('#batchCollectCustomerType').val();
+    var customerId = parseInt($('#batchCollectCustomerId').val());
+
+    if (mode === 'prepayment') {
+        var prepaymentId = $('input[name="batchSelectedPrepayment"]:checked').val();
+        var applyAmount = parseFloat($('#batchPrepayApplyAmount').val());
+
+        if (!prepaymentId) { showToast('warning', '请选择预收记录'); return; }
+        if (!applyAmount || applyAmount <= 0) { showToast('warning', '请输入有效的冲抵金额'); return; }
+
+        var btn = $('#btnSubmitBatchCollect');
+        btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 处理中...');
+
+        $.ajax({
+            url: '/finance/receivable/batch_collect',
+            type: 'POST',
+            contentType: 'application/json',
+            headers: { 'X-CSRFToken': getCSRFToken() },
+            data: JSON.stringify({
+                customer_type: customerType,
+                customer_id: customerId,
+                mode: 'prepayment',
+                prepayment_id: parseInt(prepaymentId),
+                amount: applyAmount,
+                description: $('#batchPrepayDescription').val()
+            }),
+            success: function(resp) {
+                if (resp.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('batchCollectModal')).hide();
+                    loadReceivablesByCustomer(customerCurrentPage);
+                    loadReceivables(currentPage);
+                    showToast('success', resp.message || '批量冲抵成功');
+                } else {
+                    showToast('error', resp.message || '批量冲抵失败');
+                }
+            },
+            error: function(xhr) {
+                var resp = xhr.responseJSON;
+                showToast('error', resp ? resp.message : '网络错误');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fa fa-check"></i> 确认收款');
+            }
+        });
+    } else {
+        var amount = parseFloat($('#batchCollectAmount').val());
+        var method = $('#batchCollectMethod').val();
+        var date = $('#batchCollectDate').val();
+        var desc = $('#batchCollectDescription').val();
+        var accountId = $('#batchCollectAccountId').val() || null;
+
+        if (!amount || amount <= 0) { showToast('warning', '请输入有效的收款金额'); return; }
+        if (!method) { showToast('warning', '请选择付款方式'); return; }
+        if (!date) { showToast('warning', '请选择收款日期'); return; }
+
+        var btn = $('#btnSubmitBatchCollect');
+        btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 处理中...');
+
+        $.ajax({
+            url: '/finance/receivable/batch_collect',
+            type: 'POST',
+            contentType: 'application/json',
+            headers: { 'X-CSRFToken': getCSRFToken() },
+            data: JSON.stringify({
+                customer_type: customerType,
+                customer_id: customerId,
+                mode: 'cash',
+                amount: amount,
+                payment_method: method,
+                transaction_date: date,
+                description: desc,
+                account_id: accountId
+            }),
+            success: function(resp) {
+                if (resp.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('batchCollectModal')).hide();
+                    loadReceivablesByCustomer(customerCurrentPage);
+                    loadReceivables(currentPage);
+                    showToast('success', resp.message || '批量收款成功');
+                } else {
+                    showToast('error', resp.message || '批量收款失败');
+                }
+            },
+            error: function(xhr) {
+                var resp = xhr.responseJSON;
+                showToast('error', resp ? resp.message : '网络错误');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fa fa-check"></i> 确认收款');
+            }
+        });
+    }
+}
+
 function openDetailModal(id) {
     $.ajax({
         url: '/finance/receivable/detail/' + id,
@@ -806,7 +1335,11 @@ function openDetailModal(id) {
         success: function(resp) {
             if (!resp.success) { showToast('error', resp.message); return; }
             var d = resp.data;
-            var html = '<div class="detail-section"><h6><i class="fa fa-info-circle"></i> 基本信息</h6><div class="row">';
+            var html = '';
+
+            html += '<div class="detail-section">';
+            html += '<h6><i class="fa fa-info-circle"></i> 基本信息</h6>';
+            html += '<div class="row">';
             html += '<div class="col-md-6 detail-field"><span class="label">客户类型：</span><span class="value">' + getCustomerTypeBadge(d.customer_type) + '</span></div>';
             html += '<div class="col-md-6 detail-field"><span class="label">名称：</span><span class="value">' + escapeHtml(d.merchant_name) + '</span></div>';
             html += '<div class="col-md-6 detail-field"><span class="label">费用类型：</span><span class="value">' + escapeHtml(d.expense_type_name) + '</span></div>';
@@ -839,7 +1372,6 @@ function openDetailModal(id) {
             }
             html += '</div></div>';
 
-            // 关联合同信息（租金类型）
             if (d.contract_info) {
                 var ci = d.contract_info;
                 html += '<div class="detail-section"><h6><i class="fa fa-file-text-o"></i> 关联合同</h6><div class="row">';
@@ -856,7 +1388,6 @@ function openDetailModal(id) {
                 html += '</div></div>';
             }
 
-            // 关联抄表数据（电费/水费类型）
             if (d.utility_readings && d.utility_readings.items && d.utility_readings.items.length > 0) {
                 var ur = d.utility_readings;
                 var isElec = d.expense_type_name === '电费';
@@ -899,6 +1430,7 @@ function openDetailModal(id) {
                 html += '<p class="text-muted">暂无收款记录</p>';
             }
             html += '</div>';
+
             $('#detailContent').html(html);
             var modal = new bootstrap.Modal(document.getElementById('detailModal'));
             modal.show();
@@ -908,26 +1440,75 @@ function openDetailModal(id) {
 }
 
 $(document).ready(function() {
-    loadReceivables(1);
-    bindSearch('searchInput', 'btnSearch', function() { loadReceivables(1); });
-    $('#statusFilter').on('change', function() { loadReceivables(1); });
-    $('#expenseTypeFilter').on('change', function() { loadReceivables(1); });
-    $('#perPageSelect').on('change', function() {
-        perPage = parseInt($(this).val());
+    CustomerTransactionModal.init();
+    loadReceivablesByCustomer(1);
+    loadExpenseTypeFilter();
+    loadUnitTypes();
+
+    $('button[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
+        var target = $(e.target).attr('data-bs-target');
+        showAll = false;
+        $('#btnCustomerShowAll').html('<i class="fa fa-expand"></i> 显示全部数据');
+        $('#btnDetailShowAll').html('<i class="fa fa-expand"></i> 显示全部数据');
+        if (target === '#detailView') {
+            currentActiveTab = 'detail';
+            loadReceivables(1);
+        } else if (target === '#customerView') {
+            currentActiveTab = 'customer';
+            loadReceivablesByCustomer(1);
+        }
+    });
+
+    bindSearch('searchInput', 'btnSearch', function() {
+        showAll = false;
+        $('#btnCustomerShowAll').html('<i class="fa fa-compress"></i> 分页显示');
+        $('#btnDetailShowAll').html('<i class="fa fa-compress"></i> 分页显示');
+        if (currentActiveTab === 'customer') loadReceivablesByCustomer(1);
+        else loadReceivables(1);
+    });
+    $('#statusFilter').on('change', function() {
+        showAll = false;
+        $('#btnCustomerShowAll').html('<i class="fa fa-expand"></i> 显示全部数据');
+        $('#btnDetailShowAll').html('<i class="fa fa-expand"></i> 显示全部数据');
+        if (currentActiveTab === 'customer') loadReceivablesByCustomer(1);
+        else loadReceivables(1);
+    });
+    $('#expenseTypeFilter').on('change', function() {
+        showAll = false;
+        if (currentActiveTab === 'customer') loadReceivablesByCustomer(1);
+        else loadReceivables(1);
+    });
+
+    $(document).on('click', '#btnCustomerShowAll', function() {
+        showAll = !showAll;
+        $(this).html(showAll ? '<i class="fa fa-compress"></i> 分页显示' : '<i class="fa fa-expand"></i> 显示全部数据');
+        loadReceivablesByCustomer(1);
+    });
+
+    $(document).on('click', '#btnDetailShowAll', function() {
+        showAll = !showAll;
+        $(this).html(showAll ? '<i class="fa fa-compress"></i> 分页显示' : '<i class="fa fa-expand"></i> 显示全部数据');
         loadReceivables(1);
     });
 
-    // 加载费用类型筛选列表
-    loadExpenseTypeFilter();
-    // 加载单位类型（用于添加弹窗）
-    loadUnitTypes();
-    $(document).on('click', '#paginationList .page-link', function(e) {
-        e.preventDefault();
-        var page = $(this).data('page');
-        if (page && page >= 1) loadReceivables(page);
+    $(document).on('click', '.customer-row', function(e) {
+        if ($(e.target).closest('button').length) return;
+        openCustomerDetailModal(
+            $(this).data('customer-type'),
+            $(this).data('customer-id'),
+            $(this).data('customer-name')
+        );
     });
 
-    // 添加应收弹窗
+    $(document).on('click', '.btn-customer-detail', function(e) {
+        e.stopPropagation();
+        openCustomerDetailModal(
+            $(this).data('customer-type'),
+            $(this).data('customer-id'),
+            $(this).data('customer-name')
+        );
+    });
+
     $('#btnAddReceivable').on('click', function() {
         $('#addReceivableForm')[0].reset();
         $('#selectedCustomerId').val('');
@@ -944,7 +1525,6 @@ $(document).ready(function() {
         modal.show();
     });
 
-    // 数量/单价 blur 自动计算应收金额
     function calcAmountFromQtyPrice() {
         var qty = parseFloat($('#quantityInput').val());
         var price = parseFloat($('#unitPriceInput').val());
@@ -957,7 +1537,6 @@ $(document).ready(function() {
         }
     }
     $(document).on('blur', '#quantityInput, #unitPriceInput', calcAmountFromQtyPrice);
-    // 输入时也实时提示
     $(document).on('input', '#quantityInput, #unitPriceInput', function() {
         var qty = parseFloat($('#quantityInput').val());
         var price = parseFloat($('#unitPriceInput').val());
@@ -967,22 +1546,18 @@ $(document).ready(function() {
             $('#amountCalcHint').hide();
         }
     });
-    // 手动修改应收金额时隐藏自动计算提示
     $(document).on('input', '#amountInput', function() {
         $('#amountCalcHint').hide();
     });
 
-    // 客户类型切换
     $('#customerTypeSelect').on('change', updateCustomerLabel);
 
-    // 客户搜索
     $('#customerSearchInput').on('input', function() {
         var keyword = $(this).val().trim();
         clearTimeout(searchTimer);
         searchTimer = setTimeout(function() { searchCustomers(keyword); }, 300);
     });
 
-    // 选择客户
     $(document).on('click', '#customerDropdown .dropdown-item', function() {
         var id = $(this).data('id');
         var name = $(this).data('name');
@@ -1000,11 +1575,21 @@ $(document).ready(function() {
     });
 
     $('#btnSubmitReceivable').on('click', submitReceivable);
-    $(document).on('click', '.btn-collect', function() {
-        openCollectModal($(this).data('id'), $(this).data('merchant'), $(this).data('amount'), $(this).data('remaining'), $(this).data('customer-type'), $(this).data('customer-id'));
+    $('#addReceivableForm').on('keypress', function(e) {
+        if (e.which === 13) { e.preventDefault(); submitReceivable(); }
     });
 
-    // 收款模式切换
+    $(document).on('click', '.btn-collect', function() {
+        openCollectModal(
+            $(this).data('id'),
+            $(this).data('merchant'),
+            $(this).data('amount'),
+            $(this).data('remaining'),
+            $(this).data('customer-type'),
+            $(this).data('customer-id')
+        );
+    });
+
     $(document).on('change', 'input[name="collectMode"]', function() {
         if ($(this).val() === 'prepayment') {
             $('#cashCollectArea').hide();
@@ -1015,9 +1600,28 @@ $(document).ready(function() {
         }
     });
     $('#btnSubmitCollect').on('click', submitCollect);
-    $(document).on('click', '.btn-detail', function() { openDetailModal($(this).data('id')); });
 
-    // 删除按钮
+    $(document).on('click', '.btn-batch-collect', function(e) {
+        e.stopPropagation();
+        openBatchCollectModal(
+            $(this).data('customer-type'),
+            $(this).data('customer-id'),
+            $(this).data('customer-name'),
+            $(this).data('total-remaining')
+        );
+    });
+
+    $(document).on('change', 'input[name="batchCollectMode"]', function() {
+        if ($(this).val() === 'prepayment') {
+            $('#batchCashArea').hide();
+            $('#batchPrepayArea').show();
+        } else {
+            $('#batchCashArea').show();
+            $('#batchPrepayArea').hide();
+        }
+    });
+    $('#btnSubmitBatchCollect').on('click', submitBatchCollect);
+
     $(document).on('click', '.btn-delete', function() {
         var id = $(this).data('id');
         var merchant = $(this).data('merchant');
@@ -1028,7 +1632,6 @@ $(document).ready(function() {
         var modal = new bootstrap.Modal(document.getElementById('deleteModal'));
         modal.show();
     });
-
     $('#btnConfirmDelete').on('click', function() {
         var id = $('#deleteReceivableId').val();
         var reason = $('#deleteReason').val().trim();
@@ -1046,6 +1649,7 @@ $(document).ready(function() {
             success: function(resp) {
                 if (resp.success) {
                     bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+                    loadReceivablesByCustomer(customerCurrentPage);
                     loadReceivables(currentPage);
                     showToast('success', resp.message || '删除成功');
                 } else {
@@ -1061,6 +1665,21 @@ $(document).ready(function() {
             }
         });
     });
+
+    $(document).on('click', '.btn-detail', function() {
+        openDetailModal($(this).data('id'));
+    });
+
+    $(document).on('click', '.customer-tx-link', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        CustomerTransactionModal.show(
+            $(this).data('type'),
+            $(this).data('id'),
+            $(this).data('name')
+        );
+    });
+
     $('#btnExportExcel').on('click', function() {
         var search = $('#searchInput').val().trim();
         var status = $('#statusFilter').val();

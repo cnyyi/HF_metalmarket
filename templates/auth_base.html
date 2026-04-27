@@ -1,300 +1,256 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}{% endblock %} - 宏发金属交易市场管理系统</title>
-    
-    <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome 6 (含v4兼容层) -->
-    <link href="https://cdn.jsdelivr.net/npm/font-awesome@6.5.1/css/all.min.css" rel="stylesheet">
-    
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap');
+{% extends "base.html" %}
 
-        :root {
-            --steel-dark: #1A1F2E;
-            --steel-primary: #2C3E6B;
-            --steel-copper: #C87533;
-            --steel-copper-light: #DA9255;
-        }
+{% block title_suffix %} - 宏发金属交易市场管理系统{% endblock %}
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+{% block extra_css %}
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        body {
-            min-height: 100vh;
-            font-family: 'Noto Sans SC', sans-serif;
-            overflow: hidden;
-        }
+    body {
+        min-height: 100vh;
+        font-family: var(--font-body);
+        overflow: hidden;
+    }
 
-        /* 双栏布局 */
-        .auth-wrapper {
-            display: flex;
-            min-height: 100vh;
-        }
+    .auth-wrapper {
+        display: flex;
+        min-height: 100vh;
+    }
 
-        /* 左侧品牌区 */
-        .auth-brand {
-            flex: 1;
-            background: linear-gradient(135deg, var(--steel-dark) 0%, var(--steel-primary) 50%, #3D5A99 100%);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-            overflow: hidden;
-            padding: 3rem;
-        }
+    .auth-brand {
+        flex: 1;
+        background: linear-gradient(135deg, #1A1F2E 0%, #2C3E6B 50%, #3D5A99 100%);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+        overflow: hidden;
+        padding: 3rem;
+    }
 
-        /* 金属纹理 SVG 背景 */
-        .auth-brand::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-            pointer-events: none;
-        }
+    .auth-brand::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        pointer-events: none;
+    }
 
-        /* 底部铜色渐变光晕 */
-        .auth-brand::after {
-            content: '';
-            position: absolute;
-            bottom: -30%;
-            left: -10%;
-            width: 120%;
-            height: 60%;
-            background: radial-gradient(ellipse at center, rgba(200, 117, 51, 0.15) 0%, transparent 70%);
-            pointer-events: none;
-        }
+    .auth-brand::after {
+        content: '';
+        position: absolute;
+        bottom: -30%;
+        left: -10%;
+        width: 120%;
+        height: 60%;
+        background: radial-gradient(ellipse at center, rgba(var(--color-accent-rgb), 0.15) 0%, transparent 70%);
+        pointer-events: none;
+    }
 
-        .brand-content {
-            position: relative;
-            z-index: 1;
-            text-align: center;
-            color: #fff;
-        }
+    .brand-content {
+        position: relative;
+        z-index: 1;
+        text-align: center;
+        color: #fff;
+        animation: fadeInUp 0.6s ease-out;
+    }
 
-        .brand-logo {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, var(--steel-copper), var(--steel-copper-light));
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 1.5rem;
-            font-size: 2rem;
-            color: #fff;
-            box-shadow: 0 8px 32px rgba(200, 117, 51, 0.3);
-        }
+    .brand-logo {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, var(--color-accent), var(--color-accent-hover));
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem;
+        font-size: 2rem;
+        color: #fff;
+        box-shadow: 0 8px 32px rgba(var(--color-accent-rgb), 0.3);
+    }
 
-        .brand-title {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 0.75rem;
-            letter-spacing: 0.02em;
-        }
+    .brand-title {
+        font-family: var(--font-display);
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+        letter-spacing: 0.02em;
+    }
 
-        .brand-subtitle {
-            font-size: 1rem;
-            opacity: 0.7;
-            margin-bottom: 2rem;
-        }
+    .brand-subtitle {
+        font-size: 1rem;
+        opacity: 0.7;
+        margin-bottom: 2rem;
+    }
 
-        .brand-slogan {
-            font-size: 0.95rem;
-            color: var(--steel-copper-light);
-            font-weight: 500;
-            letter-spacing: 0.1em;
-            position: relative;
-            padding: 0 2rem;
-        }
+    .brand-slogan {
+        font-size: 0.95rem;
+        color: var(--color-accent-hover);
+        font-weight: 500;
+        letter-spacing: 0.1em;
+        position: relative;
+        padding: 0 2rem;
+    }
 
-        .brand-slogan::before,
-        .brand-slogan::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            width: 1.5rem;
-            height: 1px;
-            background: var(--steel-copper);
-            opacity: 0.5;
-        }
+    .brand-slogan::before,
+    .brand-slogan::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        width: 1.5rem;
+        height: 1px;
+        background: var(--color-accent);
+        opacity: 0.5;
+    }
 
-        .brand-slogan::before { left: 0; }
-        .brand-slogan::after { right: 0; }
+    .brand-slogan::before { left: 0; }
+    .brand-slogan::after { right: 0; }
 
-        /* 右侧表单区 */
-        .auth-form-side {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 3rem;
-            background: #F8F9FB;
-            max-width: 520px;
-        }
+    .auth-form-side {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 3rem;
+        background: var(--color-bg);
+        max-width: 520px;
+    }
 
-        .auth-form-wrapper {
-            width: 100%;
-            max-width: 380px;
-        }
+    .auth-form-wrapper {
+        width: 100%;
+        max-width: 380px;
+        animation: fadeInUp 0.5s ease-out;
+    }
 
-        .auth-form-header {
-            margin-bottom: 2rem;
-            text-align: center;
-        }
+    .auth-form-header {
+        margin-bottom: 2rem;
+        text-align: center;
+    }
 
-        .auth-form-header h2 {
-            font-family: 'Noto Sans SC', sans-serif;
-            font-weight: 700;
-            font-size: 1.5rem;
-            color: var(--steel-dark);
-            margin-bottom: 0.5rem;
-        }
+    .auth-form-header h2 {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1.5rem;
+        color: var(--color-text);
+        margin-bottom: 0.5rem;
+    }
 
-        .auth-form-header p {
-            color: #6B7280;
-            font-size: 0.9rem;
-        }
+    .auth-form-header p {
+        color: var(--color-text-muted);
+        font-size: 0.9rem;
+    }
 
-        /* 表单控件 - 底边框风格 */
-        .auth-form-wrapper .form-group {
-            margin-bottom: 1.5rem;
-        }
+    .auth-form-wrapper .form-group {
+        margin-bottom: 1.5rem;
+    }
 
-        .auth-form-wrapper .form-label {
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: #374151;
-            margin-bottom: 0.4rem;
-        }
+    .auth-form-wrapper .form-label {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--color-text);
+        margin-bottom: 0.4rem;
+    }
 
-        .auth-form-wrapper .form-control {
-            border: none;
-            border-bottom: 2px solid #E2E5EB;
-            border-radius: 0;
-            padding: 0.6rem 0;
-            font-size: 0.95rem;
-            background: transparent;
-            transition: border-color 0.2s ease;
-        }
+    .auth-form-wrapper .form-control {
+        border: none;
+        border-bottom: 2px solid var(--color-border);
+        border-radius: 0;
+        padding: 0.6rem 0;
+        font-size: 0.95rem;
+        background: transparent;
+        color: var(--color-text);
+        transition: border-color var(--transition-fast);
+    }
 
-        .auth-form-wrapper .form-control:focus {
-            border-bottom-color: var(--steel-copper);
-            box-shadow: none;
-        }
+    .auth-form-wrapper .form-control:focus {
+        border-bottom-color: var(--color-accent);
+        box-shadow: none;
+    }
 
-        .auth-form-wrapper .form-control::placeholder {
-            color: #9CA3AF;
-        }
+    .auth-form-wrapper .form-control::placeholder {
+        color: var(--color-text-light);
+    }
 
-        .auth-form-wrapper .input-group-text {
-            border: none;
-            border-bottom: 2px solid #E2E5EB;
-            border-radius: 0;
-            background: transparent;
-            color: #9CA3AF;
-            padding-right: 0.5rem;
-        }
+    .auth-form-wrapper .input-group-text {
+        border: none;
+        border-bottom: 2px solid var(--color-border);
+        border-radius: 0;
+        background: transparent;
+        color: var(--color-text-light);
+        padding-right: 0.5rem;
+    }
 
-        .auth-form-wrapper .input-group .form-control {
-            border-left: none;
-        }
+    .auth-form-wrapper .input-group .form-control {
+        border-left: none;
+    }
 
-        .auth-form-wrapper .input-group:focus-within .input-group-text {
-            border-bottom-color: var(--steel-copper);
-            color: var(--steel-copper);
-        }
+    .auth-form-wrapper .input-group:focus-within .input-group-text {
+        border-bottom-color: var(--color-accent);
+        color: var(--color-accent);
+    }
 
-        /* 登录按钮 - 铜色 */
-        .btn-auth {
-            width: 100%;
-            padding: 0.75rem;
-            font-size: 1rem;
-            font-weight: 600;
-            background: linear-gradient(135deg, var(--steel-copper), var(--steel-copper-light));
-            border: none;
-            border-radius: 10px;
-            color: #fff;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
+    .btn-auth {
+        width: 100%;
+        padding: 0.75rem;
+        font-size: 1rem;
+        font-weight: 600;
+        background: linear-gradient(135deg, var(--color-accent), var(--color-accent-hover));
+        border: none;
+        border-radius: var(--radius-lg);
+        color: #fff;
+        transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    }
 
-        .btn-auth:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(200, 117, 51, 0.35);
-            color: #fff;
-        }
+    .btn-auth:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(var(--color-accent-rgb), 0.35);
+        color: #fff;
+    }
 
-        .btn-auth:active {
-            transform: translateY(0);
-        }
+    .btn-auth:active {
+        transform: translateY(0);
+    }
 
-        /* 注册链接 */
-        .auth-link {
-            text-align: center;
-            margin-top: 1.5rem;
-            font-size: 0.875rem;
-            color: #6B7280;
-        }
+    .auth-link {
+        text-align: center;
+        margin-top: 1.5rem;
+        font-size: 0.875rem;
+        color: var(--color-text-muted);
+    }
 
-        .auth-link a {
-            color: var(--steel-copper);
-            font-weight: 500;
-            text-decoration: none;
-        }
+    .auth-link a {
+        color: var(--color-accent);
+        font-weight: 500;
+        text-decoration: none;
+    }
 
-        .auth-link a:hover {
-            text-decoration: underline;
-        }
+    .auth-link a:hover {
+        text-decoration: underline;
+    }
 
-        /* 复选框 */
-        .form-check-label {
-            font-size: 0.85rem;
-            color: #6B7280;
-        }
+    .form-check-label {
+        font-size: 0.85rem;
+        color: var(--color-text-muted);
+    }
 
-        /* 页脚 */
-        .auth-footer-text {
-            text-align: center;
-            margin-top: 3rem;
-            font-size: 0.75rem;
-            color: #9CA3AF;
-        }
+    .auth-footer-text {
+        text-align: center;
+        margin-top: 3rem;
+        font-size: var(--font-size-xs);
+        color: var(--color-text-light);
+    }
 
-        /* 响应式 */
-        @media (max-width: 767.98px) {
-            .auth-brand {
-                display: none;
-            }
-            .auth-form-side {
-                max-width: 100%;
-                min-height: 100vh;
-            }
-        }
+    @media (max-width: 767.98px) {
+        .auth-brand { display: none; }
+        .auth-form-side { max-width: 100%; min-height: 100vh; }
+    }
+</style>
+{% endblock %}
 
-        /* 动画 */
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(16px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .auth-form-wrapper {
-            animation: fadeInUp 0.5s ease-out;
-        }
-
-        .brand-content {
-            animation: fadeInUp 0.6s ease-out;
-        }
-    </style>
-
-    {% block extra_css %}{% endblock %}
-</head>
-<body>
+{% block body %}
     <div class="auth-wrapper">
-        <!-- 左侧品牌区 -->
         <div class="auth-brand">
             <div class="brand-content">
                 <div class="brand-logo">
@@ -306,7 +262,6 @@
             </div>
         </div>
 
-        <!-- 右侧表单区 -->
         <div class="auth-form-side">
             <div class="auth-form-wrapper">
                 <div class="auth-form-header">
@@ -314,7 +269,6 @@
                     <p>{% block auth_desc %}宏发金属交易市场管理系统{% endblock %}</p>
                 </div>
 
-                <!-- 页面内容 -->
                 {% block content %}{% endblock %}
             </div>
 
@@ -323,12 +277,4 @@
             </div>
         </div>
     </div>
-
-    <!-- jQuery 3.7.1 -->
-    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
-    <!-- Bootstrap 5 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-    {% block extra_js %}{% endblock %}
-</body>
-</html>
+{% endblock %}

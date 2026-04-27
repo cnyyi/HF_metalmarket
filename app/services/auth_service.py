@@ -195,7 +195,7 @@ class AuthService:
             权限列表
         """
         query = """
-            SELECT DISTINCT p.PermissionID, p.PermissionName, p.PermissionCode, p.Description, p.ModuleName, p.IsActive, p.CreateTime, p.UpdateTime
+            SELECT DISTINCT p.PermissionID, p.PermissionName, p.PermissionCode, p.Description, p.ModuleName, p.OperationCode, p.SortOrder, p.IsActive, p.CreateTime, p.UpdateTime
             FROM Permission p
             INNER JOIN RolePermission rp ON p.PermissionID = rp.PermissionID
             INNER JOIN UserRole ur ON rp.RoleID = ur.RoleID
@@ -211,6 +211,8 @@ class AuthService:
                 permission_code=result.PermissionCode,
                 description=result.Description,
                 module_name=result.ModuleName,
+                operation_code=getattr(result, 'OperationCode', None),
+                sort_order=getattr(result, 'SortOrder', 0),
                 is_active=result.IsActive,
                 create_time=result.CreateTime,
                 update_time=result.UpdateTime
