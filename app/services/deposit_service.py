@@ -532,3 +532,27 @@ class DepositService:
                 'total_transfer': float(row.TotalTransfer),
                 'total_remaining': float(row.TotalRemaining),
             }
+
+    def get_merchant_deposit_summary(self, merchant_id):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT
+                    COUNT(*) AS TotalCount,
+                    ISNULL(SUM(Amount), 0) AS TotalAmount,
+                    ISNULL(SUM(RefundAmount), 0) AS TotalRefund,
+                    ISNULL(SUM(DeductAmount), 0) AS TotalDeduct,
+                    ISNULL(SUM(TransferAmount), 0) AS TotalTransfer,
+                    ISNULL(SUM(Amount - RefundAmount - DeductAmount - TransferAmount), 0) AS TotalRemaining
+                FROM Deposit
+                WHERE CustomerType = N'Merchant' AND CustomerID = ?
+            """, (merchant_id,))
+            row = cursor.fetchone()
+            return {
+                'total_count': row.TotalCount,
+                'total_amount': float(row.TotalAmount),
+                'total_refund': float(row.TotalRefund),
+                'total_deduct': float(row.TotalDeduct),
+                'total_transfer': float(row.TotalTransfer),
+                'total_remaining': float(row.TotalRemaining),
+            }

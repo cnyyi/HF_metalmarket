@@ -431,3 +431,76 @@ class ReceivableService:
         date_str = dt.now().strftime('%Y%m%d')
         filename = f'应收账款_{date_str}.xlsx'
         return output, filename
+
+    # ========== Agent 查询方法 ==========
+
+    def get_receivable_summary(self, group_by_merchant=False, merchant_id=None, source='admin'):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            merchant_filter = ''
+            params = []
+            if source == 'wx' and merchant_id:
+                merchant_filter = "AND r.MerchantID = ?"
+                params = [merchant_id]
+            if group_by_merchant:
+                cursor.execute(f"""
+                    SELECT m.MerchantName,
+                           SUM(r.Amount) AS total_amount,
+                           SUM(r.PaidAmount) AS paid_amount,
+                           SUM(r.RemainingAmount) AS remaining_amount,
+                           COUNT(*) AS count
+                    FROM Receivable r
+                    INNER JOIN Merchant m ON r.MerchantID = m.MerchantID
+                    WHERE r.IsActive = 1 {merchant_filter}
+                    GROUP BY m.MerchantName
+                    ORDER BY remaining_amount DESC
+                """, params)
+                rows = cursor.fetchall()
+                return [{'merchant_name': row.MerchantName, 'count': row.count,
+                         'total_amount': round(float(row.total_amount or 0), 2),
+                         'paid_amount': round(float(row.paid_amount or 0), 2),
+                         'remaining_amount': round(float(row.remaining_amount or 0), 2)} for row in rows]
+            else:
+                cursor.execute(f"""
+                    SELECT COUNT(*) AS total_count,
+                           SUM(r.Amount) AS total_amount,
+                           SUM(r.PaidAmount) AS paid_amount,
+                           SUM(r.RemainingAmount) AS remaining_amount
+                    FROM Receivable r
+                    WHERE r.IsActive = 1 {merchant_filter}
+                """, params)
+                row = cursor.fetchone()
+                return {'total_count': row.total_count,
+                        'total_amount': round(float(row.total_amount or 0), 2),
+                        'paid_amount': round(float(row.paid_amount or 0), 2),
+                        'remaining_amount': round(float(row.remaining_amount or 0), 2)}
+
+    def get_overdue_receivables(self, merchant_id=None, source='admin'):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            merchant_filter = ''
+            params = []
+            if source == 'wx' and merchant_id:
+                merchant_filter = "AND r.MerchantID = ?"
+                params = [merchant_id]
+            cursor.execute(f"""
+                SELECT TOP 500 r.ReceivableID, m.MerchantName, r.Amount, r.PaidAmount,
+                       r.RemainingAmount, r.DueDate, r.Status,
+                       sd.DictName AS expense_type_name
+                FROM Receivable r
+                INNER JOIN Merchant m ON r.MerchantID = m.MerchantID
+                LEFT JOIN Sys_Dictionary sd ON r.ExpenseTypeID = sd.DictID
+                WHERE r.IsActive = 1
+                  AND r.DueDate < CAST(GETDATE() AS DATE)
+                  AND r.Status IN (N'未付款', N'部分付款')
+                  AND r.RemainingAmount > 0
+                  {merchant_filter}
+                ORDER BY r.DueDate
+            """, params)
+            rows = cursor.fetchall()
+            return [{'receivable_id': row.ReceivableID, 'merchant_name': row.MerchantName,
+                     'amount': round(float(row.Amount or 0), 2),
+                     'paid_amount': round(float(row.PaidAmount or 0), 2),
+                     'remaining_amount': round(float(row.RemainingAmount or 0), 2),
+                     'due_date': row.DueDate.strftime('%Y-%m-%d') if row.DueDate else '',
+                     'status': row.Status, 'expense_type': row.expense_type_name} for row in rows]

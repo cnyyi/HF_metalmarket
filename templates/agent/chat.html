@@ -58,6 +58,11 @@
 .suggestion-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .suggestion-chip { padding: 6px 14px; border-radius: 20px; background: var(--color-bg); border: 1px solid var(--color-border); font-size: 13px; cursor: pointer; transition: all var(--transition-fast); }
 .suggestion-chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.msg-chart { margin: 12px 0; min-height: 200px; }
+.msg-risks { margin: 8px 0; }
+.risk-tag { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; margin: 2px 4px; }
+.risk-high { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; }
+.risk-medium { background: #fef3c7; color: #d97706; border: 1px solid #fcd34d; }
 </style>
 {% endblock %}
 
@@ -100,6 +105,7 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script>
 let currentConversationId = null;
 let isLoading = false;
@@ -182,7 +188,7 @@ function loadHistory(id) {
         const area = document.getElementById('messageArea');
         area.innerHTML = '';
         (res.data || []).forEach(function(msg) {
-            appendMessage(msg.role, msg.content, msg.generated_sql);
+            appendMessage(msg.role, msg.content, null);
         });
         scrollToBottom();
     });
@@ -225,7 +231,7 @@ function doSend(message) {
         document.getElementById('sendBtn').disabled = false;
 
         if (res.data && res.data.content) {
-            appendMessage('assistant', res.data.content, res.data.generated_sql);
+            appendMessage('assistant', res.data.content, res.data);
             if (res.data.conversation_id) {
                 currentConversationId = res.data.conversation_id;
             }
@@ -241,7 +247,7 @@ function doSend(message) {
     });
 }
 
-function appendMessage(role, content, sql) {
+function appendMessage(role, content, data) {
     const area = document.getElementById('messageArea');
     const welcome = document.getElementById('welcomeArea');
     if (welcome) welcome.remove();
@@ -258,11 +264,37 @@ function appendMessage(role, content, sql) {
 
     if (role === 'assistant') {
         let htmlContent = DOMPurify.sanitize(marked.parse(content || ''));
+        var sql = (data && data.generated_sql) ? data.generated_sql : null;
         if (sql) {
             const sqlId = 'sql-' + Date.now();
             htmlContent += DOMPurify.sanitize(`<pre id="${sqlId}"><button class="sql-toggle" onclick="toggleSql('${sqlId}')">SQL</button><code class="language-sql">${escapeHtml(sql)}</code></pre>`);
         }
         bubble.innerHTML = htmlContent;
+
+        // 图表渲染
+        if (data && data.chart) {
+            var chartId = 'chart-' + Date.now();
+            var chartDiv = document.createElement('div');
+            chartDiv.className = 'msg-chart';
+            chartDiv.id = chartId;
+            chartDiv.style.width = '100%';
+            chartDiv.style.height = '280px';
+            bubble.appendChild(chartDiv);
+            setTimeout(function() { renderChart(chartId, data.chart); }, 100);
+        }
+
+        // 风险提示
+        if (data && data.risks && data.risks.length > 0) {
+            var risksDiv = document.createElement('div');
+            risksDiv.className = 'msg-risks';
+            data.risks.forEach(function(r) {
+                var tag = document.createElement('span');
+                tag.className = 'risk-tag risk-' + r.level;
+                tag.textContent = (r.level === 'high' ? '⚠️ ' : '⚡ ') + r.message;
+                risksDiv.appendChild(tag);
+            });
+            bubble.appendChild(risksDiv);
+        }
     } else {
         bubble.textContent = content;
     }
@@ -315,6 +347,29 @@ function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+}
+
+function renderChart(containerId, chartData) {
+    var dom = document.getElementById(containerId);
+    if (!dom || typeof echarts === 'undefined') return;
+    var chart = echarts.init(dom);
+    var option = { title: { text: chartData.title, left: 'center', textStyle: { fontSize: 14 } }, tooltip: { trigger: 'item' } };
+
+    if (chartData.type === 'pie') {
+        option.series = [{ type: 'pie', radius: ['40%', '70%'], data: chartData.data, label: { formatter: '{b}: ¥{c}' } }];
+    } else if (chartData.type === 'line') {
+        option.xAxis = { type: 'category', data: chartData.xAxis };
+        option.yAxis = { type: 'value' };
+        option.legend = { top: 30 };
+        option.series = chartData.series.map(function(s) { return { name: s.name, type: 'line', data: s.data, smooth: true }; });
+    } else if (chartData.type === 'bar') {
+        option.xAxis = { type: 'category', data: chartData.xAxis };
+        option.yAxis = { type: 'value' };
+        option.series = chartData.series.map(function(s) { return { name: s.name, type: 'bar', data: s.data }; });
+    }
+
+    chart.setOption(option);
+    window.addEventListener('resize', function() { chart.resize(); });
 }
 
 loadConversations();

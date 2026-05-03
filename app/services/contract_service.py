@@ -735,3 +735,50 @@ class ContractService:
                 'receivable': receivable_data,
                 'collected': collected_data,
             }
+
+    # ========== Agent 查询方法 ==========
+
+    @staticmethod
+    def get_expiring_contracts(days=30, merchant_id=None, source='admin'):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            merchant_filter = ''
+            params = [days]
+            if source == 'wx' and merchant_id:
+                merchant_filter = "AND c.MerchantID = ?"
+                params.append(merchant_id)
+            cursor.execute(f"""
+                SELECT TOP 500 c.ContractID, c.ContractNo, c.EndDate, c.ActualAmount,
+                       c.Status, m.MerchantName
+                FROM Contract c
+                INNER JOIN Merchant m ON c.MerchantID = m.MerchantID
+                WHERE c.EndDate >= CAST(GETDATE() AS DATE)
+                  AND c.EndDate <= DATEADD(DAY, ?, CAST(GETDATE() AS DATE))
+                  AND c.Status = N'生效'
+                  {merchant_filter}
+                ORDER BY c.EndDate
+            """, params)
+            rows = cursor.fetchall()
+            return [{'contract_id': row.ContractID, 'contract_no': row.ContractNo,
+                     'end_date': row.EndDate.strftime('%Y-%m-%d') if row.EndDate else '',
+                     'actual_amount': round(float(row.ActualAmount or 0), 2),
+                     'status': row.Status, 'merchant_name': row.MerchantName} for row in rows]
+
+    @staticmethod
+    def get_contract_stats(merchant_id=None, source='admin'):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            merchant_filter = ''
+            params = []
+            if source == 'wx' and merchant_id:
+                merchant_filter = "WHERE MerchantID = ?"
+                params = [merchant_id]
+            cursor.execute(f"""
+                SELECT Status, COUNT(*) AS count, SUM(ISNULL(ActualAmount, 0)) AS total_amount
+                FROM Contract
+                {merchant_filter}
+                GROUP BY Status
+            """, params)
+            rows = cursor.fetchall()
+            return [{'status': row.Status, 'count': row.count,
+                     'total_amount': round(float(row.total_amount or 0), 2)} for row in rows]

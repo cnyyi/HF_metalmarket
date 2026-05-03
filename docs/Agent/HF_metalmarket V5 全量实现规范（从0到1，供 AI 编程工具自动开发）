@@ -1,0 +1,566 @@
+# HF_metalmarket V5 全量实现规范（从0到1，供 AI 编程工具自动开发）
+
+---
+
+# 一、项目定义（必须理解）
+
+本项目目标：
+
+👉 从0构建一个 **AI驱动的经营自动化系统（V5）**
+
+系统不只是分析数据，而是具备：
+
+> **分析 → 判断 → 决策 → 执行 → 反馈 的完整闭环能力**
+
+---
+
+# 二、系统能力范围（必须全部实现）
+
+---
+
+## 1️⃣ 数据分析能力（基础能力）
+
+* 查询业务数据（应收、应付、合同等）
+* 支持自然语言输入
+* 多步骤推理
+
+---
+
+## 2️⃣ 自动报告系统
+
+* 输出结构化分析报告
+* 支持图表数据
+
+---
+
+## 3️⃣ 风险识别系统
+
+* 自动识别异常
+* 输出风险等级
+
+---
+
+## 4️⃣ AI预测系统
+
+* 收入趋势预测
+* 成本变化预测
+
+---
+
+## 5️⃣ 决策系统（核心）
+
+* 根据分析结果生成“行动决策”
+* 示例：
+
+  * 催收
+  * 续租提醒
+  * 成本优化建议
+
+---
+
+## 6️⃣ 自动执行系统（关键）
+
+* 决策自动执行
+* 示例：
+
+  * 发送通知
+  * 创建任务
+  * 写入数据库
+
+---
+
+## 7️⃣ 商户评分系统
+
+* 评估商户信用与风险
+
+---
+
+## 8️⃣ 规则系统（可配置）
+
+* 所有业务策略必须可配置
+* 不允许写死逻辑
+
+---
+
+## 9️⃣ 事件驱动系统
+
+* 数据变化自动触发分析与执行
+
+---
+
+## 🔟 定时任务系统
+
+* 自动运行日报 / 月报
+
+---
+
+# 三、系统总体架构
+
+```
+用户 / 定时任务 / 系统事件
+            ↓
+        API层（Flask）
+            ↓
+     Agent Orchestrator（核心）
+            ↓
+ ┌───────────────┬───────────────┬───────────────┐
+ │               │               │               │
+Planner      Executor        Memory        Context
+            ↓
+ ┌───────────────┬───────────────┬───────────────┐
+ │               │               │               │
+Tools       Risk Engine   Forecast Engine  Scoring Engine
+ │
+ ↓
+数据库（SQL Server）
+            ↓
+ ┌───────────────┬───────────────┬───────────────┐
+ │               │               │               │
+Report      Decision Engine   Rule Engine   Action Engine
+ Builder
+            ↓
+     Messaging / Task System
+```
+
+---
+
+# 四、项目目录结构（必须严格生成）
+
+```
+HF_metalmarket/
+├── app.py
+├── config.py
+│
+├── agent/
+│   ├── orchestrator.py
+│   ├── planner.py
+│   ├── executor.py
+│   ├── memory.py
+│   ├── context.py
+│   ├── tools.py
+│   ├── tool_registry.py
+│   ├── chart_builder.py
+│   ├── risk_engine.py
+│   ├── forecast_engine.py
+│   ├── scoring_engine.py
+│   ├── decision_engine.py
+│   ├── report_builder.py
+│   ├── pdf_builder.py
+│   └── prompts.py
+│
+├── engine/
+│   ├── rule_engine.py
+│   ├── action_engine.py
+│   └── event_bus.py
+│
+├── scheduler/
+│   └── scheduler.py
+│
+├── messaging/
+│   ├── notifier.py
+│   └── channels/
+│       ├── system.py
+│       ├── wechat.py
+│       └── sms.py
+│
+├── tasks/
+│   └── task_service.py
+│
+├── repositories/
+│   ├── receivable_repo.py
+│   ├── contract_repo.py
+│   └── merchant_repo.py
+│
+├── routes/
+│   └── agent_route.py
+│
+├── models/
+│
+└── reports/
+```
+
+---
+
+# 五、核心模块实现规范（逐个必须实现）
+
+---
+
+# 1️⃣ Orchestrator（系统总控）
+
+---
+
+## 作用
+
+统一控制系统流程（核心入口）
+
+---
+
+## 标准流程
+
+```
+输入 → 计划 → 执行 → 分析 → 预测 → 评分 → 决策 → 规则过滤 → 执行 → 输出
+```
+
+---
+
+## 标准实现
+
+```python
+def run_agent(query, context):
+    plan = planner.create_plan(query)
+    results, memory = executor.execute(plan, context)
+
+    risks = risk_engine.detect(memory)
+    forecast = forecast_engine.run(memory)
+    score = scoring_engine.score(context)
+
+    decisions = decision_engine.make(memory, risks, forecast, score)
+    decisions = rule_engine.filter(decisions, context)
+
+    action_engine.execute_batch(decisions)
+
+    report = report_builder.build(memory, risks, forecast, decisions)
+
+    return {
+        "report": report,
+        "risks": risks,
+        "forecast": forecast,
+        "score": score,
+        "decisions": decisions
+    }
+```
+
+---
+
+# 2️⃣ Planner
+
+---
+
+## 必须支持
+
+* 多步骤任务
+* 参数引用（$step1.xxx）
+
+---
+
+## 输出格式
+
+```json
+{
+  "steps": [
+    {"id": "s1", "tool": "get_data"},
+    {"id": "s2", "tool": "analyze", "args": {"data": "$s1"}}
+  ]
+}
+```
+
+---
+
+# 3️⃣ Executor
+
+---
+
+## 必须能力
+
+* 执行多步骤
+* 支持变量解析
+* 自动注入 merchant_id
+
+---
+
+# 4️⃣ Tools层
+
+---
+
+## 强制规则
+
+❗ 不允许AI生成SQL
+❗ 所有数据访问必须封装
+
+---
+
+# 5️⃣ Risk Engine
+
+---
+
+## 必须规则
+
+* 合同到期
+* 账款逾期
+* 成本异常
+
+---
+
+# 6️⃣ Forecast Engine
+
+---
+
+## 最低实现
+
+* 线性预测算法
+
+---
+
+# 7️⃣ Scoring Engine
+
+---
+
+## 输出
+
+```json
+{
+  "score": 85,
+  "level": "medium"
+}
+```
+
+---
+
+# 8️⃣ Decision Engine（核心）
+
+---
+
+## 输入
+
+* 风险
+* 预测
+* 评分
+
+---
+
+## 输出
+
+```json
+[
+  {
+    "type": "collect_payment",
+    "priority": "high",
+    "target": "merchant_1"
+  }
+]
+```
+
+---
+
+# 9️⃣ Rule Engine
+
+---
+
+## 必须支持
+
+* JSON规则配置
+* 动态加载
+
+---
+
+# 🔟 Action Engine
+
+---
+
+## 必须实现
+
+* 批量执行
+* 支持多动作类型
+
+---
+
+## 示例
+
+```python
+def execute(decision):
+    if decision["type"] == "collect_payment":
+        send_message("请尽快付款")
+```
+
+---
+
+# 11️⃣ Event Bus
+
+---
+
+## 必须实现
+
+* 发布 / 订阅机制
+* 触发Agent执行
+
+---
+
+# 六、数据库设计（必须创建）
+
+---
+
+## Merchant表（商户）
+
+```sql
+CREATE TABLE Merchant (
+    MerchantID INT PRIMARY KEY,
+    Name NVARCHAR(100)
+)
+```
+
+---
+
+## Receivable表（应收）
+
+```sql
+CREATE TABLE Receivable (
+    ID INT PRIMARY KEY,
+    MerchantID INT,
+    Amount DECIMAL(12,2),
+    Status VARCHAR(50)
+)
+```
+
+---
+
+## Contract表（合同）
+
+```sql
+CREATE TABLE Contract (
+    ID INT PRIMARY KEY,
+    MerchantID INT,
+    EndDate DATETIME
+)
+```
+
+---
+
+## Decision表
+
+```sql
+CREATE TABLE Decision (
+    ID INT PRIMARY KEY,
+    Type VARCHAR(50),
+    Status VARCHAR(50)
+)
+```
+
+---
+
+## Task表
+
+```sql
+CREATE TABLE Task (
+    ID INT PRIMARY KEY,
+    Type VARCHAR(50),
+    Status VARCHAR(50)
+)
+```
+
+---
+
+# 七、API规范
+
+---
+
+## POST /agent/query
+
+---
+
+### 输入
+
+```json
+{
+  "query": "分析本月经营情况"
+}
+```
+
+---
+
+### 输出
+
+```json
+{
+  "report": "...",
+  "risks": [...],
+  "forecast": [...],
+  "score": {...},
+  "decisions": [...]
+}
+```
+
+---
+
+# 八、开发顺序（必须严格执行）
+
+---
+
+## 阶段1（基础）
+
+* DB + Tools + Executor
+
+---
+
+## 阶段2（分析）
+
+* Risk + Report + Chart
+
+---
+
+## 阶段3（智能）
+
+* Forecast + Scoring
+
+---
+
+## 阶段4（决策）
+
+* Decision + Rule + Action
+
+---
+
+## 阶段5（自动化）
+
+* Event + Scheduler + Messaging
+
+---
+
+# 九、验收标准
+
+---
+
+## 必须满足
+
+* 能自动分析
+* 能自动决策
+* 能自动执行
+* 能自动触发（事件）
+
+---
+
+# 十、最终系统能力
+
+---
+
+系统将具备：
+
+* 自动发现问题
+* 自动分析原因
+* 自动生成方案
+* 自动执行操作
+
+---
+
+# 十一、系统本质
+
+---
+
+👉 不是管理系统
+👉 不是BI系统
+
+👉 **AI自动运营系统**
+
+---
+
+# 十二、开发约束（必须遵守）
+
+---
+
+❗ 不允许直接SQL暴露给AI
+❗ 所有模块必须解耦
+❗ 所有规则必须可配置
+❗ 所有执行必须可追踪
+
+---
+
+（文档结束，供AI编程工具自动实现）

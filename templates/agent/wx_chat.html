@@ -25,6 +25,7 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script>
 let currentConversationId = null;
 let isLoading = false;
@@ -60,7 +61,7 @@ function sendMessage() {
             hideLoading();
             isLoading = false;
             if (resp.success && resp.data && resp.data.content) {
-                appendMessage('assistant', resp.data.content, resp.data.generated_sql);
+                appendMessage('assistant', resp.data.content, resp.data);
                 if (resp.data.conversation_id) currentConversationId = resp.data.conversation_id;
             } else if (!resp.success) {
                 appendMessage('assistant', resp.message || '请求失败');
@@ -75,7 +76,7 @@ function sendMessage() {
     });
 }
 
-function appendMessage(role, content, sql) {
+function appendMessage(role, content, data) {
     const area = document.getElementById('messageArea');
     const welcome = document.getElementById('welcomeArea');
     if (welcome) welcome.remove();
@@ -91,10 +92,31 @@ function appendMessage(role, content, sql) {
 
     if (role === 'assistant') {
         bubble.innerHTML = DOMPurify.sanitize(marked.parse(content || ''));
+        var sql = (data && data.generated_sql) ? data.generated_sql : null;
         if (sql) {
             const sqlId = 'sql-' + Date.now();
             const sqlHtml = '<pre id="' + sqlId + '" style="background:#1e1e2e;color:#cdd6f4;padding:8px 12px;border-radius:6px;overflow-x:auto;margin:8px 0;font-size:12px;position:relative;"><button onclick="toggleSql(\'' + sqlId + '\')" style="position:absolute;top:4px;right:4px;background:rgba(255,255,255,0.1);border:none;color:#cdd6f4;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:10px;">SQL</button><code>' + escapeHtml(sql) + '</code></pre>';
             bubble.innerHTML += DOMPurify.sanitize(sqlHtml);
+        }
+        if (data && data.chart) {
+            var chartId = 'chart-' + Date.now();
+            var chartDiv = document.createElement('div');
+            chartDiv.id = chartId;
+            chartDiv.style.cssText = 'width:100%;height:250px;margin:8px 0;';
+            bubble.appendChild(chartDiv);
+            setTimeout(function() { renderChart(chartId, data.chart); }, 100);
+        }
+        if (data && data.risks && data.risks.length > 0) {
+            var risksDiv = document.createElement('div');
+            risksDiv.style.cssText = 'margin:6px 0;';
+            data.risks.forEach(function(r) {
+                var tag = document.createElement('span');
+                tag.style.cssText = 'display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;margin:2px;' +
+                    (r.level === 'high' ? 'background:#fee2e2;color:#dc2626;' : 'background:#fef3c7;color:#d97706;');
+                tag.textContent = (r.level === 'high' ? '⚠️ ' : '⚡ ') + r.message;
+                risksDiv.appendChild(tag);
+            });
+            bubble.appendChild(risksDiv);
         }
     } else {
         bubble.textContent = content;
@@ -137,6 +159,28 @@ function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+}
+
+function renderChart(containerId, chartData) {
+    var dom = document.getElementById(containerId);
+    if (!dom || typeof echarts === 'undefined') return;
+    var chart = echarts.init(dom);
+    var option = { title: { text: chartData.title, left: 'center', textStyle: { fontSize: 13 } }, tooltip: { trigger: 'item' } };
+
+    if (chartData.type === 'pie') {
+        option.series = [{ type: 'pie', radius: ['40%', '70%'], data: chartData.data, label: { formatter: '{b}: ¥{c}' } }];
+    } else if (chartData.type === 'line') {
+        option.xAxis = { type: 'category', data: chartData.xAxis };
+        option.yAxis = { type: 'value' };
+        option.legend = { top: 30 };
+        option.series = chartData.series.map(function(s) { return { name: s.name, type: 'line', data: s.data, smooth: true }; });
+    } else if (chartData.type === 'bar') {
+        option.xAxis = { type: 'category', data: chartData.xAxis };
+        option.yAxis = { type: 'value' };
+        option.series = chartData.series.map(function(s) { return { name: s.name, type: 'bar', data: s.data }; });
+    }
+
+    chart.setOption(option);
 }
 </script>
 {% endblock %}

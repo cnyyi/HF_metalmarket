@@ -1576,3 +1576,75 @@ class UtilityService:
                 'end_date': r.EndDate.strftime('%Y-%m-%d') if r.EndDate else ''
             } for r in rows]
         }
+
+    def get_electricity_stats(self, group_by_month=False, merchant_id=None, source='admin'):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            merchant_filter = ''
+            params = []
+            if source == 'wx' and merchant_id:
+                merchant_filter = "AND c.MerchantID = ?"
+                params = [merchant_id]
+            if group_by_month:
+                cursor.execute(f"""
+                    SELECT ur.ReadingMonth, SUM(ur.Amount) AS total_amount,
+                           COUNT(DISTINCT ur.ContractMeterID) AS meter_count
+                    FROM UtilityReading ur
+                    INNER JOIN ContractElectricityMeter cem ON ur.ContractMeterID = cem.ContractMeterID
+                    INNER JOIN Contract c ON cem.ContractID = c.ContractID
+                    WHERE 1=1 {merchant_filter}
+                    GROUP BY ur.ReadingMonth ORDER BY ur.ReadingMonth DESC
+                """, params)
+                rows = cursor.fetchall()
+                return [{'month': row.ReadingMonth, 'total_amount': round(float(row.total_amount or 0), 2),
+                         'meter_count': row.meter_count} for row in rows]
+            else:
+                cursor.execute(f"""
+                    SELECT m.MerchantName, SUM(ur.Amount) AS total_amount, MAX(ur.ReadingMonth) AS last_month
+                    FROM UtilityReading ur
+                    INNER JOIN ContractElectricityMeter cem ON ur.ContractMeterID = cem.ContractMeterID
+                    INNER JOIN Contract c ON cem.ContractID = c.ContractID
+                    INNER JOIN Merchant m ON c.MerchantID = m.MerchantID
+                    WHERE cem.IsActive = 1 {merchant_filter}
+                    GROUP BY m.MerchantName ORDER BY total_amount DESC
+                """, params)
+                rows = cursor.fetchall()
+                return [{'merchant_name': row.MerchantName,
+                         'total_amount': round(float(row.total_amount or 0), 2),
+                         'last_month': row.last_month} for row in rows]
+
+    def get_water_stats(self, group_by_month=False, merchant_id=None, source='admin'):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            merchant_filter = ''
+            params = []
+            if source == 'wx' and merchant_id:
+                merchant_filter = "AND c.MerchantID = ?"
+                params = [merchant_id]
+            if group_by_month:
+                cursor.execute(f"""
+                    SELECT ur.ReadingMonth, SUM(ur.Amount) AS total_amount,
+                           COUNT(DISTINCT ur.ContractMeterID) AS meter_count
+                    FROM UtilityReading ur
+                    INNER JOIN ContractWaterMeter cwm ON ur.ContractMeterID = cwm.ContractMeterID
+                    INNER JOIN Contract c ON cwm.ContractID = c.ContractID
+                    WHERE 1=1 {merchant_filter}
+                    GROUP BY ur.ReadingMonth ORDER BY ur.ReadingMonth DESC
+                """, params)
+                rows = cursor.fetchall()
+                return [{'month': row.ReadingMonth, 'total_amount': round(float(row.total_amount or 0), 2),
+                         'meter_count': row.meter_count} for row in rows]
+            else:
+                cursor.execute(f"""
+                    SELECT m.MerchantName, SUM(ur.Amount) AS total_amount, MAX(ur.ReadingMonth) AS last_month
+                    FROM UtilityReading ur
+                    INNER JOIN ContractWaterMeter cwm ON ur.ContractMeterID = cwm.ContractMeterID
+                    INNER JOIN Contract c ON cwm.ContractID = c.ContractID
+                    INNER JOIN Merchant m ON c.MerchantID = m.MerchantID
+                    WHERE cwm.IsActive = 1 {merchant_filter}
+                    GROUP BY m.MerchantName ORDER BY total_amount DESC
+                """, params)
+                rows = cursor.fetchall()
+                return [{'merchant_name': row.MerchantName,
+                         'total_amount': round(float(row.total_amount or 0), 2),
+                         'last_month': row.last_month} for row in rows]

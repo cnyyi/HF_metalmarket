@@ -360,3 +360,82 @@ class MerchantService:
                 'last_login': user.LastLoginTime.strftime('%Y-%m-%d %H:%M') if user.LastLoginTime else '从未登录'
             }
         return {'enabled': False}
+
+    @staticmethod
+    def get_merchant_overview(merchant_id, source='admin'):
+        from utils.database import DBConnection
+        overview = {}
+
+        info = MerchantService.get_merchant_by_id(merchant_id)
+        if not info:
+            return {'error': '未找到该商户'}
+        overview['merchant'] = info
+
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT COUNT(*) AS total,
+                       SUM(CASE WHEN Status = N'生效' THEN 1 ELSE 0 END) AS active,
+                       MIN(EndDate) AS nearest_end
+                FROM Contract
+                WHERE MerchantID = ?
+            """, (merchant_id,))
+            row = cursor.fetchone()
+            overview['contracts'] = {
+                'total': row.total,
+                'active': row.active,
+                'nearest_end_date': row.nearest_end.strftime('%Y-%m-%d') if row.nearest_end else None
+            }
+
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT ISNULL(SUM(Amount), 0) AS total_receivable,
+                       ISNULL(SUM(PaidAmount), 0) AS total_paid,
+                       ISNULL(SUM(RemainingAmount), 0) AS total_remaining
+                FROM Receivable
+                WHERE MerchantID = ? AND IsActive = 1
+            """, (merchant_id,))
+            row = cursor.fetchone()
+            overview['finance'] = {
+                'total_receivable': round(float(row.total_receivable or 0), 2),
+                'total_paid': round(float(row.total_paid or 0), 2),
+                'total_remaining': round(float(row.total_remaining or 0), 2)
+            }
+
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT COUNT(*) AS count, ISNULL(SUM(RemainingAmount), 0) AS total_overdue
+                FROM Receivable
+                WHERE MerchantID = ? AND IsActive = 1
+                  AND DueDate < CAST(GETDATE() AS DATE)
+                  AND Status IN (N'未付款', N'部分付款')
+                  AND RemainingAmount > 0
+            """, (merchant_id,))
+            row = cursor.fetchone()
+            overview['overdue_receivable'] = {
+                'count': row.count,
+                'total_amount': round(float(row.total_overdue), 2)
+            }
+
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT
+                    SUM(CASE WHEN cem.ContractMeterID IS NOT NULL THEN ur.Amount ELSE 0 END) AS electricity,
+                    SUM(CASE WHEN cwm.ContractMeterID IS NOT NULL THEN ur.Amount ELSE 0 END) AS water
+                FROM UtilityReading ur
+                LEFT JOIN ContractElectricityMeter cem ON ur.ContractMeterID = cem.ContractMeterID
+                LEFT JOIN ContractWaterMeter cwm ON ur.ContractMeterID = cwm.ContractMeterID
+                INNER JOIN Contract c ON cem.ContractID = c.ContractID OR cwm.ContractID = c.ContractID
+                WHERE c.MerchantID = ?
+                  AND ur.ReadingMonth = FORMAT(GETDATE(), 'yyyy-MM')
+            """, (merchant_id,))
+            row = cursor.fetchone()
+            overview['monthly_utility'] = {
+                'electricity': round(float(row.electricity or 0), 2),
+                'water': round(float(row.water or 0), 2)
+            }
+
+        return overview

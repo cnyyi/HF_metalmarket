@@ -488,3 +488,27 @@ class PrepaymentService:
                 'total_applied': float(row.TotalApplied),
                 'total_remaining': float(row.TotalRemaining),
             }
+
+    def get_merchant_prepayment_summary(self, merchant_id, direction=None):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            conditions = ["CustomerType = N'Merchant'", "CustomerID = ?"]
+            params = [merchant_id]
+            if direction:
+                conditions.append("Direction = ?")
+                params.append(direction)
+            where = " WHERE " + " AND ".join(conditions)
+            cursor.execute(f"""
+                SELECT COUNT(*) AS TotalCount,
+                       ISNULL(SUM(TotalAmount), 0) AS TotalAmount,
+                       ISNULL(SUM(AppliedAmount), 0) AS TotalApplied,
+                       ISNULL(SUM(RemainingAmount), 0) AS TotalRemaining
+                FROM Prepayment {where}
+            """, params)
+            row = cursor.fetchone()
+            return {
+                'total_count': row.TotalCount,
+                'total_amount': float(row.TotalAmount),
+                'total_applied': float(row.TotalApplied),
+                'total_remaining': float(row.TotalRemaining),
+            }

@@ -385,3 +385,30 @@ class PlotService:
         except Exception as e:
             logger.error(f"获取地块列表失败: {e}", exc_info=True)
             return False, str(e)
+
+    @staticmethod
+    def get_plot_stats(source='admin'):
+        if source == 'wx':
+            return {'error': '商户无权查看地块统计'}
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT PlotType, COUNT(*) AS count, SUM(ISNULL(Area, 0)) AS total_area,
+                       SUM(CASE WHEN Status = N'空闲' THEN 1 ELSE 0 END) AS vacant_count,
+                       SUM(CASE WHEN Status = N'空闲' THEN ISNULL(Area, 0) ELSE 0 END) AS vacant_area
+                FROM Plot
+                GROUP BY PlotType
+                ORDER BY PlotType
+            """)
+            rows = cursor.fetchall()
+            result = []
+            for row in rows:
+                total_area = float(row.total_area or 0)
+                vacant_area = float(row.vacant_area or 0)
+                result.append({
+                    'plot_type': row.PlotType, 'count': row.count,
+                    'total_area': round(total_area, 2), 'vacant_count': row.vacant_count,
+                    'vacant_area': round(vacant_area, 2),
+                    'vacancy_rate': f'{round(vacant_area / total_area * 100, 1)}%' if total_area > 0 else '0%'
+                })
+            return result

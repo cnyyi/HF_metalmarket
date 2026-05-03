@@ -1854,3 +1854,155 @@ class FinanceService:
                 'total_deposit': total_deposit,
                 'total_cashflow': total_cashflow,
             }
+
+    # ========== Agent 查询方法 ==========
+
+    def get_finance_summary(self, period='this_month', merchant_id=None, source='admin'):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+
+            date_filter = ''
+            if period == 'this_month':
+                date_filter = "AND CreateTime >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()), 0)"
+            elif period == 'this_year':
+                date_filter = "AND CreateTime >= DATEADD(YEAR, DATEDIFF(YEAR, 0, GETDATE()), 0)"
+
+            merchant_filter = ''
+            params = []
+            if source == 'wx' and merchant_id:
+                merchant_filter = "AND MerchantID = ?"
+                params = [merchant_id]
+
+            receivable_params = list(params)
+            cursor.execute(f"""
+                SELECT SUM(Amount) AS total_receivable,
+                       SUM(PaidAmount) AS total_paid_receivable,
+                       SUM(RemainingAmount) AS total_remaining_receivable
+                FROM Receivable
+                WHERE IsActive = 1 {date_filter} {merchant_filter}
+            """, receivable_params)
+            receivable = cursor.fetchone()
+
+            payable_params = list(params)
+            payable_filter = merchant_filter.replace('MerchantID', 'CustomerID')
+            cursor.execute(f"""
+                SELECT SUM(Amount) AS total_payable,
+                       SUM(PaidAmount) AS total_paid_payable,
+                       SUM(RemainingAmount) AS total_remaining_payable
+                FROM Payable
+                WHERE IsActive = 1 {date_filter} {payable_filter}
+            """, payable_params)
+            payable = cursor.fetchone()
+
+            cash_filter = date_filter.replace('CreateTime', 'TransactionDate')
+            cash_params = []
+            cash_merchant_filter = ''
+            if source == 'wx' and merchant_id:
+                cash_merchant_filter = "AND MerchantID = ?"
+                cash_params = [merchant_id]
+            cursor.execute(f"""
+                SELECT
+                    SUM(CASE WHEN Direction = N'收入' THEN Amount ELSE 0 END) AS total_income,
+                    SUM(CASE WHEN Direction = N'支出' THEN Amount ELSE 0 END) AS total_expense
+                FROM CashFlow
+                WHERE 1=1 {cash_filter} {cash_merchant_filter}
+            """, cash_params)
+            cash = cursor.fetchone()
+
+            return {
+                'period': period,
+                'total_receivable': round(float(receivable.total_receivable or 0), 2),
+                'total_paid_receivable': round(float(receivable.total_paid_receivable or 0), 2),
+                'total_remaining_receivable': round(float(receivable.total_remaining_receivable or 0), 2),
+                'total_payable': round(float(payable.total_payable or 0), 2),
+                'total_paid_payable': round(float(payable.total_paid_payable or 0), 2),
+                'total_remaining_payable': round(float(payable.total_remaining_payable or 0), 2),
+                'total_income': round(float(cash.total_income or 0), 2),
+                'total_expense': round(float(cash.total_expense or 0), 2),
+                'balance': round(float((cash.total_income or 0) - (cash.total_expense or 0)), 2)
+            }
+
+    def get_monthly_trend(self, months=6, merchant_id=None, source='admin'):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            m = int(months)
+            merchant_filter = ''
+            params = []
+            if source == 'wx' and merchant_id:
+                merchant_filter = "AND MerchantID = ?"
+                params = [merchant_id]
+            cursor.execute(f"""
+                SELECT TOP {m}
+                    FORMAT(TransactionDate, 'yyyy-MM') AS month_label,
+                    SUM(CASE WHEN Direction = N'收入' THEN Amount ELSE 0 END) AS income,
+                    SUM(CASE WHEN Direction = N'支出' THEN Amount ELSE 0 END) AS expense
+                FROM CashFlow
+                WHERE TransactionDate >= DATEADD(MONTH, -{m}, GETDATE())
+                    {merchant_filter}
+                GROUP BY FORMAT(TransactionDate, 'yyyy-MM')
+                ORDER BY month_label
+            """, params)
+            rows = cursor.fetchall()
+            return [{'month': row.month_label,
+                     'income': round(float(row.income or 0), 2),
+                     'expense': round(float(row.expense or 0), 2)} for row in rows]
+
+    def get_payable_summary(self, group_by_vendor=False, merchant_id=None, source='admin'):
+        if source == 'wx':
+            return {'error': '商户无权查看应付账款汇总'}
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            if group_by_vendor:
+                cursor.execute("""
+                    SELECT VendorName,
+                           SUM(Amount) AS total_amount,
+                           SUM(PaidAmount) AS paid_amount,
+                           SUM(RemainingAmount) AS remaining_amount,
+                           COUNT(*) AS count
+                    FROM Payable
+                    WHERE IsActive = 1 AND VendorName IS NOT NULL
+                    GROUP BY VendorName
+                    ORDER BY remaining_amount DESC
+                """)
+                rows = cursor.fetchall()
+                return [{'vendor_name': row.VendorName, 'count': row.count,
+                         'total_amount': round(float(row.total_amount or 0), 2),
+                         'paid_amount': round(float(row.paid_amount or 0), 2),
+                         'remaining_amount': round(float(row.remaining_amount or 0), 2)}
+                        for row in rows]
+            else:
+                cursor.execute("""
+                    SELECT COUNT(*) AS total_count,
+                           SUM(Amount) AS total_amount,
+                           SUM(PaidAmount) AS paid_amount,
+                           SUM(RemainingAmount) AS remaining_amount
+                    FROM Payable WHERE IsActive = 1
+                """)
+                row = cursor.fetchone()
+                return {'total_count': row.total_count,
+                        'total_amount': round(float(row.total_amount or 0), 2),
+                        'paid_amount': round(float(row.paid_amount or 0), 2),
+                        'remaining_amount': round(float(row.remaining_amount or 0), 2)}
+
+    def get_overdue_payables(self, merchant_id=None, source='admin'):
+        if source == 'wx':
+            return {'error': '商户无权查看逾期应付账款'}
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT TOP 500 PayableID, VendorName, Amount, PaidAmount,
+                       RemainingAmount, DueDate, Status
+                FROM Payable
+                WHERE IsActive = 1
+                  AND DueDate < CAST(GETDATE() AS DATE)
+                  AND Status IN (N'未付款', N'部分付款')
+                  AND RemainingAmount > 0
+                ORDER BY DueDate
+            """)
+            rows = cursor.fetchall()
+            return [{'payable_id': row.PayableID, 'vendor_name': row.VendorName,
+                     'amount': round(float(row.Amount or 0), 2),
+                     'paid_amount': round(float(row.PaidAmount or 0), 2),
+                     'remaining_amount': round(float(row.RemainingAmount or 0), 2),
+                     'due_date': row.DueDate.strftime('%Y-%m-%d') if row.DueDate else '',
+                     'status': row.Status} for row in rows]

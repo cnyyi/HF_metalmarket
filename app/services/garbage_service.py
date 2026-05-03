@@ -712,3 +712,29 @@ class GarbageService:
         date_str = datetime.now().strftime('%Y%m%d')
         filename = f'垃圾清运记录_{date_str}.xlsx'
         return output, filename
+
+    def get_garbage_fees(self, year=None, merchant_id=None, source='admin'):
+        year_filter = ''
+        params = []
+        if year:
+            year_filter = "AND gf.Year = ?"
+            params = [year]
+        merchant_filter = ''
+        if source == 'wx' and merchant_id:
+            merchant_filter = "AND gf.MerchantID = ?"
+            params.append(merchant_id)
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                SELECT TOP 500 gf.GarbageFeeID, m.MerchantName, gf.Year,
+                       gf.BusinessType, gf.Area, gf.FeeAmount
+                FROM GarbageFee gf
+                INNER JOIN Merchant m ON gf.MerchantID = m.MerchantID
+                WHERE 1=1 {year_filter} {merchant_filter}
+                ORDER BY gf.Year DESC, gf.FeeAmount DESC
+            """, params)
+            rows = cursor.fetchall()
+            return [{'garbage_fee_id': row.GarbageFeeID, 'merchant_name': row.MerchantName,
+                     'year': row.Year, 'business_type': row.BusinessType,
+                     'area': round(float(row.Area or 0), 2),
+                     'fee_amount': round(float(row.FeeAmount or 0), 2)} for row in rows]
