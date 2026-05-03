@@ -26,7 +26,7 @@ function loadContracts() {
             html += '<div class="wx-card">';
             html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
             html += '<strong>' + escapeHtml(c.contract_name) + '</strong>';
-            html += '<span class="wx-badge ' + (c.status === '有效' ? 'wx-badge-approved' : 'wx-badge-rejected') + '">' + escapeHtml(c.status) + '</span>';
+            html += '<span class="wx-badge ' + (c.status === '生效' ? 'wx-badge-approved' : 'wx-badge-rejected') + '">' + escapeHtml(c.status) + '</span>';
             html += '</div>';
             html += '<div style="margin-top:8px;font-size:13px;color:#666;">';
             html += '编号：' + escapeHtml(c.contract_number) + '<br>';

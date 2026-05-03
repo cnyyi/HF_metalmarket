@@ -53,7 +53,7 @@ function loadContracts(page) {
 }
 
 function getStatusBadge(status) {
-    var map = { '有效': 'bg-success', '到期': 'bg-warning', '终止': 'bg-danger', '续签': 'bg-info' };
+    var map = { '生效': 'bg-success', '到期': 'bg-warning', '终止': 'bg-danger', '续签': 'bg-info' };
     return '<span class="badge ' + (map[status] || 'bg-secondary') + '">' + escapeHtml(status) + '</span>';
 }
 

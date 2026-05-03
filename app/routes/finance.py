@@ -230,12 +230,30 @@ def receivable_list_by_customer():
         return handle_exception(e)
 
 
+@finance_bp.route('/receivable/categories_by_customer', methods=['GET'])
+@login_required
+@check_permission('finance_view')
+def receivable_categories_by_customer():
+    try:
+        customer_type = request.args.get('customer_type', 'Merchant')
+        customer_id = int(request.args.get('customer_id', 0))
+        if not customer_id:
+            return error_response('缺少客户ID')
+        result = finance_svc.get_receivable_categories_by_customer(customer_type, customer_id)
+        return success_response(result)
+    except Exception as e:
+        return handle_exception(e)
+
+
 @finance_bp.route('/receivable/batch_collect', methods=['POST'])
 @login_required
 @check_permission('finance_create')
 def receivable_batch_collect():
     try:
         data = request.json
+        expense_type_ids = data.get('expense_type_ids')
+        if expense_type_ids is not None and len(expense_type_ids) == 0:
+            expense_type_ids = None
         result = finance_svc.batch_collect_by_customer(
             customer_type=data.get('customer_type', 'Merchant'),
             customer_id=int(data.get('customer_id', 0)),
@@ -246,13 +264,142 @@ def receivable_batch_collect():
             created_by=current_user.user_id,
             account_id=data.get('account_id'),
             collect_mode=data.get('collect_mode', 'cash'),
-            prepayment_id=data.get('prepayment_id')
+            prepayment_id=data.get('prepayment_id'),
+            expense_type_ids=expense_type_ids
         )
         if result['success']:
             result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
             return success_response(result_data or None, message=result.get('message', '批量收款成功'))
         else:
             return error_response(result.get('message', '批量收款失败'), status=400)
+    except Exception as e:
+        return handle_exception(e)
+
+
+# ==================== 已收账款 ====================
+
+@finance_bp.route('/collection')
+@login_required
+@check_permission('finance_view')
+def collection():
+    return render_template('finance/collection.html')
+
+
+@finance_bp.route('/collection/list', methods=['GET'])
+@login_required
+@check_permission('finance_view')
+def collection_list():
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        search = request.args.get('search', '').strip()
+        payment_method = request.args.get('payment_method', '').strip()
+        start_date = request.args.get('start_date', '').strip()
+        end_date = request.args.get('end_date', '').strip()
+        is_reversed = request.args.get('is_reversed', '').strip()
+
+        is_reversed_filter = None
+        if is_reversed == '1':
+            is_reversed_filter = True
+        elif is_reversed == '0':
+            is_reversed_filter = False
+
+        result = finance_svc.get_collection_records(
+            page=page, per_page=per_page,
+            search=search or None,
+            payment_method=payment_method or None,
+            start_date=start_date or None,
+            end_date=end_date or None,
+            is_reversed=is_reversed_filter
+        )
+        return success_response(result)
+    except Exception as e:
+        return handle_exception(e)
+
+
+@finance_bp.route('/collection/reverse/<int:record_id>', methods=['POST'])
+@login_required
+@check_permission('finance_create')
+def collection_reverse(record_id):
+    try:
+        data = request.json
+        reason = data.get('reason', '').strip()
+        if not reason:
+            return error_response('请填写冲销原因')
+        result = finance_svc.reverse_collection(
+            collection_record_id=record_id,
+            reason=reason,
+            created_by=current_user.user_id
+        )
+        if result['success']:
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return success_response(result_data or None, message=result.get('message', '冲销成功'))
+        else:
+            return error_response(result.get('message', '冲销失败'), status=400)
+    except Exception as e:
+        return handle_exception(e)
+
+
+# ==================== 已付账款 ====================
+
+@finance_bp.route('/payment')
+@login_required
+@check_permission('finance_view')
+def payment():
+    return render_template('finance/payment.html')
+
+
+@finance_bp.route('/payment/list', methods=['GET'])
+@login_required
+@check_permission('finance_view')
+def payment_list():
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        search = request.args.get('search', '').strip()
+        payment_method = request.args.get('payment_method', '').strip()
+        start_date = request.args.get('start_date', '').strip()
+        end_date = request.args.get('end_date', '').strip()
+        is_reversed = request.args.get('is_reversed', '').strip()
+
+        is_reversed_filter = None
+        if is_reversed == '1':
+            is_reversed_filter = True
+        elif is_reversed == '0':
+            is_reversed_filter = False
+
+        result = finance_svc.get_payment_records_list(
+            page=page, per_page=per_page,
+            search=search or None,
+            payment_method=payment_method or None,
+            start_date=start_date or None,
+            end_date=end_date or None,
+            is_reversed=is_reversed_filter
+        )
+        return success_response(result)
+    except Exception as e:
+        return handle_exception(e)
+
+
+@finance_bp.route('/payment/reverse/<int:record_id>', methods=['POST'])
+@login_required
+@check_permission('finance_create')
+def payment_reverse(record_id):
+    try:
+        data = request.json
+        reason = data.get('reason', '').strip()
+        if not reason:
+            return error_response('请填写冲销原因')
+        result = finance_svc.reverse_payment(
+            payment_record_id=record_id,
+            reason=reason,
+            created_by=current_user.user_id
+        )
+        if result['success']:
+            result_data = {k: v for k, v in result.items() if k not in ('success', 'message')}
+            return success_response(result_data or None, message=result.get('message', '冲销成功'))
+        else:
+            return error_response(result.get('message', '冲销失败'), status=400)
     except Exception as e:
         return handle_exception(e)
 
@@ -486,10 +633,12 @@ def cash_flow_list():
             account_id=account_id
         )
 
-        # 附加汇总数据
         summary = finance_svc.get_cash_flow_summary(
             start_date=start_date or None,
-            end_date=end_date or None
+            end_date=end_date or None,
+            direction=direction or None,
+            expense_type_id=expense_type_id,
+            account_id=account_id
         )
 
         return success_response(result, summary=summary)

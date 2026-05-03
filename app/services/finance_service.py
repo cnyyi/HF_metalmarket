@@ -480,14 +480,380 @@ class FinanceService:
             logger.error(f'批量付款核销失败: {e}')
             return {'success': False, 'message': f'批量付款失败：{str(e)}'}
 
+    # ========== 冲销 ==========
+
+    def reverse_collection(self, collection_record_id, reason, created_by):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT cr.CollectionRecordID, cr.Amount, cr.ReceivableID,
+                       cr.IsReversed, cr.CreateTime,
+                       r.PaidAmount, r.RemainingAmount, r.Amount AS ReceivableAmount,
+                       r.ExpenseTypeID, r.Status
+                FROM CollectionRecord cr
+                INNER JOIN Receivable r ON cr.ReceivableID = r.ReceivableID
+                WHERE cr.CollectionRecordID = ?
+            """, collection_record_id)
+            row = cursor.fetchone()
+            if not row:
+                return {'success': False, 'message': '收款记录不存在'}
+            if row.IsReversed:
+                return {'success': False, 'message': '该记录已被冲销，不可重复操作'}
+
+            days_diff = (datetime.now() - row.CreateTime).days
+            if days_diff > 7:
+                return {'success': False, 'message': '超过7天，不可冲销'}
+
+            amount = float(row.Amount)
+            receivable_id = row.ReceivableID
+            expense_type_id = row.ExpenseTypeID
+
+            cursor.execute("""
+                INSERT INTO ReversalRecord (OriginalType, OriginalID, ReversalAmount, Reason, CreatedBy)
+                VALUES (N'collection_record', ?, ?, ?, ?)
+            """, collection_record_id, amount, reason, created_by)
+
+            cursor.execute("SELECT @@IDENTITY")
+            reversal_id = cursor.fetchone()[0]
+
+            cursor.execute("""
+                UPDATE CollectionRecord SET IsReversed = 1, ReversalID = ?
+                WHERE CollectionRecordID = ?
+            """, reversal_id, collection_record_id)
+
+            new_remaining = float(row.RemainingAmount) + amount
+            if new_remaining >= float(row.ReceivableAmount) - 0.01:
+                new_status = '未付款'
+            elif new_remaining > 0.01:
+                new_status = '部分付款'
+            else:
+                new_status = '已付款'
+
+            cursor.execute("""
+                UPDATE Receivable
+                SET PaidAmount = PaidAmount - ?, RemainingAmount = RemainingAmount + ?,
+                    Status = ?, UpdateTime = GETDATE()
+                WHERE ReceivableID = ?
+            """, amount, amount, new_status, receivable_id)
+
+            default_account = self._get_default_account_id(cursor)
+            transaction_no = generate_serial_no(cursor, 'CF', 'CashFlow', 'TransactionNo')
+            cursor.execute("""
+                INSERT INTO CashFlow (Amount, Direction, ExpenseTypeID, Description,
+                    TransactionDate, ReferenceID, ReferenceType, CreatedBy, AccountID, TransactionNo)
+                VALUES (?, N'支出', ?, ?, GETDATE(), ?, N'reversal', ?, ?, ?)
+            """, amount, expense_type_id,
+                f'冲销收款-记录#{collection_record_id}',
+                reversal_id, created_by, default_account, transaction_no)
+
+            cursor.execute("SELECT @@IDENTITY")
+            cash_flow_id = cursor.fetchone()[0]
+
+            cursor.execute("""
+                UPDATE ReversalRecord SET ReversalCashFlowID = ? WHERE ReversalID = ?
+            """, cash_flow_id, reversal_id)
+
+            if default_account:
+                cursor.execute("""
+                    UPDATE Account SET Balance = Balance - ? WHERE AccountID = ?
+                """, amount, default_account)
+
+            conn.commit()
+
+        return {
+            'success': True,
+            'message': f'冲销成功，已恢复应收金额 ¥{amount:.2f}',
+            'reversal_id': reversal_id,
+            'new_status': new_status
+        }
+
+    def reverse_payment(self, payment_record_id, reason, created_by):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT pr.PaymentRecordID, pr.Amount, pr.PayableID,
+                       pr.IsReversed, pr.CreateTime,
+                       p.PaidAmount, p.RemainingAmount, p.Amount AS PayableAmount,
+                       p.ExpenseTypeID, p.Status
+                FROM PaymentRecord pr
+                INNER JOIN Payable p ON pr.PayableID = p.PayableID
+                WHERE pr.PaymentRecordID = ?
+            """, payment_record_id)
+            row = cursor.fetchone()
+            if not row:
+                return {'success': False, 'message': '付款记录不存在'}
+            if row.IsReversed:
+                return {'success': False, 'message': '该记录已被冲销，不可重复操作'}
+
+            days_diff = (datetime.now() - row.CreateTime).days
+            if days_diff > 7:
+                return {'success': False, 'message': '超过7天，不可冲销'}
+
+            amount = float(row.Amount)
+            payable_id = row.PayableID
+            expense_type_id = row.ExpenseTypeID
+
+            default_account = self._get_default_account_id(cursor)
+            if default_account:
+                cursor.execute("SELECT Balance FROM Account WHERE AccountID = ?", default_account)
+                acc_row = cursor.fetchone()
+                if acc_row and float(acc_row.Balance) < amount:
+                    return {'success': False, 'message': f'账户余额不足（当前余额: ¥{float(acc_row.Balance):.2f}），无法冲销'}
+
+            cursor.execute("""
+                INSERT INTO ReversalRecord (OriginalType, OriginalID, ReversalAmount, Reason, CreatedBy)
+                VALUES (N'payment_record', ?, ?, ?, ?)
+            """, payment_record_id, amount, reason, created_by)
+
+            cursor.execute("SELECT @@IDENTITY")
+            reversal_id = cursor.fetchone()[0]
+
+            cursor.execute("""
+                UPDATE PaymentRecord SET IsReversed = 1, ReversalID = ?
+                WHERE PaymentRecordID = ?
+            """, reversal_id, payment_record_id)
+
+            new_remaining = float(row.RemainingAmount) + amount
+            if new_remaining >= float(row.PayableAmount) - 0.01:
+                new_status = '未付款'
+            elif new_remaining > 0.01:
+                new_status = '部分付款'
+            else:
+                new_status = '已付款'
+
+            cursor.execute("""
+                UPDATE Payable
+                SET PaidAmount = PaidAmount - ?, RemainingAmount = RemainingAmount + ?,
+                    Status = ?, UpdateTime = GETDATE()
+                WHERE PayableID = ?
+            """, amount, amount, new_status, payable_id)
+
+            transaction_no = generate_serial_no(cursor, 'CF', 'CashFlow', 'TransactionNo')
+            cursor.execute("""
+                INSERT INTO CashFlow (Amount, Direction, ExpenseTypeID, Description,
+                    TransactionDate, ReferenceID, ReferenceType, CreatedBy, AccountID, TransactionNo)
+                VALUES (?, N'收入', ?, ?, GETDATE(), ?, N'reversal', ?, ?, ?)
+            """, amount, expense_type_id,
+                f'冲销付款-记录#{payment_record_id}',
+                reversal_id, created_by, default_account, transaction_no)
+
+            cursor.execute("SELECT @@IDENTITY")
+            cash_flow_id = cursor.fetchone()[0]
+
+            cursor.execute("""
+                UPDATE ReversalRecord SET ReversalCashFlowID = ? WHERE ReversalID = ?
+            """, cash_flow_id, reversal_id)
+
+            if default_account:
+                cursor.execute("""
+                    UPDATE Account SET Balance = Balance + ? WHERE AccountID = ?
+                """, amount, default_account)
+
+            conn.commit()
+
+        return {
+            'success': True,
+            'message': f'冲销成功，已恢复应付金额 ¥{amount:.2f}',
+            'reversal_id': reversal_id,
+            'new_status': new_status
+        }
+
+    def get_collection_records(self, page=1, per_page=10, search=None,
+                                payment_method=None, start_date=None,
+                                end_date=None, is_reversed=None):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            conditions = ['1=1']
+            params = []
+
+            if search:
+                conditions.append("""(
+                    EXISTS (SELECT 1 FROM Merchant m WHERE m.MerchantID = cr.MerchantID AND m.MerchantName LIKE ?)
+                    OR EXISTS (SELECT 1 FROM Customer c WHERE c.CustomerID = cr.MerchantID AND c.CustomerName LIKE ?)
+                )""")
+                params.extend([f'%{search}%', f'%{search}%'])
+
+            if payment_method:
+                conditions.append("cr.PaymentMethod = ?")
+                params.append(payment_method)
+
+            if start_date:
+                conditions.append("cr.TransactionDate >= ?")
+                params.append(start_date)
+
+            if end_date:
+                conditions.append("cr.TransactionDate <= ?")
+                params.append(end_date)
+
+            if is_reversed is not None:
+                conditions.append("cr.IsReversed = ?")
+                params.append(1 if is_reversed else 0)
+
+            where_clause = ' AND '.join(conditions)
+
+            cursor.execute(f"""
+                SELECT COUNT(*) FROM CollectionRecord cr WHERE {where_clause}
+            """, *params)
+            total_count = cursor.fetchone()[0]
+
+            cursor.execute(f"""
+                SELECT cr.CollectionRecordID, cr.ReceivableID, cr.MerchantID,
+                       cr.Amount, cr.PaymentMethod, cr.TransactionDate,
+                       cr.Description, cr.IsReversed, cr.ReversalID,
+                       cr.CustomerType, cr.CreateTime,
+                       ISNULL(sd.DictName, N'') AS ExpenseTypeName,
+                       CASE
+                           WHEN cr.CustomerType = N'Customer' THEN ISNULL(c.CustomerName, N'')
+                           ELSE ISNULL(m.MerchantName, N'')
+                       END AS CustomerName,
+                       u.RealName AS OperatorName,
+                       rv.ReversalAmount, rv.Reason AS ReversalReason, rv.CreateTime AS ReversalTime
+                FROM CollectionRecord cr
+                LEFT JOIN Receivable r ON cr.ReceivableID = r.ReceivableID
+                LEFT JOIN Sys_Dictionary sd ON r.ExpenseTypeID = sd.DictID
+                LEFT JOIN Merchant m ON cr.CustomerType != N'Customer' AND cr.MerchantID = m.MerchantID
+                LEFT JOIN Customer c ON cr.CustomerType = N'Customer' AND cr.MerchantID = c.CustomerID
+                LEFT JOIN [User] u ON cr.CreatedBy = u.UserID
+                LEFT JOIN ReversalRecord rv ON cr.ReversalID = rv.ReversalID
+                WHERE {where_clause}
+                ORDER BY cr.CreateTime DESC
+                OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
+            """, *params, (page - 1) * per_page, per_page)
+
+            rows = cursor.fetchall()
+            items = []
+            for row in rows:
+                item = {
+                    'collection_record_id': row.CollectionRecordID,
+                    'receivable_id': row.ReceivableID,
+                    'merchant_id': row.MerchantID,
+                    'amount': safe_float(row.Amount),
+                    'payment_method': row.PaymentMethod or '',
+                    'transaction_date': format_date(row.TransactionDate),
+                    'description': row.Description or '',
+                    'is_reversed': bool(row.IsReversed),
+                    'reversal_id': row.ReversalID,
+                    'customer_type': row.CustomerType or 'Merchant',
+                    'customer_name': row.CustomerName,
+                    'expense_type_name': row.ExpenseTypeName,
+                    'operator_name': row.OperatorName or '',
+                    'create_time': format_datetime(row.CreateTime),
+                    'can_reverse': (not bool(row.IsReversed)) and (datetime.now() - row.CreateTime).days <= 7,
+                }
+                if row.IsReversed and row.ReversalID:
+                    item['reversal_amount'] = safe_float(row.ReversalAmount)
+                    item['reversal_reason'] = row.ReversalReason or ''
+                    item['reversal_time'] = format_datetime(row.ReversalTime)
+                items.append(item)
+
+            total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 0
+            return {
+                'items': items,
+                'total_count': total_count,
+                'total_pages': total_pages,
+                'current_page': page
+            }
+
+    def get_payment_records_list(self, page=1, per_page=10, search=None,
+                                  payment_method=None, start_date=None,
+                                  end_date=None, is_reversed=None):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            conditions = ['1=1']
+            params = []
+
+            if search:
+                conditions.append("pr.VendorName LIKE ?")
+                params.append(f'%{search}%')
+
+            if payment_method:
+                conditions.append("pr.PaymentMethod = ?")
+                params.append(payment_method)
+
+            if start_date:
+                conditions.append("pr.TransactionDate >= ?")
+                params.append(start_date)
+
+            if end_date:
+                conditions.append("pr.TransactionDate <= ?")
+                params.append(end_date)
+
+            if is_reversed is not None:
+                conditions.append("pr.IsReversed = ?")
+                params.append(1 if is_reversed else 0)
+
+            where_clause = ' AND '.join(conditions)
+
+            cursor.execute(f"""
+                SELECT COUNT(*) FROM PaymentRecord pr WHERE {where_clause}
+            """, *params)
+            total_count = cursor.fetchone()[0]
+
+            cursor.execute(f"""
+                SELECT pr.PaymentRecordID, pr.PayableID, pr.VendorName,
+                       pr.Amount, pr.PaymentMethod, pr.TransactionDate,
+                       pr.Description, pr.IsReversed, pr.ReversalID,
+                       pr.CustomerType, pr.CreateTime,
+                       ISNULL(sd.DictName, N'') AS ExpenseTypeName,
+                       pr.VendorName AS CustomerName,
+                       u.RealName AS OperatorName,
+                       rv.ReversalAmount, rv.Reason AS ReversalReason, rv.CreateTime AS ReversalTime
+                FROM PaymentRecord pr
+                LEFT JOIN Payable p ON pr.PayableID = p.PayableID
+                LEFT JOIN Sys_Dictionary sd ON p.ExpenseTypeID = sd.DictID
+                LEFT JOIN [User] u ON pr.CreatedBy = u.UserID
+                LEFT JOIN ReversalRecord rv ON pr.ReversalID = rv.ReversalID
+                WHERE {where_clause}
+                ORDER BY pr.CreateTime DESC
+                OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
+            """, *params, (page - 1) * per_page, per_page)
+
+            rows = cursor.fetchall()
+            items = []
+            for row in rows:
+                item = {
+                    'payment_record_id': row.PaymentRecordID,
+                    'payable_id': row.PayableID,
+                    'vendor_name': row.VendorName or '',
+                    'amount': safe_float(row.Amount),
+                    'payment_method': row.PaymentMethod or '',
+                    'transaction_date': format_date(row.TransactionDate),
+                    'description': row.Description or '',
+                    'is_reversed': bool(row.IsReversed),
+                    'reversal_id': row.ReversalID,
+                    'customer_type': row.CustomerType or 'Merchant',
+                    'customer_name': row.CustomerName,
+                    'expense_type_name': row.ExpenseTypeName,
+                    'operator_name': row.OperatorName or '',
+                    'create_time': format_datetime(row.CreateTime),
+                    'can_reverse': (not bool(row.IsReversed)) and (datetime.now() - row.CreateTime).days <= 7,
+                }
+                if row.IsReversed and row.ReversalID:
+                    item['reversal_amount'] = safe_float(row.ReversalAmount)
+                    item['reversal_reason'] = row.ReversalReason or ''
+                    item['reversal_time'] = format_datetime(row.ReversalTime)
+                items.append(item)
+
+            total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 0
+            return {
+                'items': items,
+                'total_count': total_count,
+                'total_pages': total_pages,
+                'current_page': page
+            }
+
     def batch_collect_by_customer(self, customer_type, customer_id, total_amount,
                                    payment_method, transaction_date, description,
                                    created_by, account_id=None,
-                                   collect_mode='cash', prepayment_id=None):
+                                   collect_mode='cash', prepayment_id=None,
+                                   expense_type_ids=None):
         if collect_mode == 'prepayment':
             return self._batch_collect_by_prepayment(
                 customer_type, customer_id, total_amount,
-                prepayment_id, description, created_by
+                prepayment_id, description, created_by,
+                expense_type_ids=expense_type_ids
             )
 
         with DBConnection() as conn:
@@ -497,8 +863,10 @@ class FinanceService:
             if not customer_name:
                 return {'success': False, 'message': '客户不存在'}
 
-            receivables = self._get_unpaid_receivables(cursor, customer_type, customer_id)
+            receivables = self._get_unpaid_receivables(cursor, customer_type, customer_id, expense_type_ids)
             if not receivables:
+                if expense_type_ids:
+                    return {'success': False, 'message': '所选类别下没有未收回应收'}
                 return {'success': False, 'message': '该客户没有未收回应收'}
 
             remaining_amount = float(total_amount)
@@ -536,8 +904,8 @@ class FinanceService:
                 default_account = self._get_default_account_id(cursor) if not account_id else account_id
                 cursor.execute("""
                     INSERT INTO CashFlow (Amount, Direction, ExpenseTypeID, Description, TransactionDate, ReferenceID, ReferenceType, CreatedBy, AccountID)
-                    VALUES (?, N'收入', NULL, ?, ?, ?, N'collection_record', ?, ?)
-                """, collect_for_this, f'批量收款-{customer_name}', transaction_date, receivable_id, created_by, default_account)
+                    VALUES (?, N'收入', ?, ?, ?, ?, N'collection_record', ?, ?)
+                """, collect_for_this, r.ExpenseTypeID, f'批量收款-{customer_name}', transaction_date, receivable_id, created_by, default_account)
 
                 if default_account:
                     cursor.execute("""
@@ -564,13 +932,23 @@ class FinanceService:
         row = cursor.fetchone()
         return row[0] if row else None
 
-    def _get_unpaid_receivables(self, cursor, customer_type, customer_id):
-        cursor.execute("""
-            SELECT ReceivableID, RemainingAmount, DueDate
-            FROM Receivable
-            WHERE CustomerType = ? AND CustomerID = ? AND Status != N'已付款' AND IsActive = 1
-            ORDER BY DueDate ASC
-        """, customer_type, customer_id)
+    def _get_unpaid_receivables(self, cursor, customer_type, customer_id, expense_type_ids=None):
+        if expense_type_ids:
+            placeholders = ','.join(['?'] * len(expense_type_ids))
+            cursor.execute(f"""
+                SELECT ReceivableID, RemainingAmount, DueDate, ExpenseTypeID
+                FROM Receivable
+                WHERE CustomerType = ? AND CustomerID = ? AND Status != N'已付款' AND IsActive = 1
+                  AND ExpenseTypeID IN ({placeholders})
+                ORDER BY DueDate ASC
+            """, customer_type, customer_id, *expense_type_ids)
+        else:
+            cursor.execute("""
+                SELECT ReceivableID, RemainingAmount, DueDate, ExpenseTypeID
+                FROM Receivable
+                WHERE CustomerType = ? AND CustomerID = ? AND Status != N'已付款' AND IsActive = 1
+                ORDER BY DueDate ASC
+            """, customer_type, customer_id)
         return cursor.fetchall()
 
     def _get_default_account_id(self, cursor):
@@ -578,8 +956,35 @@ class FinanceService:
         row = cursor.fetchone()
         return row[0] if row else None
 
+    def get_receivable_categories_by_customer(self, customer_type, customer_id):
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT r.ExpenseTypeID, ISNULL(sd.DictName, N'未分类') AS ExpenseTypeName,
+                       COUNT(*) AS RecordCount,
+                       SUM(r.RemainingAmount) AS TotalRemaining
+                FROM Receivable r
+                LEFT JOIN Sys_Dictionary sd ON r.ExpenseTypeID = sd.DictID
+                WHERE r.CustomerType = ? AND r.CustomerID = ?
+                  AND r.Status != N'已付款' AND r.IsActive = 1
+                GROUP BY r.ExpenseTypeID, sd.DictName
+                ORDER BY TotalRemaining DESC
+            """, customer_type, customer_id)
+            rows = cursor.fetchall()
+
+            result = []
+            for row in rows:
+                result.append({
+                    'expense_type_id': row.ExpenseTypeID,
+                    'expense_type_name': row.ExpenseTypeName,
+                    'record_count': row.RecordCount,
+                    'total_remaining': safe_float(row.TotalRemaining),
+                })
+            return result
+
     def _batch_collect_by_prepayment(self, customer_type, customer_id, total_amount,
-                                      prepayment_id, description, created_by):
+                                      prepayment_id, description, created_by,
+                                      expense_type_ids=None):
         with DBConnection() as conn:
             cursor = conn.cursor()
 
@@ -596,8 +1001,10 @@ class FinanceService:
             if float(total_amount) > prepay_remaining:
                 return {'success': False, 'message': f'冲抵金额超过预收余额（¥{prepay_remaining:.2f}）'}
 
-            receivables = self._get_unpaid_receivables(cursor, customer_type, customer_id)
+            receivables = self._get_unpaid_receivables(cursor, customer_type, customer_id, expense_type_ids)
             if not receivables:
+                if expense_type_ids:
+                    return {'success': False, 'message': '所选类别下没有未收回应收'}
                 return {'success': False, 'message': '该客户没有未收回应收'}
 
             remaining_amount = float(total_amount)
@@ -804,19 +1211,26 @@ class FinanceService:
             'current_page': page
         }
 
-    def get_cash_flow_summary(self, start_date=None, end_date=None):
-        """获取收支汇总统计"""
-        row = self.cash_flow_repo.get_summary(start_date=start_date, end_date=end_date)
+    def get_cash_flow_summary(self, start_date=None, end_date=None,
+                              direction=None, expense_type_id=None,
+                              account_id=None):
+        row = self.cash_flow_repo.get_summary(
+            start_date=start_date, end_date=end_date,
+            direction=direction, expense_type_id=expense_type_id,
+            account_id=account_id
+        )
         if row:
             return {
                 'total_income': float(row.TotalIncome),
                 'total_expense': float(row.TotalExpense),
-                'net_cash_flow': float(row.NetCashFlow)
+                'net_cash_flow': float(row.NetCashFlow),
+                'total_count': row.TotalCount
             }
         return {
             'total_income': 0,
             'total_expense': 0,
-            'net_cash_flow': 0
+            'net_cash_flow': 0,
+            'total_count': 0
         }
 
     def get_receivable_detail(self, receivable_id):

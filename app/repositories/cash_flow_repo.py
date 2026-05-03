@@ -106,8 +106,8 @@ class CashFlowRepository:
 
             return rows, total_count
 
-    def get_summary(self, start_date=None, end_date=None):
-        """获取收支汇总"""
+    def get_summary(self, start_date=None, end_date=None, direction=None,
+                    expense_type_id=None, account_id=None):
         with DBConnection() as conn:
             cursor = conn.cursor()
 
@@ -122,6 +122,18 @@ class CashFlowRepository:
                 conditions.append("TransactionDate <= ?")
                 params.append(end_date + ' 23:59:59' if len(end_date) == 10 else end_date)
 
+            if direction:
+                conditions.append("Direction = ?")
+                params.append(direction)
+
+            if expense_type_id:
+                conditions.append("ExpenseTypeID = ?")
+                params.append(expense_type_id)
+
+            if account_id:
+                conditions.append("AccountID = ?")
+                params.append(account_id)
+
             where_clause = ""
             if conditions:
                 where_clause = " WHERE " + " AND ".join(conditions)
@@ -130,7 +142,8 @@ class CashFlowRepository:
                 SELECT 
                     ISNULL(SUM(CASE WHEN Direction = N'收入' THEN Amount ELSE 0 END), 0) AS TotalIncome,
                     ISNULL(SUM(CASE WHEN Direction = N'支出' THEN Amount ELSE 0 END), 0) AS TotalExpense,
-                    ISNULL(SUM(CASE WHEN Direction = N'收入' THEN Amount ELSE -Amount END), 0) AS NetCashFlow
+                    ISNULL(SUM(CASE WHEN Direction = N'收入' THEN Amount ELSE -Amount END), 0) AS NetCashFlow,
+                    COUNT(*) AS TotalCount
                 FROM CashFlow
                 {where_clause}
             """

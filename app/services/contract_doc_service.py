@@ -356,7 +356,7 @@ class ContractDocService:
             'actual_amount': f'¥{float(contract_row.ActualAmount):,.2f}' if contract_row.ActualAmount else '¥0.00',
             'rmb_amount': amount_to_chinese(float(contract_row.ActualAmount)) if contract_row.ActualAmount else '零元整',
             'payment_method': contract_row.PaymentMethod or '银行转账',
-            'status': contract_row.Status or '有效',
+            'status': contract_row.Status or '生效',
             'description': contract_row.Description or '',
             'plots': plots_data,
             'total_plots': len(plots_data),

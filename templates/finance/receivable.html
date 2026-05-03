@@ -7,6 +7,10 @@
 [data-theme="dark"] #deleteInfo {
     background-color: var(--color-primary-light) !important;
 }
+.batch-pay-col { display: none; }
+.batch-pay-selectable { cursor: pointer; }
+.batch-pay-selectable:hover { background-color: rgba(245, 158, 11, 0.06) !important; }
+.batch-pay-selectable:has(.batch-pay-check:checked) { background-color: rgba(245, 158, 11, 0.1) !important; }
 </style>
 {% endblock %}
 
@@ -30,6 +34,15 @@
                 </button>
                 <button type="button" class="btn btn-success ms-2" id="btnExportExcel">
                     <i class="fa fa-file-excel-o"></i> 导出Excel
+                </button>
+                <button type="button" class="btn btn-warning ms-2" id="btnBatchPay">
+                    <i class="fa fa-check-square-o"></i> 批量付款
+                </button>
+                <button type="button" class="btn btn-success ms-2" id="btnConfirmBatchPay" style="display:none;">
+                    <i class="fa fa-money"></i> 确认付款 (<span id="batchPaySelectedCount">0</span>)
+                </button>
+                <button type="button" class="btn btn-secondary ms-2" id="btnCancelBatchPay" style="display:none;">
+                    <i class="fa fa-times"></i> 取消
                 </button>
             </div>
         </div>
@@ -81,6 +94,7 @@
                     <table class="table table-striped table-hover">
                         <thead>
                             <tr>
+                                <th style="width: 40px;" class="batch-pay-col" style="display:none;"><input type="checkbox" id="batchPaySelectAll"></th>
                                 <th style="width: 50px;">序号</th>
                                 <th>客户类型</th>
                                 <th>客户名称</th>
@@ -88,17 +102,13 @@
                                 <th class="text-end">已收合计</th>
                                 <th class="text-end">未收合计</th>
                                 <th class="text-end">未到期</th>
-                                <th class="text-end">1-30天</th>
-                                <th class="text-end">31-60天</th>
-                                <th class="text-end">61-90天</th>
-                                <th class="text-end">90天以上</th>
                                 <th>记录数</th>
                                 <th>最早到期</th>
-                                <th style="width: 120px;">操作</th>
+                                <th style="width: 160px; white-space: nowrap;">操作</th>
                             </tr>
                         </thead>
                         <tbody id="customerTableBody">
-                            <tr><td colspan="14" class="text-center text-muted">加载中...</td></tr>
+                            <tr><td colspan="10" class="text-center text-muted">加载中...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -360,7 +370,7 @@
 </div>
 
 <div class="modal fade" id="batchCollectModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
                 <h5 class="modal-title"><i class="fa fa-money"></i> 批量收款核销</h5>
@@ -370,11 +380,31 @@
                 <div class="alert alert-info mb-3">
                     <div><strong>客户名称：</strong><span id="batchCollectCustomerName"></span></div>
                     <div><strong>总未收金额：</strong><span class="text-danger fw-bold">¥<span id="batchCollectTotalRemaining"></span></span></div>
-                    <div style="font-size:0.85rem;color:var(--color-text-muted);margin-top:4px;">收款将按到期日从远到近顺序逐条抵扣</div>
                 </div>
                 <form id="batchCollectForm">
                     <input type="hidden" id="batchCollectCustomerType">
                     <input type="hidden" id="batchCollectCustomerId">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">核销方式</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="verificationMode" id="verificationModeBatch" value="batch" checked>
+                            <label class="btn btn-outline-success" for="verificationModeBatch"><i class="fa fa-list"></i> 批量核销</label>
+                            <input type="radio" class="btn-check" name="verificationMode" id="verificationModeCategory" value="category">
+                            <label class="btn btn-outline-primary" for="verificationModeCategory"><i class="fa fa-tags"></i> 按类别核销</label>
+                        </div>
+                        <div class="form-text" id="batchModeHint">按到期日从远到近顺序逐条抵扣</div>
+                    </div>
+
+                    <div id="categorySelectArea" style="display:none">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">选择费用类别 <span class="text-danger">*</span></label>
+                            <div id="categoryCheckList" class="border rounded p-2" style="max-height:200px;overflow-y:auto;">
+                                <p class="text-muted small mb-0">加载中...</p>
+                            </div>
+                            <div class="form-text">已选类别未收合计：<span class="fw-bold text-danger">¥<span id="categorySelectedTotal">0.00</span></span></div>
+                        </div>
+                    </div>
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">收款方式</label>
@@ -446,7 +476,7 @@
                     <h6 class="mb-2"><i class="fa fa-list-ol"></i> 核销预览</h6>
                     <div class="table-responsive">
                         <table class="table table-sm table-bordered mb-0">
-                            <thead><tr><th>应收#</th><th>到期日</th><th class="text-end">原未收</th><th class="text-end">本次抵扣</th><th class="text-end">抵扣后</th><th>状态</th></tr></thead>
+                            <thead><tr><th>应收#</th><th>费用类型</th><th>到期日</th><th class="text-end">原未收</th><th class="text-end">本次抵扣</th><th class="text-end">抵扣后</th><th>状态</th></tr></thead>
                             <tbody id="batchCollectPreviewBody"></tbody>
                         </table>
                     </div>
@@ -456,6 +486,55 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
                 <button type="button" class="btn btn-success" id="btnSubmitBatchCollect">
                     <i class="fa fa-check"></i> 确认收款
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="batchPayModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-white">
+                <h5 class="modal-title"><i class="fa fa-check-square-o"></i> 批量付款</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info mb-3" id="batchPaySummary">
+                </div>
+                <form id="batchPayForm">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">收款日期 <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="batchPayDate" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">付款方式 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="batchPayMethod" required>
+                            <option value="">请选择</option>
+                            <option value="现金">现金</option>
+                            <option value="银行转账">银行转账</option>
+                            <option value="微信">微信</option>
+                            <option value="支付宝">支付宝</option>
+                            <option value="支票">支票</option>
+                            <option value="其他">其他</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">收款账户</label>
+                        <select class="form-select" id="batchPayAccountId">
+                            <option value="">默认账户</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">备注</label>
+                        <textarea class="form-control" id="batchPayDescription" rows="2" placeholder="可选"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" id="btnSubmitBatchPay">
+                    <i class="fa fa-check"></i> 确认付款
                 </button>
             </div>
         </div>
@@ -578,6 +657,9 @@ function loadReceivablesByCustomer(page) {
     });
 }
 
+var batchPayMode = false;
+var batchPaySelected = {};
+
 function renderCustomerTable(data) {
     var items = data.items;
     var tbody = $('#customerTableBody');
@@ -596,8 +678,14 @@ function renderCustomerTable(data) {
         var rowNo = startIndex + i + 1;
 
         var remainingClass = item.total_remaining > 0 ? 'amount-unpaid' : 'amount-paid';
+        var key = item.customer_type + '_' + item.customer_id;
+        var checked = batchPaySelected[key] ? ' checked' : '';
+        var canSelect = item.total_remaining > 0;
 
-        html += '<tr class="customer-row" data-customer-type="' + item.customer_type + '" data-customer-id="' + (item.customer_id || '') + '" data-customer-name="' + escapeHtml(item.customer_name) + '">';
+        html += '<tr class="customer-row' + (batchPayMode && canSelect ? ' batch-pay-selectable' : '') + '" data-customer-type="' + item.customer_type + '" data-customer-id="' + (item.customer_id || '') + '" data-customer-name="' + escapeHtml(item.customer_name) + '" data-total-remaining="' + item.total_remaining + '">';
+        if (batchPayMode) {
+            html += '<td class="batch-pay-col"><input type="checkbox" class="form-check-input batch-pay-check" data-key="' + key + '" data-customer-type="' + item.customer_type + '" data-customer-id="' + (item.customer_id || '') + '" data-customer-name="' + escapeHtml(item.customer_name) + '" data-total-remaining="' + item.total_remaining + '"' + checked + (canSelect ? '' : ' disabled') + '></td>';
+        }
         html += '<td>' + rowNo + '</td>';
         html += '<td>' + getCustomerTypeBadge(item.customer_type) + '</td>';
         html += '<td><a href="javascript:void(0)" class="customer-tx-link" data-type="' + item.customer_type + '" data-id="' + (item.customer_id || '') + '" data-name="' + escapeHtml(item.customer_name) + '">' + escapeHtml(item.customer_name) + '</a></td>';
@@ -606,24 +694,20 @@ function renderCustomerTable(data) {
         html += '<td class="text-end summary-amount-cell ' + remainingClass + '">¥' + formatNumber(item.total_remaining) + '</td>';
 
         var notDue = item.not_due_amount || 0;
-        var aging1to30 = item.overdue_1to30 || 0;
-        var aging31to60 = item.overdue_31to60 || 0;
-        var aging61to90 = item.overdue_61to90 || 0;
-        var over90 = item.overdue_over90 || 0;
 
         html += '<td class="text-end ' + getAgingCellClass(notDue, 'not_due') + '">¥' + formatNumber(notDue) + '</td>';
-        html += '<td class="text-end ' + getAgingCellClass(aging1to30, '1to30') + '">¥' + formatNumber(aging1to30) + '</td>';
-        html += '<td class="text-end ' + getAgingCellClass(aging31to60, '31to60') + '">¥' + formatNumber(aging31to60) + '</td>';
-        html += '<td class="text-end ' + getAgingCellClass(aging61to90, '61to90') + '">¥' + formatNumber(aging61to90) + '</td>';
-        html += '<td class="text-end ' + getAgingCellClass(over90, 'over90') + '">¥' + formatNumber(over90) + '</td>';
 
         html += '<td class="text-center">' + item.record_count + '</td>';
         html += '<td>' + escapeHtml(item.earliest_due_date) + '</td>';
-        html += '<td>';
-        if (item.total_remaining > 0) {
-            html += '<button class="btn btn-sm btn-outline-success me-1 btn-batch-collect" data-customer-type="' + item.customer_type + '" data-customer-id="' + (item.customer_id || '') + '" data-customer-name="' + escapeHtml(item.customer_name) + '" data-total-remaining="' + item.total_remaining + '"><i class="fa fa-money"></i> 收款</button>';
+        html += '<td style="white-space: nowrap;">';
+        if (batchPayMode) {
+            html += '<span class="text-muted small">--</span>';
+        } else {
+            if (item.total_remaining > 0) {
+                html += '<button class="btn btn-sm btn-outline-success me-1 btn-batch-collect" data-customer-type="' + item.customer_type + '" data-customer-id="' + (item.customer_id || '') + '" data-customer-name="' + escapeHtml(item.customer_name) + '" data-total-remaining="' + item.total_remaining + '"><i class="fa fa-money"></i> 收款</button>';
+            }
+            html += '<button class="btn btn-sm btn-outline-info btn-customer-detail" data-customer-type="' + item.customer_type + '" data-customer-id="' + (item.customer_id || '') + '" data-customer-name="' + escapeHtml(item.customer_name) + '"><i class="fa fa-eye"></i> 明细</button>';
         }
-        html += '<button class="btn btn-sm btn-outline-info btn-customer-detail" data-customer-type="' + item.customer_type + '" data-customer-id="' + (item.customer_id || '') + '" data-customer-name="' + escapeHtml(item.customer_name) + '"><i class="fa fa-eye"></i> 明细</button>';
         html += '</td>';
         html += '</tr>';
     }
@@ -633,25 +717,17 @@ function renderCustomerTable(data) {
     if (data.summary) {
         var s = data.summary;
         html = '<tr class="table-active fw-bold" style="background-color: var(--color-primary-light, #e8f0fe) !important;">';
-        html += '<td colspan="3" class="text-center">合计（共 ' + data.total_count + ' 个客户，' + (s.total_records || 0) + ' 条记录）</td>';
+        html += '<td colspan="' + (batchPayMode ? '4' : '3') + '" class="text-center">合计（共 ' + data.total_count + ' 个客户，' + (s.total_records || 0) + ' 条记录）</td>';
         html += '<td class="text-end summary-amount-cell amount-total">¥' + formatNumber(s.total_amount) + '</td>';
         html += '<td class="text-end summary-amount-cell amount-paid">¥' + formatNumber(s.total_paid) + '</td>';
         html += '<td class="text-end summary-amount-cell ' + (s.total_remaining > 0 ? 'amount-unpaid' : 'amount-paid') + '">¥' + formatNumber(s.total_remaining) + '</td>';
 
         var sNotDue = s.not_due_amount || 0;
-        var sAging1to30 = s.overdue_1to30 || 0;
-        var sAging31to60 = s.overdue_31to60 || 0;
-        var sAging61to90 = s.overdue_61to90 || 0;
-        var sOver90 = s.overdue_over90 || 0;
-
         html += '<td class="text-end ' + getAgingCellClass(sNotDue, 'not_due') + '">¥' + formatNumber(sNotDue) + '</td>';
-        html += '<td class="text-end ' + getAgingCellClass(sAging1to30, '1to30') + '">¥' + formatNumber(sAging1to30) + '</td>';
-        html += '<td class="text-end ' + getAgingCellClass(sAging31to60, '31to60') + '">¥' + formatNumber(sAging31to60) + '</td>';
-        html += '<td class="text-end ' + getAgingCellClass(sAging61to90, '61to90') + '">¥' + formatNumber(sAging61to90) + '</td>';
-        html += '<td class="text-end ' + getAgingCellClass(sOver90, 'over90') + '">¥' + formatNumber(sOver90) + '</td>';
 
         html += '<td class="text-center">' + (s.total_records || 0) + '</td>';
-        html += '<td colspan="2"></td>';
+        html += '<td></td>';
+        html += '<td></td>';
         html += '</tr>';
         tbody.append(html);
     }
@@ -1158,8 +1234,13 @@ function openBatchCollectModal(customerType, customerId, customerName, totalRema
     $('#batchCollectModeCash').prop('checked', true);
     $('#batchCashArea').show();
     $('#batchPrepayArea').hide();
+    $('#verificationModeBatch').prop('checked', true);
+    $('#categorySelectArea').hide();
+    $('#batchModeHint').text('按到期日从远到近顺序逐条抵扣').show();
+    $('#categorySelectedTotal').text('0.00');
     loadAccountOptions('#batchCollectAccountId');
     loadAvailablePrepayments(customerType, customerId, '#batchPrepayList', '#batchPrepayMaxAmount');
+    loadReceivableCategories(customerType, customerId);
 
     $('#batchCollectAmount').off('input').on('input', function() {
         var val = parseFloat($(this).val());
@@ -1171,7 +1252,61 @@ function openBatchCollectModal(customerType, customerId, customerName, totalRema
     modal.show();
 }
 
+function loadReceivableCategories(customerType, customerId) {
+    $.ajax({
+        url: '/finance/receivable/categories_by_customer',
+        type: 'GET',
+        data: { customer_type: customerType, customer_id: customerId },
+        success: function(resp) {
+            if (resp.success && resp.data.length > 0) {
+                var html = '';
+                for (var i = 0; i < resp.data.length; i++) {
+                    var cat = resp.data[i];
+                    html += '<label class="d-flex justify-content-between align-items-center p-1 category-check-item" style="cursor:pointer;">';
+                    html += '<div><input type="checkbox" class="form-check-input me-2 category-check" value="' + cat.expense_type_id + '" data-remaining="' + cat.total_remaining + '"> ' + escapeHtml(cat.expense_type_name) + '</div>';
+                    html += '<span class="badge bg-warning text-dark">¥' + formatNumber(cat.total_remaining) + ' <small>(' + cat.record_count + '条)</small></span>';
+                    html += '</label>';
+                }
+                $('#categoryCheckList').html(html);
+            } else {
+                $('#categoryCheckList').html('<p class="text-muted small mb-0">该客户暂无未收回应收</p>');
+            }
+        },
+        error: function() {
+            $('#categoryCheckList').html('<p class="text-danger small mb-0">加载类别失败</p>');
+        }
+    });
+}
+
+function getSelectedExpenseTypeIds() {
+    var ids = [];
+    $('.category-check:checked').each(function() {
+        ids.push(parseInt($(this).val()));
+    });
+    return ids;
+}
+
+function updateCategorySelectedTotal() {
+    var total = 0;
+    $('.category-check:checked').each(function() {
+        total += parseFloat($(this).data('remaining'));
+    });
+    $('#categorySelectedTotal').text(formatNumber(total));
+    var mode = $('input[name="verificationMode"]:checked').val();
+    if (mode === 'category') {
+        $('#batchCollectMaxAmount').text(formatNumber(total));
+        $('#batchPrepayMaxAmount').text(formatNumber(total));
+    }
+}
+
 function previewBatchCollect(customerType, customerId, payAmount) {
+    var mode = $('input[name="verificationMode"]:checked').val();
+    var selectedIds = [];
+    if (mode === 'category') {
+        selectedIds = getSelectedExpenseTypeIds();
+        if (selectedIds.length === 0) { $('#batchCollectPreview').hide(); return; }
+    }
+
     $.ajax({
         url: '/finance/receivable/list',
         type: 'GET',
@@ -1184,6 +1319,13 @@ function previewBatchCollect(customerType, customerId, payAmount) {
                        (item.customer_id == customerId || item.customer_name === $('#batchCollectCustomerName').text()) &&
                        item.remaining_amount > 0.01;
             });
+
+            if (mode === 'category' && selectedIds.length > 0) {
+                filtered = filtered.filter(function(item) {
+                    return selectedIds.indexOf(item.expense_type_id) >= 0;
+                });
+            }
+
             filtered.sort(function(a, b) { return (a.due_date || '').localeCompare(b.due_date || ''); });
 
             var remaining = payAmount;
@@ -1195,6 +1337,7 @@ function previewBatchCollect(customerType, customerId, payAmount) {
                 var newStatus = newRemaining <= 0.01 ? '已付款' : '部分付款';
                 previewRows.push({
                     receivable_id: item.receivable_id,
+                    expense_type_name: item.expense_type_name,
                     due_date: item.due_date,
                     original_remaining: item.remaining_amount,
                     pay_amount: payForThis,
@@ -1213,6 +1356,7 @@ function previewBatchCollect(customerType, customerId, payAmount) {
                 totalDeduct += r.pay_amount;
                 html += '<tr>';
                 html += '<td>' + r.receivable_id + '</td>';
+                html += '<td>' + escapeHtml(r.expense_type_name) + '</td>';
                 html += '<td>' + r.due_date + '</td>';
                 html += '<td class="text-end summary-amount-cell">¥' + formatNumber(r.original_remaining) + '</td>';
                 html += '<td class="text-end summary-amount-cell amount-paid">¥' + formatNumber(r.pay_amount) + '</td>';
@@ -1221,7 +1365,7 @@ function previewBatchCollect(customerType, customerId, payAmount) {
                 html += '</tr>';
             }
             html += '<tr class="fw-bold" style="background:var(--color-primary-light);">';
-            html += '<td colspan="3">合计</td>';
+            html += '<td colspan="4">合计</td>';
             html += '<td class="text-end summary-amount-cell amount-paid">¥' + formatNumber(totalDeduct) + '</td>';
             html += '<td colspan="2"></td>';
             html += '</tr>';
@@ -1234,8 +1378,15 @@ function previewBatchCollect(customerType, customerId, payAmount) {
 
 function submitBatchCollect() {
     var mode = $('input[name="batchCollectMode"]:checked').val();
+    var verificationMode = $('input[name="verificationMode"]:checked').val();
     var customerType = $('#batchCollectCustomerType').val();
     var customerId = parseInt($('#batchCollectCustomerId').val());
+
+    var expenseTypeIds = null;
+    if (verificationMode === 'category') {
+        expenseTypeIds = getSelectedExpenseTypeIds();
+        if (expenseTypeIds.length === 0) { showToast('warning', '请至少选择一个费用类别'); return; }
+    }
 
     if (mode === 'prepayment') {
         var prepaymentId = $('input[name="batchSelectedPrepayment"]:checked').val();
@@ -1247,19 +1398,22 @@ function submitBatchCollect() {
         var btn = $('#btnSubmitBatchCollect');
         btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 处理中...');
 
+        var postData = {
+            customer_type: customerType,
+            customer_id: customerId,
+            collect_mode: 'prepayment',
+            prepayment_id: parseInt(prepaymentId),
+            amount: applyAmount,
+            description: $('#batchPrepayDescription').val()
+        };
+        if (expenseTypeIds) postData.expense_type_ids = expenseTypeIds;
+
         $.ajax({
             url: '/finance/receivable/batch_collect',
             type: 'POST',
             contentType: 'application/json',
             headers: { 'X-CSRFToken': getCSRFToken() },
-            data: JSON.stringify({
-                customer_type: customerType,
-                customer_id: customerId,
-                mode: 'prepayment',
-                prepayment_id: parseInt(prepaymentId),
-                amount: applyAmount,
-                description: $('#batchPrepayDescription').val()
-            }),
+            data: JSON.stringify(postData),
             success: function(resp) {
                 if (resp.success) {
                     bootstrap.Modal.getInstance(document.getElementById('batchCollectModal')).hide();
@@ -1292,21 +1446,24 @@ function submitBatchCollect() {
         var btn = $('#btnSubmitBatchCollect');
         btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 处理中...');
 
+        var postData = {
+            customer_type: customerType,
+            customer_id: customerId,
+            collect_mode: 'cash',
+            amount: amount,
+            payment_method: method,
+            transaction_date: date,
+            description: desc,
+            account_id: accountId
+        };
+        if (expenseTypeIds) postData.expense_type_ids = expenseTypeIds;
+
         $.ajax({
             url: '/finance/receivable/batch_collect',
             type: 'POST',
             contentType: 'application/json',
             headers: { 'X-CSRFToken': getCSRFToken() },
-            data: JSON.stringify({
-                customer_type: customerType,
-                customer_id: customerId,
-                mode: 'cash',
-                amount: amount,
-                payment_method: method,
-                transaction_date: date,
-                description: desc,
-                account_id: accountId
-            }),
+            data: JSON.stringify(postData),
             success: function(resp) {
                 if (resp.success) {
                     bootstrap.Modal.getInstance(document.getElementById('batchCollectModal')).hide();
@@ -1437,6 +1594,121 @@ function openDetailModal(id) {
         },
         error: function() { showToast('error', '获取详情失败'); }
     });
+}
+
+function toggleBatchPayMode(on) {
+    batchPayMode = on;
+    if (on) {
+        batchPaySelected = {};
+        $('#batchPaySelectedCount').text('0');
+    }
+    $('#btnBatchPay, #btnAddReceivable, #btnExportExcel').toggle(!on);
+    $('#btnConfirmBatchPay, #btnCancelBatchPay').toggle(on);
+    $('.batch-pay-col').toggle(on);
+    $('#batchPaySelectAll').prop('checked', false);
+    loadReceivablesByCustomer(customerCurrentPage);
+}
+
+function updateBatchPayCount() {
+    var count = Object.keys(batchPaySelected).length;
+    $('#batchPaySelectedCount').text(count);
+    $('#btnConfirmBatchPay').prop('disabled', count === 0);
+}
+
+function openBatchPayModal() {
+    var keys = Object.keys(batchPaySelected);
+    if (keys.length === 0) { showToast('warning', '请至少选择一个客户'); return; }
+
+    var totalRemaining = 0;
+    var names = [];
+    for (var i = 0; i < keys.length; i++) {
+        var sel = batchPaySelected[keys[i]];
+        totalRemaining += sel.total_remaining;
+        names.push(sel.customer_name);
+    }
+
+    var namesDisplay = names.length <= 5 ? names.join('、') : names.slice(0, 5).join('、') + ' 等' + names.length + '个客户';
+    $('#batchPaySummary').html(
+        '<div><strong>已选客户：</strong>' + escapeHtml(namesDisplay) + '</div>' +
+        '<div><strong>未收合计：</strong><span class="text-danger fw-bold">¥' + formatNumber(totalRemaining) + '</span></div>' +
+        '<div class="text-muted small mt-1">将按到期日从远到近顺序逐条抵扣</div>'
+    );
+
+    $('#batchPayDate').val(new Date().toISOString().split('T')[0]);
+    $('#batchPayMethod').val('');
+    $('#batchPayAccountId').val('');
+    $('#batchPayDescription').val('');
+    loadAccountOptions('#batchPayAccountId');
+
+    var modal = new bootstrap.Modal(document.getElementById('batchPayModal'));
+    modal.show();
+}
+
+function submitBatchPay() {
+    var date = $('#batchPayDate').val();
+    var method = $('#batchPayMethod').val();
+    var accountId = $('#batchPayAccountId').val() || null;
+    var desc = $('#batchPayDescription').val();
+
+    if (!date) { showToast('warning', '请选择收款日期'); return; }
+    if (!method) { showToast('warning', '请选择付款方式'); return; }
+
+    var keys = Object.keys(batchPaySelected);
+    var btn = $('#btnSubmitBatchPay');
+    btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 处理中...');
+
+    var completed = 0;
+    var failed = 0;
+    var totalCollected = 0;
+
+    function done() {
+        if (completed + failed === keys.length) {
+            btn.prop('disabled', false).html('<i class="fa fa-check"></i> 确认付款');
+            bootstrap.Modal.getInstance(document.getElementById('batchPayModal')).hide();
+            toggleBatchPayMode(false);
+            loadReceivablesByCustomer(1);
+            loadReceivables(1);
+            if (failed > 0) {
+                showToast('warning', '完成 ' + completed + ' 个客户，' + failed + ' 个失败，共收 ¥' + formatNumber(totalCollected));
+            } else {
+                showToast('success', '批量收款成功，共收 ¥' + formatNumber(totalCollected));
+            }
+        }
+    }
+
+    for (var i = 0; i < keys.length; i++) {
+        (function(sel) {
+            $.ajax({
+                url: '/finance/receivable/batch_collect',
+                type: 'POST',
+                contentType: 'application/json',
+                headers: { 'X-CSRFToken': getCSRFToken() },
+                data: JSON.stringify({
+                    customer_type: sel.customer_type,
+                    customer_id: parseInt(sel.customer_id),
+                    collect_mode: 'cash',
+                    amount: sel.total_remaining,
+                    payment_method: method,
+                    transaction_date: date,
+                    description: desc || '批量付款',
+                    account_id: accountId
+                }),
+                success: function(resp) {
+                    if (resp.success) {
+                        completed++;
+                        totalCollected += sel.total_remaining;
+                    } else {
+                        failed++;
+                    }
+                    done();
+                },
+                error: function() {
+                    failed++;
+                    done();
+                }
+            });
+        })(batchPaySelected[keys[i]]);
+    }
 }
 
 $(document).ready(function() {
@@ -1620,7 +1892,80 @@ $(document).ready(function() {
             $('#batchPrepayArea').hide();
         }
     });
+
+    $(document).on('change', 'input[name="verificationMode"]', function() {
+        if ($(this).val() === 'category') {
+            $('#categorySelectArea').show();
+            $('#batchModeHint').text('仅核销所选费用类别的应收');
+        } else {
+            $('#categorySelectArea').hide();
+            $('#batchModeHint').text('按到期日从远到近顺序逐条抵扣');
+            var totalRemaining = $('#batchCollectTotalRemaining').text().replace(/,/g, '');
+            $('#batchCollectMaxAmount').text(formatNumber(parseFloat(totalRemaining)));
+            $('#batchPrepayMaxAmount').text(formatNumber(parseFloat(totalRemaining)));
+        }
+        $('#batchCollectPreview').hide();
+    });
+
+    $(document).on('change', '.category-check', function() {
+        updateCategorySelectedTotal();
+        var payAmount = parseFloat($('#batchCollectAmount').val());
+        if (payAmount && payAmount > 0) {
+            var customerType = $('#batchCollectCustomerType').val();
+            var customerId = parseInt($('#batchCollectCustomerId').val());
+            previewBatchCollect(customerType, customerId, payAmount);
+        }
+    });
+
     $('#btnSubmitBatchCollect').on('click', submitBatchCollect);
+
+    // ===== 批量付款模式 =====
+    $('#btnBatchPay').on('click', function() { toggleBatchPayMode(true); });
+    $('#btnCancelBatchPay').on('click', function() { toggleBatchPayMode(false); });
+    $('#btnConfirmBatchPay').on('click', openBatchPayModal);
+    $('#btnSubmitBatchPay').on('click', submitBatchPay);
+
+    $(document).on('change', '.batch-pay-check', function() {
+        var key = $(this).data('key');
+        if (this.checked) {
+            batchPaySelected[key] = {
+                customer_type: $(this).data('customer-type'),
+                customer_id: $(this).data('customer-id'),
+                customer_name: $(this).data('customer-name'),
+                total_remaining: parseFloat($(this).data('total-remaining'))
+            };
+        } else {
+            delete batchPaySelected[key];
+        }
+        updateBatchPayCount();
+    });
+
+    $(document).on('change', '#batchPaySelectAll', function() {
+        var checked = this.checked;
+        $('.batch-pay-check:not(:disabled)').each(function() {
+            this.checked = checked;
+            var key = $(this).data('key');
+            if (checked) {
+                batchPaySelected[key] = {
+                    customer_type: $(this).data('customer-type'),
+                    customer_id: $(this).data('customer-id'),
+                    customer_name: $(this).data('customer-name'),
+                    total_remaining: parseFloat($(this).data('total-remaining'))
+                };
+            } else {
+                delete batchPaySelected[key];
+            }
+        });
+        updateBatchPayCount();
+    });
+
+    $(document).on('click', '.batch-pay-selectable', function(e) {
+        if ($(e.target).closest('input[type="checkbox"], button, a').length) return;
+        var cb = $(this).find('.batch-pay-check');
+        if (cb.length && !cb.prop('disabled')) {
+            cb.prop('checked', !cb.prop('checked')).trigger('change');
+        }
+    });
 
     $(document).on('click', '.btn-delete', function() {
         var id = $(this).data('id');

@@ -151,7 +151,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block extra_js %}
 <script>
 $(function() {
     let currentPage = 1;
@@ -165,7 +167,7 @@ $(function() {
             status: $('#statusFilter').val(),
             room_type: $('#roomTypeFilter').val()
         }, function(res) {
-            if (!res.success) return showToast(res.message, 'danger');
+            if (!res.success) return showToast('error', res.message);
             var data = res.data;
             var html = '';
             if (data.items.length === 0) {
@@ -252,7 +254,7 @@ $(function() {
             description: $('#description').val().trim()
         };
 
-        if (!data.room_number) { showToast('请输入房间编号', 'warning'); return; }
+        if (!data.room_number) { showToast('warning', '请输入房间编号'); return; }
 
         var editId = $('#editRoomId').val();
         var url = editId ? '{{ url_for("dorm.rooms_edit", room_id=0) }}'.replace('/0', '/' + editId) : '{{ url_for("dorm.rooms_add") }}';
@@ -261,18 +263,19 @@ $(function() {
             url: url,
             method: 'POST',
             contentType: 'application/json',
+            headers: { 'X-CSRFToken': $('meta[name="csrf-token"]').attr('content') },
             data: JSON.stringify(data),
             success: function(res) {
                 if (res.success) {
-                    showToast(res.message, 'success');
+                    showToast('success', res.message);
                     bootstrap.Modal.getInstance($('#roomModal')[0]).hide();
                     loadRooms(currentPage);
                 } else {
-                    showToast(res.message, 'danger');
+                    showToast('error', res.message);
                 }
             },
             error: function(xhr) {
-                showToast(xhr.responseJSON?.message || '操作失败', 'danger');
+                showToast('error', (xhr.responseJSON && xhr.responseJSON.message) || '操作失败');
             }
         });
     });
@@ -303,22 +306,14 @@ $(function() {
     window.deleteRoom = function(roomId) {
         if (!confirm('确定要删除该房间吗？')) return;
         $.ajax({
-            url: '{{ url_for("dorm.rooms_edit", room_id=0) }}'.replace('/0', '/' + roomId),
-            method: 'DELETE',
-            success: function(res) {
-                if (res.success) { showToast(res.message, 'success'); loadRooms(currentPage); }
-                else { showToast(res.message, 'danger'); }
-            }
-        });
-        // 用 POST 方式调删除
-        $.ajax({
             url: '{{ url_for("dorm.rooms_delete", room_id=0) }}'.replace('/0', '/' + roomId),
             method: 'POST',
+            headers: { 'X-CSRFToken': $('meta[name="csrf-token"]').attr('content') },
             success: function(res) {
-                if (res.success) { showToast(res.message, 'success'); loadRooms(currentPage); }
-                else { showToast(res.message, 'danger'); }
+                if (res.success) { showToast('success', res.message); loadRooms(currentPage); }
+                else { showToast('error', res.message); }
             },
-            error: function(xhr) { showToast(xhr.responseJSON?.message || '删除失败', 'danger'); }
+            error: function(xhr) { showToast('error', (xhr.responseJSON && xhr.responseJSON.message) || '删除失败'); }
         });
     };
 

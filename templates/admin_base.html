@@ -43,6 +43,10 @@
                     <i class="fa fa-tachometer-alt"></i>
                     <span class="sidebar-item-text">工作台</span>
                 </a>
+                <a class="sidebar-item {% if request.endpoint == 'agent.chat' %}active{% endif %}" href="{{ url_for('agent.chat') }}">
+                    <i class="fas fa-robot"></i>
+                    <span class="sidebar-item-text">AI 助手</span>
+                </a>
             </div>
 
             {% if current_user.is_authenticated %}
@@ -130,9 +134,17 @@
                     <i class="fa fa-arrow-circle-down"></i>
                     <span class="sidebar-item-text">应收账款</span>
                 </a>
+                <a class="sidebar-item {% if request.endpoint == 'finance.collection' %}active{% endif %}" href="{{ url_for('finance.collection') }}">
+                    <i class="fa fa-check-circle"></i>
+                    <span class="sidebar-item-text">已收账款</span>
+                </a>
                 <a class="sidebar-item {% if request.endpoint == 'finance.payable' %}active{% endif %}" href="{{ url_for('finance.payable') }}">
                     <i class="fa fa-arrow-circle-up"></i>
                     <span class="sidebar-item-text">应付账款</span>
+                </a>
+                <a class="sidebar-item {% if request.endpoint == 'finance.payment' %}active{% endif %}" href="{{ url_for('finance.payment') }}">
+                    <i class="fa fa-check-circle-o"></i>
+                    <span class="sidebar-item-text">已付账款</span>
                 </a>
                 <a class="sidebar-item {% if request.endpoint == 'finance.cash_flow' %}active{% endif %}" href="{{ url_for('finance.cash_flow') }}">
                     <i class="fa fa-exchange"></i>

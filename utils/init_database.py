@@ -289,7 +289,7 @@ class DatabaseInitializer:
                                 ContractPeriod NVARCHAR(50) NULL,
                                 BusinessType NVARCHAR(50) NOT NULL,
                                 Description NVARCHAR(500) NULL,
-                                Status NVARCHAR(50) DEFAULT N'有效',
+                                Status NVARCHAR(50) DEFAULT N'生效',
                                 CreateTime DATETIME DEFAULT GETDATE(),
                                 UpdateTime DATETIME NULL
                             );
@@ -692,7 +692,7 @@ class DatabaseInitializer:
                     
                     # 合同状态
                     self._insert_dict_data(cursor, 'contract_status', [
-                        ('active', '有效', '当前有效的合同', 1),
+                        ('active', '生效', '当前生效的合同', 1),
                         ('expired', '已过期', '已到期的合同', 2),
                         ('terminated', '已终止', '提前终止的合同', 3)
                     ])

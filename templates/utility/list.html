@@ -1012,7 +1012,7 @@ $(document).on('click', '.bind-btn', function() {
     $('#bindMeterNumber').val(meterNumber);
     $('#bindUnitPrice').val('');  // 清空单价输入
     
-    // 加载有效合同列表
+    // 加载生效合同列表
     $.ajax({
         url: '/utility/valid_contracts',
         method: 'GET',

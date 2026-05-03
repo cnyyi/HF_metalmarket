@@ -28,6 +28,9 @@ python-dateutil
 python-docx
 openpyxl
 
+# AI Agent
+openai>=1.0.0
+
 # 微信集成
 requests
 wechatpy

@@ -14,10 +14,10 @@ class PortalService:
         """获取商户首页统计数据"""
         stats = {}
 
-        # 有效合同数
+        # 生效合同数
         row = execute_query("""
             SELECT COUNT(*) AS cnt FROM Contract
-            WHERE MerchantID = ? AND Status = N'有效'
+            WHERE MerchantID = ? AND Status = N'生效'
         """, (merchant_id,), fetch_type='one')
         stats['active_contracts'] = row.cnt if row else 0
 
@@ -56,7 +56,7 @@ class PortalService:
         rows = execute_query("""
             SELECT TOP 5 ContractID, ContractName, EndDate
             FROM Contract
-            WHERE MerchantID = ? AND Status = N'有效'
+            WHERE MerchantID = ? AND Status = N'生效'
               AND EndDate BETWEEN GETDATE() AND DATEADD(DAY, 30, GETDATE())
             ORDER BY EndDate
         """, (merchant_id,), fetch_type='all')

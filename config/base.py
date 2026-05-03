@@ -111,3 +111,9 @@ class Config:
     WX_TOKEN = os.environ.get('WX_TOKEN', '')
     WX_ENCODING_AES_KEY = os.environ.get('WX_ENCODING_AES_KEY', '')
     WX_TEMPLATE_BIND_RESULT = os.environ.get('WX_TEMPLATE_BIND_RESULT', '')
+
+    # DeepSeek AI Agent 配置
+    DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
+    DEEPSEEK_BASE_URL = os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com')
+    DEEPSEEK_MODEL = os.environ.get('DEEPSEEK_MODEL', 'deepseek-v4-pro')
+    AGENT_MAX_HISTORY_ROUNDS = int(os.environ.get('AGENT_MAX_HISTORY_ROUNDS', '10'))

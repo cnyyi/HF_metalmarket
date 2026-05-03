@@ -345,6 +345,22 @@ def electricity_meter_submit():
         return handle_exception(e)
 
 
+@utility_bp.route('/save_meter_sort_order', methods=['POST'])
+@login_required
+@check_api_permission('utility_reading')
+def save_meter_sort_order():
+    try:
+        data = request.get_json()
+        meter_type = data.get('meter_type', 'electricity')
+        items = data.get('items', [])
+        if not items:
+            return error_response('未提供排序数据')
+        result = utility_service.save_meter_sort_order(meter_type, items)
+        return success_response(message=result.get('message', '保存成功'))
+    except Exception as e:
+        return handle_exception(e)
+
+
 @utility_bp.route('/merchants', methods=['GET'])
 @login_required
 def merchants():
@@ -555,7 +571,7 @@ def pay_reading():
 
         result = utility_service.pay_reading(
             merchant_id, belong_month, meter_type, account_id, amount,
-            created_by=current_user.id
+            created_by=current_user.user_id
         )
         return jsonify(result)
     except Exception as e:

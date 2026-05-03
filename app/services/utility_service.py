@@ -996,8 +996,10 @@ class UtilityService:
                     m.MeterNumber,
                     m.InitReading,
                     m.MeterMultiplier,
+                    cwm.ContractMeterID,
                     cwm.ContractID,
                     cwm.UnitPrice,
+                    cwm.SortOrder,
                     mer.MerchantID,
                     mer.MerchantName,
                     c.ContractNumber,
@@ -1019,7 +1021,7 @@ class UtilityService:
                   AND (cwm.Status IS NULL OR cwm.Status <> N'未启用')
                   AND FORMAT(ISNULL(m.InstallationDate, '1900-01-01'), N'yyyy年MM月') <= ?
                   {not_exists_sql}
-                ORDER BY mer.MerchantName, m.MeterNumber
+                ORDER BY ISNULL(cwm.SortOrder, 9999), mer.MerchantName, m.MeterNumber
             """, [
                 'water' if meter_type == 'water' else 'electricity',
                 belong_month_display if belong_month else '9999年99月',
@@ -1036,7 +1038,9 @@ class UtilityService:
                 'meter_multiplier': float(r.MeterMultiplier) if r.MeterMultiplier else 1,
                 'last_reading': float(r.LastReading) if r.LastReading else 0,
                 'unit_price': float(r.UnitPrice) if r.UnitPrice else 0,
+                'contract_meter_id': r.ContractMeterID,
                 'contract_id': r.ContractID,
+                'sort_order': r.SortOrder,
                 'merchant_id': r.MerchantID,
                 'merchant_name': r.MerchantName,
                 'contract_number': r.ContractNumber
@@ -1047,7 +1051,27 @@ class UtilityService:
             'data': data,
             'total': len(data)
         }
-    
+
+    def save_meter_sort_order(self, meter_type, items):
+        if meter_type == 'water':
+            link_table = 'ContractWaterMeter'
+        else:
+            link_table = 'ContractElectricityMeter'
+
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+            for item in items:
+                contract_meter_id = item.get('contract_meter_id')
+                sort_order = item.get('sort_order')
+                if contract_meter_id is None or sort_order is None:
+                    continue
+                cursor.execute(f"""
+                    UPDATE {link_table} SET SortOrder = ?
+                    WHERE ContractMeterID = ?
+                """, (sort_order, contract_meter_id))
+            conn.commit()
+        return {'success': True, 'message': '排序保存成功'}
+
     def submit_meter_readings(self, meter_type, readings, reading_date=None, belong_month=None):
         """
         提交抄表数据

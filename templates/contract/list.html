@@ -35,6 +35,9 @@ th.sortable.sort-active .fa-sort-up, th.sortable.sort-active .fa-sort-down { opa
                 <h5 class="card-title mb-0">合同列表</h5>
             </div>
             <div class="col-md-6 text-end">
+                <button type="button" class="btn btn-info me-2" id="btnRentOverview">
+                    <i class="fa fa-bar-chart"></i> 租金应收概况
+                </button>
                 <a href="{{ url_for('contract.add') }}" class="btn btn-primary">
                     <i class="fa fa-plus"></i> 添加合同
                 </a>
@@ -128,6 +131,41 @@ th.sortable.sort-active .fa-sort-up, th.sortable.sort-active .fa-sort-down { opa
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="rentOverviewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa fa-bar-chart"></i> 租金应收概况</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="rentChartLoading" class="text-center py-5">
+                    <i class="fa fa-spinner fa-spin fa-2x text-muted"></i>
+                    <p class="mt-2 text-muted">加载中...</p>
+                </div>
+                <div id="rentChartContainer" style="display:none; position:relative; height:400px;">
+                    <canvas id="rentChart"></canvas>
+                </div>
+                <div id="rentChartEmpty" class="text-center py-5" style="display:none;">
+                    <i class="fa fa-inbox fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">暂无租金数据</p>
+                </div>
+                <div id="rentChartError" class="text-center py-5" style="display:none;">
+                    <i class="fa fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                    <p class="text-danger" id="rentChartErrorMsg">加载失败</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 {% endblock %}
 
 {% block extra_js %}
@@ -162,7 +200,7 @@ function loadContractDetail(contractId) {
             if (response.success) {
                 var contract = response.data;
                 
-                var statusClass = contract.status === '有效' ? 'bg-success' : 'bg-secondary';
+                var statusClass = contract.status === '生效' ? 'bg-success' : 'bg-secondary';
                 var statusText = contract.status || '-';
                 
                 var html = '<div class="row g-3">' +
@@ -550,6 +588,100 @@ $(document).ready(function() {
         }
         loadContracts(1);
     });
+
+    var rentChartInstance = null;
+
+    $('#btnRentOverview').click(function() {
+        $('#rentChartLoading').show();
+        $('#rentChartContainer').hide();
+        $('#rentChartEmpty').hide();
+        $('#rentChartError').hide();
+        new bootstrap.Modal(document.getElementById('rentOverviewModal')).show();
+
+        $.ajax({
+            url: '{{ url_for("contract.rent_overview") }}',
+            method: 'GET',
+            success: function(resp) {
+                $('#rentChartLoading').hide();
+                if (resp.success && resp.data.months.length > 0) {
+                    renderRentChart(resp.data);
+                    $('#rentChartContainer').show();
+                } else if (resp.success) {
+                    $('#rentChartEmpty').show();
+                } else {
+                    $('#rentChartErrorMsg').text(resp.message || '加载失败');
+                    $('#rentChartError').show();
+                }
+            },
+            error: function() {
+                $('#rentChartLoading').hide();
+                $('#rentChartErrorMsg').text('网络错误，请稍后重试');
+                $('#rentChartError').show();
+            }
+        });
+    });
+
+    function renderRentChart(data) {
+        if (rentChartInstance) {
+            rentChartInstance.destroy();
+        }
+        var ctx = document.getElementById('rentChart').getContext('2d');
+        rentChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.months,
+                datasets: [
+                    {
+                        label: '应收租金',
+                        data: data.receivable,
+                        backgroundColor: 'rgba(22, 93, 255, 0.7)',
+                        borderColor: 'rgba(22, 93, 255, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                    },
+                    {
+                        label: '已收租金',
+                        data: data.collected,
+                        backgroundColor: 'rgba(0, 180, 42, 0.7)',
+                        borderColor: 'rgba(0, 180, 42, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { font: { family: '微软雅黑', size: 13 }, usePointStyle: true, pointStyle: 'rectRounded' }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ¥' + context.parsed.y.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { family: '微软雅黑', size: 12 } }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0,0,0,0.06)' },
+                        ticks: {
+                            font: { family: '微软雅黑', size: 12 },
+                            callback: function(value) { return '¥' + value.toLocaleString(); }
+                        }
+                    }
+                }
+            }
+        });
+    }
 });
 </script>
 {% endblock %}

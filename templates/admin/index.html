@@ -704,7 +704,7 @@
             <span class="kpi-trend neutral" id="merchantTrend">--</span>
         </div>
         <div class="kpi-value" id="statMerchant">0</div>
-        <div class="kpi-label">份合同执行中</div>
+        <div class="kpi-label">份合同生效中</div>
         <div class="kpi-sub" id="statMerchantSub">
             <span class="kpi-sub-dot"></span>
             <span>加载中...</span>
@@ -732,6 +732,23 @@
         <div class="kpi-sub" id="statTodaySub">
             <span class="kpi-sub-dot"></span>
             <span>加载中...</span>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 合同应收账款柱状图 ===== -->
+<div class="section-grid section-grid-12 mb-4">
+    <div class="panel-card">
+        <div class="panel-header">
+            <div class="panel-title">
+                <i class="fa fa-file-contract" style="color: #6366F1;"></i> 合同应收账款
+            </div>
+            <a href="{{ url_for('finance.receivable') }}" class="panel-link">查看详情 →</a>
+        </div>
+        <div class="panel-body">
+            <div class="chart-container">
+                <canvas id="contractRecvChart"></canvas>
+            </div>
         </div>
     </div>
 </div>
@@ -930,6 +947,7 @@ $(function() {
     var monthlyChartInstance = null;
     var receivablePieInstance = null;
     var payablePieInstance = null;
+    var contractRecvChartInstance = null;
 
     // 加载仪表盘数据
     loadDashboard();
@@ -946,6 +964,7 @@ $(function() {
             renderKPICards(d);
             renderPieCharts(d);
             renderChart(d.chart);
+            renderContractRecvChart(d.contract_recv_chart);
             renderActivities(d.recent_activities);
             renderOverdue(d.overdue_items);
             renderContracts(d.expiring_contracts);
@@ -991,11 +1010,11 @@ $(function() {
             $('#plotTrend').removeClass('up down').addClass('neutral').html(plotRate + '%');
         }
 
-        // 合同执行中
+        // 合同生效中
         animateValue($('#statMerchant')[0], d.merchant.active_count, 800, false);
         $('#statMerchantSub').html('<span class="kpi-sub-dot"></span><span>地块 ' + d.merchant.rented_plots + '/' + d.merchant.total_plots + ' · 空置率 ' + d.merchant.vacancy_rate + '%</span>');
         if (d.merchant.active_count > 0) {
-            $('#merchantTrend').removeClass('neutral down').addClass('up').html('<i class="fa fa-file-contract"></i> 执行中');
+            $('#merchantTrend').removeClass('neutral down').addClass('up').html('<i class="fa fa-file-contract"></i> 生效中');
         } else {
             $('#merchantTrend').removeClass('up down').addClass('neutral').html('暂无');
         }
@@ -1243,6 +1262,212 @@ $(function() {
                                 if (v >= 1000) return (v / 1000).toFixed(0) + 'k';
                                 return v;
                             }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // ===== 合同应收账款柱状图 =====
+    function renderContractRecvChart(chartData) {
+        var ctx = document.getElementById('contractRecvChart');
+        if (!ctx) return;
+
+        if (contractRecvChartInstance) contractRecvChartInstance.destroy();
+
+        var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        var gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+        var textColor = isDark ? '#8B92A5' : '#6B7280';
+
+        var datasets = [];
+
+        if (chartData.period_datasets && chartData.period_datasets.length > 0) {
+            for (var pi = 0; pi < chartData.period_datasets.length; pi++) {
+                var pd = chartData.period_datasets[pi];
+                datasets.push({
+                    label: pd.period + ' 应收',
+                    data: pd.actual,
+                    backgroundColor: pd.bg_color,
+                    borderColor: pd.border_color,
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    barPercentage: 0.7,
+                    yAxisID: 'y',
+                    stack: 'actual'
+                });
+                datasets.push({
+                    label: pd.period + ' 已收',
+                    data: pd.paid,
+                    backgroundColor: pd.bg_color.replace('0.7', '0.35'),
+                    borderColor: pd.border_color,
+                    borderWidth: 1,
+                    borderDash: [2, 2],
+                    borderRadius: 4,
+                    barPercentage: 0.7,
+                    yAxisID: 'y',
+                    stack: 'paid'
+                });
+            }
+        } else {
+            datasets.push({
+                label: '应收租金',
+                data: chartData.actual,
+                backgroundColor: 'rgba(99, 102, 241, 0.7)',
+                borderColor: '#6366F1',
+                borderWidth: 1,
+                borderRadius: 6,
+                barPercentage: 0.6,
+                yAxisID: 'y'
+            });
+            datasets.push({
+                label: '已收租金',
+                data: chartData.paid,
+                backgroundColor: 'rgba(6, 182, 212, 0.7)',
+                borderColor: '#06B6D4',
+                borderWidth: 1,
+                borderRadius: 6,
+                barPercentage: 0.6,
+                yAxisID: 'y'
+            });
+        }
+
+        datasets.push({
+            label: '差额',
+            data: chartData.diff,
+            backgroundColor: function(context) {
+                var chart = context.chart;
+                var ctx2 = chart.ctx;
+                var area = chart.chartArea;
+                if (!area) return 'rgba(239, 68, 68, 0.6)';
+                var gradient = ctx2.createLinearGradient(0, area.bottom, 0, area.top);
+                gradient.addColorStop(0, 'rgba(239, 68, 68, 0.2)');
+                gradient.addColorStop(1, 'rgba(239, 68, 68, 0.7)');
+                return gradient;
+            },
+            borderColor: '#EF4444',
+            borderWidth: 0,
+            borderRadius: 6,
+            barPercentage: 0.6,
+            yAxisID: 'y'
+        });
+        datasets.push({
+            label: '当月合同数',
+            data: chartData.total_count,
+            type: 'line',
+            borderColor: '#F59E0B',
+            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            pointBackgroundColor: '#F59E0B',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            borderWidth: 2,
+            tension: 0.3,
+            fill: false,
+            yAxisID: 'y1'
+        });
+        datasets.push({
+            label: '未交清合同数',
+            data: chartData.unclear_count,
+            type: 'line',
+            borderColor: '#EF4444',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            pointBackgroundColor: '#EF4444',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            borderWidth: 2,
+            borderDash: [5, 3],
+            tension: 0.3,
+            fill: false,
+            yAxisID: 'y1'
+        });
+
+        contractRecvChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chartData.months,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: {
+                    duration: 1000,
+                    easing: 'easeOutQuart'
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        align: 'end',
+                        labels: {
+                            color: textColor,
+                            usePointStyle: true,
+                            pointStyle: 'rectRounded',
+                            font: { size: 11, family: "'DM Sans', sans-serif" },
+                            padding: 12,
+                            filter: function(legendItem, chartData2) {
+                                return legendItem.text.indexOf('已收') === -1;
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: isDark ? 'rgba(30, 30, 46, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                        titleColor: isDark ? '#E2E8F0' : '#1A1F2E',
+                        bodyColor: isDark ? '#8B92A5' : '#6B7280',
+                        borderColor: isDark ? '#374151' : '#E2E5EB',
+                        borderWidth: 1,
+                        cornerRadius: 10,
+                        padding: 14,
+                        titleFont: { weight: '600' },
+                        callbacks: {
+                            label: function(ctx) {
+                                if (ctx.dataset.yAxisID === 'y1') {
+                                    return ctx.dataset.label + ': ' + ctx.raw + ' 份';
+                                }
+                                return ctx.dataset.label + ': ¥' + formatNumber(ctx.raw);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        border: { display: false },
+                        title: { display: true, text: '合同开始月份', color: textColor, font: { size: 12 } },
+                        ticks: { color: textColor, font: { size: 11 }, maxRotation: 45, minRotation: 30, autoSkip: true, maxTicksLimit: 18 },
+                        stacked: false
+                    },
+                    y: {
+                        position: 'left',
+                        grid: { color: gridColor, drawBorder: false },
+                        border: { display: false },
+                        title: { display: true, text: '金额 (元)', color: textColor, font: { size: 12 } },
+                        stacked: false,
+                        ticks: {
+                            color: textColor,
+                            font: { size: 11 },
+                            padding: 8,
+                            callback: function(v) {
+                                if (v >= 10000) return (v / 10000).toFixed(0) + '万';
+                                if (v >= 1000) return (v / 1000).toFixed(0) + 'k';
+                                return v;
+                            }
+                        }
+                    },
+                    y1: {
+                        position: 'right',
+                        grid: { display: false },
+                        border: { display: false },
+                        beginAtZero: true,
+                        ticks: {
+                            color: textColor,
+                            font: { size: 11 },
+                            padding: 8,
+                            stepSize: 1,
+                            callback: function(v) { return v + '份'; }
                         }
                     }
                 }

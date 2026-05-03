@@ -36,6 +36,7 @@
                     <tr>
                         <th style="width: 100px;">表编号</th>
                         <th>归属商户</th>
+                        <th style="width: 70px;">排序号</th>
                         <th style="width: 100px;">上次读数</th>
                         <th style="width: 120px;">本次读数</th>
                         <th style="width: 80px;">倍率</th>
@@ -47,13 +48,16 @@
                 </thead>
                 <tbody id="meterTableBody">
                     <tr>
-                        <td colspan="9" class="text-center text-muted">加载中...</td>
+                        <td colspan="10" class="text-center text-muted">加载中...</td>
                     </tr>
                 </tbody>
             </table>
         </div>
         <div class="row mt-3">
             <div class="col-12 text-end">
+                <button class="btn btn-outline-primary me-2" id="btnSaveSortOrder">
+                    <i class="fa fa-sort-numeric-down"></i> 保存排序
+                </button>
                 <button class="btn btn-success" id="btnBatchSave">
                     <i class="fa fa-save"></i> 批量保存
                 </button>
@@ -79,11 +83,11 @@
                     meterData = response.data;
                     renderTable();
                 } else {
-                    $('#meterTableBody').html('<tr><td colspan="9" class="text-center text-danger">加载失败</td></tr>');
+                    $('#meterTableBody').html('<tr><td colspan="10" class="text-center text-danger">加载失败</td></tr>');
                 }
             },
             error: function() {
-                $('#meterTableBody').html('<tr><td colspan="9" class="text-center text-danger">加载失败</td></tr>');
+                $('#meterTableBody').html('<tr><td colspan="10" class="text-center text-danger">加载失败</td></tr>');
             }
         });
     }
@@ -94,7 +98,7 @@
         tbody.empty();
         
         if (meterData.length === 0) {
-            tbody.html('<tr><td colspan="9" class="text-center text-muted">暂无待抄水表</td></tr>');
+            tbody.html('<tr><td colspan="10" class="text-center text-muted">暂无待抄水表</td></tr>');
             return;
         }
         
@@ -107,6 +111,11 @@
                 <tr>
                     <td>${item.meter_number}</td>
                     <td>${item.merchant_name}</td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm sort-order-input"
+                               data-index="${index}" data-contract-meter-id="${item.contract_meter_id}"
+                               value="${item.sort_order || ''}" step="1" min="1" style="width: 65px;">
+                    </td>
                     <td>${lastReading.toFixed(2)}</td>
                     <td>
                         <input type="number" class="form-control form-control-sm current-reading" 
@@ -146,6 +155,32 @@
         $(`.usage-${index}`).text(usage.toFixed(2));
         $(`.amount-${index}`).text('¥' + amount.toFixed(2));
     }
+
+    // 保存排序号
+    $('#btnSaveSortOrder').click(function() {
+        const items = [];
+        $('.sort-order-input').each(function() {
+            const val = $(this).val().trim();
+            const contractMeterId = $(this).data('contract-meter-id');
+            if (val && contractMeterId) {
+                items.push({
+                    contract_meter_id: contractMeterId,
+                    sort_order: parseInt(val)
+                });
+            }
+        });
+        if (items.length === 0) {
+            showToast('warning', '未填写任何排序号');
+            return;
+        }
+        ajaxPost('/utility/save_meter_sort_order', {
+            meter_type: 'water',
+            items: items
+        }, function(res) {
+            showToast('success', '排序保存成功，正在刷新...');
+            setTimeout(function() { loadMeters(); }, 500);
+        });
+    });
 
     // 批量保存
     $('#btnBatchSave').click(function() {

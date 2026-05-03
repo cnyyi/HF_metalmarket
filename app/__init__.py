@@ -45,6 +45,7 @@ def create_app(config_class=Config):
         ('app.routes.garbage', 'garbage_bp', '/garbage', False),
         ('app.routes.garbage_fee', 'garbage_fee_bp', '/garbage_fee', False),
         ('app.routes.role', 'role_bp', '/role', False),
+        ('app.routes.agent', 'agent_bp', '/agent', False),
         ('app.routes.admin', 'admin_bp', None, False),
     ]
 

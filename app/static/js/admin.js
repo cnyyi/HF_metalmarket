@@ -542,6 +542,7 @@ function statusBadge(status) {
         '已缴费': 'status-paid',
         '逾期': 'status-overdue',
         '有效': 'status-active',
+        '生效': 'status-active',
         '正常': 'status-active',
         '活跃': 'status-active',
         '无效': 'status-inactive',

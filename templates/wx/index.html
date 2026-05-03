@@ -16,7 +16,7 @@
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 12px;">
     <div class="wx-stat-card">
         <div class="stat-value" id="statContracts">-</div>
-        <div class="stat-label">有效合同</div>
+        <div class="stat-label">生效合同</div>
     </div>
     <div class="wx-stat-card">
         <div class="stat-value" id="statPending">-</div>
@@ -31,6 +31,17 @@
         <div class="stat-label">本月过磅</div>
     </div>
 </div>
+
+<a href="{{ url_for('agent.wx_chat') }}" style="display:block;margin:12px;padding:16px;background:linear-gradient(135deg, var(--color-primary), #4f8eff);border-radius:12px;color:#fff;text-decoration:none;">
+    <div style="display:flex;align-items:center;gap:12px;">
+        <i class="fas fa-robot" style="font-size:24px;"></i>
+        <div>
+            <div style="font-weight:600;font-size:15px;">智能客服</div>
+            <div style="font-size:12px;opacity:0.8;">查询合同、账单、水电费等</div>
+        </div>
+        <i class="fas fa-chevron-right" style="margin-left:auto;opacity:0.6;"></i>
+    </div>
+</a>
 
 <div class="wx-card" style="margin-top: 12px;">
     <div class="wx-card-title">即将到期合同</div>

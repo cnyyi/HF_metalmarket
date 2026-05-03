@@ -33,7 +33,9 @@ class ReceivableRepository:
                 LEFT JOIN Sys_Dictionary ud ON r.UnitID = ud.DictID AND ud.DictType = 'unit_type'
             """
 
-            count_query = "SELECT COUNT(*) FROM Receivable r"
+            count_query = """SELECT COUNT(*) FROM Receivable r
+                LEFT JOIN Merchant m ON r.CustomerType <> 'Customer' AND r.MerchantID = m.MerchantID
+                LEFT JOIN Customer c ON r.CustomerType = 'Customer' AND r.CustomerID = c.CustomerID"""
             sum_query = """
                 SELECT ISNULL(SUM(r.Amount), 0), ISNULL(SUM(r.PaidAmount), 0), ISNULL(SUM(r.RemainingAmount), 0)
                 FROM Receivable r

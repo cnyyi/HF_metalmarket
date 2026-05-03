@@ -1,0 +1,38 @@
+name: "快捷功能开发"
+agents_dir: ".trae/skills"
+inputs:
+  - name: requirement
+    required: true
+    description: "小型功能需求描述"
+steps:
+  - id: brainstorm
+    role: "project-manager"
+    task: |
+      使用 brainstorming 技能分析需求：{{requirement}}
+      （针对小型功能，简化流程）
+    output: spec_design
+
+  - id: plan
+    role: "project-manager"
+    task: |
+      使用 writing-plans 技能创建实现计划，基于：{{spec_design}}
+    output: implementation_plan
+
+  - id: confirm_plan
+    role: "project-manager"
+    task: |
+      向用户展示计划并等待确认：{{implementation_plan}}
+    output: user_confirmation
+
+  - id: execute
+    role: "project-manager"
+    task: |
+      使用 executing-plans 技能执行计划
+      （简化版，同会话执行）
+    output: implementation_result
+
+  - id: final_review
+    role: "project-manager"
+    task: |
+      使用 finishing-a-development-branch 技能收尾
+    output: final_result

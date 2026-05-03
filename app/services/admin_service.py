@@ -3,6 +3,7 @@
 """
 import logging
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 
 from utils.database import DBConnection
 
@@ -60,7 +61,7 @@ class AdminService:
             cursor.execute("""
                 SELECT COUNT(*)
                 FROM Contract
-                WHERE Status IN (N'生效', N'有效')
+                WHERE Status = N'生效'
                   AND StartDate <= CAST(GETDATE() AS DATE)
                   AND EndDate >= CAST(GETDATE() AS DATE)
             """)
@@ -76,8 +77,9 @@ class AdminService:
             months = []
             income_data = []
             expense_data = []
+            now = datetime.now()
             for i in range(5, -1, -1):
-                dt = datetime.now() - timedelta(days=i * 30)
+                dt = now - relativedelta(months=i)
                 ym = dt.strftime('%Y-%m')
                 label = dt.strftime('%m月')
                 months.append(label)
@@ -225,6 +227,109 @@ class AdminService:
             scale_weight = float(scale_row[1])
             scale_fee = float(scale_row[2])
 
+            cursor.execute("""
+                SELECT MIN(FORMAT(c.StartDate, 'yyyy-MM')), MAX(FORMAT(c.StartDate, 'yyyy-MM'))
+                FROM Contract c
+                INNER JOIN Receivable r ON r.ReferenceID = c.ContractID
+                    AND r.ReferenceType = N'contract'
+                    AND r.IsActive = 1
+            """)
+            date_range = cursor.fetchone()
+            min_ym = date_range[0] or (now - relativedelta(months=11)).strftime('%Y-%m')
+            max_ym = date_range[1] or now.strftime('%Y-%m')
+
+            min_dt = datetime.strptime(min_ym, '%Y-%m')
+            max_dt = datetime.strptime(max_ym, '%Y-%m')
+            month_count = (max_dt.year - min_dt.year) * 12 + (max_dt.month - min_dt.month) + 1
+            month_count = min(month_count, 36)
+
+            contract_recv_months = []
+            contract_recv_ym_list = []
+            for i in range(month_count):
+                dt = min_dt + relativedelta(months=i)
+                ym = dt.strftime('%Y-%m')
+                label = dt.strftime('%Y年%m月')
+                contract_recv_months.append(label)
+                contract_recv_ym_list.append(ym)
+
+            cursor.execute("""
+                SELECT DISTINCT ContractPeriod
+                FROM Contract
+                WHERE ContractPeriod IS NOT NULL AND ContractPeriod != N''
+                ORDER BY ContractPeriod
+            """)
+            period_rows = cursor.fetchall()
+            contract_periods = [r[0] for r in period_rows]
+
+            period_colors = [
+                ('rgba(99, 102, 241, 0.7)', '#6366F1'),
+                ('rgba(6, 182, 212, 0.7)', '#06B6D4'),
+                ('rgba(245, 158, 11, 0.7)', '#F59E0B'),
+                ('rgba(236, 72, 153, 0.7)', '#EC4899'),
+                ('rgba(34, 197, 94, 0.7)', '#22C55E'),
+                ('rgba(168, 85, 247, 0.7)', '#A855F7'),
+                ('rgba(249, 115, 22, 0.7)', '#F97316'),
+                ('rgba(20, 184, 166, 0.7)', '#14B8A6'),
+            ]
+
+            contract_recv_period_datasets = []
+            for pi, period in enumerate(contract_periods):
+                actual_list = []
+                paid_list = []
+                color_idx = pi % len(period_colors)
+                for ym in contract_recv_ym_list:
+                    cursor.execute("""
+                        SELECT
+                            ISNULL(SUM(c.ActualAmount), 0),
+                            ISNULL(SUM(r.PaidAmount), 0)
+                        FROM Contract c
+                        LEFT JOIN Receivable r
+                            ON r.ReferenceID = c.ContractID
+                            AND r.ReferenceType = N'contract'
+                            AND r.IsActive = 1
+                        WHERE FORMAT(c.StartDate, 'yyyy-MM') = ?
+                          AND c.ContractPeriod = ?
+                    """, (ym, period))
+                    pr_row = cursor.fetchone()
+                    actual_list.append(float(pr_row[0]))
+                    paid_list.append(float(pr_row[1]))
+
+                contract_recv_period_datasets.append({
+                    'period': period,
+                    'actual': actual_list,
+                    'paid': paid_list,
+                    'bg_color': period_colors[color_idx][0],
+                    'border_color': period_colors[color_idx][1],
+                })
+
+            contract_recv_total_actual = []
+            contract_recv_total_paid = []
+            contract_recv_diff = []
+            contract_recv_total_count = []
+            contract_recv_unclear_count = []
+            for ym in contract_recv_ym_list:
+                cursor.execute("""
+                    SELECT
+                        ISNULL(SUM(c.ActualAmount), 0),
+                        ISNULL(SUM(r.PaidAmount), 0),
+                        COUNT(*),
+                        COUNT(CASE WHEN r.Status IN (N'未付款', N'部分付款') THEN 1 END)
+                    FROM Contract c
+                    LEFT JOIN Receivable r
+                        ON r.ReferenceID = c.ContractID
+                        AND r.ReferenceType = N'contract'
+                        AND r.IsActive = 1
+                    WHERE FORMAT(c.StartDate, 'yyyy-MM') = ?
+                """, (ym,))
+                cr_row = cursor.fetchone()
+                actual = float(cr_row[0])
+                paid = float(cr_row[1])
+                contract_recv_total_actual.append(actual)
+                contract_recv_total_paid.append(paid)
+                contract_recv_diff.append(actual - paid)
+                contract_recv_total_count.append(int(cr_row[2]))
+                contract_recv_unclear_count.append(int(cr_row[3]))
+
             return {
                 'receivable': {
                     'unpaid': receivable_unpaid,
@@ -271,5 +376,14 @@ class AdminService:
                     'vehicles': scale_vehicles,
                     'weight': scale_weight,
                     'fee': scale_fee
+                },
+                'contract_recv_chart': {
+                    'months': contract_recv_months,
+                    'actual': contract_recv_total_actual,
+                    'paid': contract_recv_total_paid,
+                    'diff': contract_recv_diff,
+                    'total_count': contract_recv_total_count,
+                    'unclear_count': contract_recv_unclear_count,
+                    'period_datasets': contract_recv_period_datasets
                 }
             }

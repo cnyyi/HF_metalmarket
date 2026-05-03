@@ -71,7 +71,7 @@ def create_order():
             order_date=data.get('order_date', ''),
             items=data.get('items', []),
             description=data.get('description', '').strip() or None,
-            created_by=current_user.id,
+            created_by=current_user.user_id,
         )
         return jsonify({'success': True, 'message': f'费用单创建成功，已生成{result["payable_count"]}笔应付', 'data': result})
     except Exception as e:

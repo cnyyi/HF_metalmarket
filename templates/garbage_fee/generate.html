@@ -26,7 +26,7 @@
     <div class="card-body">
         <div class="alert alert-info mb-3">
             <i class="fa fa-info-circle"></i>
-            <strong>说明：</strong>选择年度后点击"预览"，系统将自动计算所有有效合同商户的垃圾费。确认无误后点击"确认生成"。
+            <strong>说明：</strong>选择年度后点击"预览"，系统将自动计算所有生效合同商户的垃圾费。确认无误后点击"确认生成"。
         </div>
 
         <div class="row mb-4">
@@ -114,7 +114,7 @@ $(function() {
     function renderPreview(data) {
         if (data.items.length === 0) {
             $('#previewSummary').removeClass('alert-success').addClass('alert-warning')
-                .html('<i class="fa fa-exclamation-triangle"></i> 没有可生成的商户。请确认该年度有有效合同且业态单价已设置。');
+                .html('<i class="fa fa-exclamation-triangle"></i> 没有可生成的商户。请确认该年度有生效合同且业态单价已设置。');
             $('#previewArea').show();
             return;
         }

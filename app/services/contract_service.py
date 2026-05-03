@@ -239,7 +239,7 @@ class ContractService:
                         'plot_count': r.PlotCount,
                         'start_date': r.StartDate.strftime('%Y-%m-%d') if r.StartDate else None,
                         'end_date': r.EndDate.strftime('%Y-%m-%d') if r.EndDate else None,
-                        'status': r.Status or '有效',
+                        'status': r.Status or '生效',
                         'create_time': r.CreateTime.strftime('%Y-%m-%d %H:%M:%S') if r.CreateTime else None
                     })
             
@@ -304,7 +304,7 @@ class ContractService:
                     '银行转账',
                     1,
                     '租赁',
-                    '有效',
+                    '生效',
                     description
                 ))
 
@@ -424,7 +424,7 @@ class ContractService:
                     'contract_amount': float(row.ContractAmount) if row.ContractAmount else 0,
                     'amount_reduction': float(row.AmountReduction) if row.AmountReduction else 0,
                     'actual_amount': float(row.ActualAmount) if row.ActualAmount else 0,
-                    'status': row.Status or '有效',
+                    'status': row.Status or '生效',
                     'description': row.Description or '',
                     'create_time': row.CreateTime.strftime('%Y-%m-%d %H:%M:%S') if row.CreateTime else None
                 }
@@ -666,3 +666,72 @@ class ContractService:
         except Exception as e:
             logger.error(f"删除合同失败: {e}", exc_info=True)
             return False, str(e)
+
+    def get_rent_overview():
+        with DBConnection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT DictID FROM Sys_Dictionary
+                WHERE DictType = ? AND DictCode = ? AND IsActive = 1
+            """, (RENT_EXPENSE_DICT_TYPE, RENT_EXPENSE_DICT_CODE))
+            dict_row = cursor.fetchone()
+            if not dict_row:
+                cursor.execute("""
+                    SELECT DictID FROM Sys_Dictionary
+                    WHERE DictType = ? AND DictName = ? AND IsActive = 1
+                """, (RENT_EXPENSE_DICT_TYPE, RENT_EXPENSE_DICT_NAME))
+                dict_row = cursor.fetchone()
+
+            expense_type_id = dict_row.DictID if dict_row else None
+
+            cursor.execute("""
+                SELECT FORMAT(c.StartDate, N'yyyy-MM') AS Month,
+                       ISNULL(SUM(r.Amount), 0) AS TotalReceivable
+                FROM Receivable r
+                INNER JOIN Contract c ON r.ReferenceType = N'contract' AND r.ReferenceID = c.ContractID
+                WHERE r.IsActive = 1
+                  AND r.ExpenseTypeID = ?
+                  AND c.Status = N'生效'
+                GROUP BY FORMAT(c.StartDate, N'yyyy-MM')
+                ORDER BY Month
+            """, (expense_type_id,))
+            receivable_rows = cursor.fetchall()
+
+            cursor.execute("""
+                SELECT FORMAT(c.StartDate, N'yyyy-MM') AS Month,
+                       ISNULL(SUM(cr.Amount), 0) AS TotalCollected
+                FROM CollectionRecord cr
+                INNER JOIN Receivable r ON cr.ReceivableID = r.ReceivableID
+                INNER JOIN Contract c ON r.ReferenceType = N'contract' AND r.ReferenceID = c.ContractID
+                WHERE r.IsActive = 1
+                  AND r.ExpenseTypeID = ?
+                  AND c.Status = N'生效'
+                GROUP BY FORMAT(c.StartDate, N'yyyy-MM')
+                ORDER BY Month
+            """, (expense_type_id,))
+            collected_rows = cursor.fetchall()
+
+            receivable_map = {r.Month: float(r.TotalReceivable) for r in receivable_rows}
+            collected_map = {r.Month: float(r.TotalCollected) for r in collected_rows}
+
+            all_months = sorted(set(list(receivable_map.keys()) + list(collected_map.keys())))
+
+            if not all_months:
+                return {'months': [], 'receivable': [], 'collected': []}
+
+            recent_months = all_months[-12:] if len(all_months) > 12 else all_months
+
+            months = []
+            receivable_data = []
+            collected_data = []
+            for m in recent_months:
+                months.append(m)
+                receivable_data.append(receivable_map.get(m, 0))
+                collected_data.append(collected_map.get(m, 0))
+
+            return {
+                'months': months,
+                'receivable': receivable_data,
+                'collected': collected_data,
+            }

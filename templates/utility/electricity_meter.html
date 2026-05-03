@@ -42,6 +42,7 @@
                         <th class="text-center" style="width: 50px;">序号</th>
                         <th class="text-center">公司名（关联商户）</th>
                         <th class="text-center" style="width: 100px;">电表编号</th>
+                        <th class="text-center" style="width: 70px;">排序号</th>
                         <th class="text-center" style="width: 100px;">上月表底</th>
                         <th class="text-center" style="width: 120px;">本月表底</th>
                         <th class="text-center" style="width: 80px;">倍率</th>
@@ -53,12 +54,12 @@
                 </thead>
                 <tbody id="meterTableBody">
                     <tr>
-                        <td colspan="10" class="text-center text-muted">加载中...</td>
+                        <td colspan="11" class="text-center text-muted">加载中...</td>
                     </tr>
                 </tbody>
                 <tfoot id="meterTableFoot" style="display: none;">
                     <tr style="background-color: var(--table-footer-bg); font-weight: bold; border-top: 3px double var(--color-border);">
-                        <td colspan="6" class="text-center align-middle">合计（共 <span id="totalMeterCount">0</span> 个电表）</td>
+                        <td colspan="7" class="text-center align-middle">合计（共 <span id="totalMeterCount">0</span> 个电表）</td>
                         <td class="text-center align-middle" id="totalUsage">0.00</td>
                         <td class="text-center align-middle">-</td>
                         <td class="text-center align-middle highlight-subtotal" id="totalSubtotal">¥0.00</td>
@@ -69,6 +70,9 @@
         </div>
         <div class="row mt-3">
             <div class="col-12 text-end">
+                <button class="btn btn-outline-primary me-2" id="btnSaveSortOrder">
+                    <i class="fa fa-sort-numeric-down"></i> 保存排序
+                </button>
                 <button class="btn btn-success" id="btnBatchSave">
                     <i class="fa fa-save"></i> 批量保存
                 </button>
@@ -110,7 +114,7 @@
         tbody.empty();
         
         if (meterData.length === 0) {
-            tbody.html('<tr><td colspan="10" class="text-center text-muted">暂无待抄电表</td></tr>');
+            tbody.html('<tr><td colspan="11" class="text-center text-muted">暂无待抄电表</td></tr>');
             // 清空并隐藏合计行
             $('#totalMeterCount').text('0');
             $('#totalUsage').text('0.00');
@@ -181,6 +185,11 @@
             
             row += `
                 <td class="text-center align-middle">${item.meter_number}</td>
+                <td class="text-center align-middle">
+                    <input type="number" class="form-control form-control-sm sort-order-input"
+                           data-index="${index}" data-contract-meter-id="${item.contract_meter_id}"
+                           value="${item.sort_order || ''}" step="1" min="1" style="width: 65px;">
+                </td>
                 <td class="text-center align-middle">${lastReading.toFixed(2)}</td>
                 <td class="text-center align-middle">
                     <input type="number" class="form-control form-control-sm current-reading" 
@@ -307,6 +316,32 @@
         });
         $(`.total-merchant-${totalGroup.groupKey}`).text('¥' + totalAmount.toFixed(2));
     }
+
+    // 保存排序号
+    $('#btnSaveSortOrder').click(function() {
+        const items = [];
+        $('.sort-order-input').each(function() {
+            const val = $(this).val().trim();
+            const contractMeterId = $(this).data('contract-meter-id');
+            if (val && contractMeterId) {
+                items.push({
+                    contract_meter_id: contractMeterId,
+                    sort_order: parseInt(val)
+                });
+            }
+        });
+        if (items.length === 0) {
+            showToast('warning', '未填写任何排序号');
+            return;
+        }
+        ajaxPost('/utility/save_meter_sort_order', {
+            meter_type: 'electricity',
+            items: items
+        }, function(res) {
+            showToast('success', '排序保存成功，正在刷新...');
+            setTimeout(function() { loadMeters(); }, 500);
+        });
+    });
 
     // 批量保存
     $('#btnBatchSave').click(function() {

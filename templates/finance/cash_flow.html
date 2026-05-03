@@ -103,7 +103,7 @@
                         <th>方向</th>
                         <th>账户</th>
                         <th>费用类型</th>
-                        <th>金额</th>
+                        <th class="text-end">金额</th>
                         <th>摘要</th>
                         <th>操作人</th>
                     </tr>
@@ -113,13 +113,33 @@
                         <td colspan="8" class="text-center text-muted">加载中...</td>
                     </tr>
                 </tbody>
+                <tfoot id="cashFlowTfoot" style="display:none;">
+                    <tr class="table-active fw-bold" style="background-color: var(--color-primary-light, #e8f0fe) !important;">
+                        <td colspan="5" class="text-center">合计（共 <span id="footRecordCount">0</span> 条记录）</td>
+                        <td class="text-end" id="footAmountTotal">¥0.00</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
 
-        <nav aria-label="Page navigation" id="paginationNav" style="display:none;">
-            <ul class="pagination justify-content-center" id="paginationList">
-            </ul>
-        </nav>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2" id="paginationArea">
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label form-label-sm mb-0 text-nowrap">每页</label>
+                <select class="form-select form-select-sm" id="pageSizeSelect" style="width: auto;">
+                    <option value="12" selected>12</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="all">全部数据</option>
+                </select>
+                <label class="form-label form-label-sm mb-0 text-nowrap">条</label>
+            </div>
+            <nav aria-label="Page navigation" id="paginationNav" style="display:none;">
+                <ul class="pagination justify-content-center mb-0" id="paginationList">
+                </ul>
+            </nav>
+        </div>
     </div>
 </div>
 
@@ -157,15 +177,17 @@
 {% block extra_js %}
 <script>
 var currentPage = 1;
-var perPage = 15;
+var perPage = 12;
+var showAll = false;
 
 function loadCashFlows(page) {
     if (!page) page = 1;
     currentPage = page;
 
+    var requestPerPage = showAll ? 9999 : perPage;
     var data = {
-        page: page,
-        per_page: perPage,
+        page: showAll ? 1 : page,
+        per_page: requestPerPage,
         direction: $('#directionFilter').val(),
         start_date: $('#startDate').val(),
         end_date: $('#endDate').val()
@@ -218,12 +240,16 @@ function renderTable(data) {
 
     if (!items || items.length === 0) {
         tbody.html(emptyStateHtml('暂无数据'));
+        $('#cashFlowTfoot').hide();
         $('#paginationNav').hide();
         return;
     }
 
     var html = '';
     var startIndex = (data.current_page - 1) * perPage;
+
+    var pageIncomeTotal = 0;
+    var pageExpenseTotal = 0;
 
     for (var i = 0; i < items.length; i++) {
         var item = items[i];
@@ -232,7 +258,12 @@ function renderTable(data) {
         var dirIcon = item.direction === '收入' ? 'fa-arrow-down' : 'fa-arrow-up';
         var amountPrefix = item.direction === '收入' ? '+' : '-';
 
-        // 来源标签
+        if (item.direction === '收入') {
+            pageIncomeTotal += item.amount;
+        } else {
+            pageExpenseTotal += item.amount;
+        }
+
         var refLabel = '';
         if (item.reference_type === 'direct_entry') refLabel = ' <span class="badge bg-info">直记</span>';
         else if (item.reference_type === 'collection_record') refLabel = ' <span class="badge bg-success">收款</span>';
@@ -262,7 +293,21 @@ function renderTable(data) {
     }
 
     tbody.html(html);
+
+    var tfoot = $('#cashFlowTfoot');
+    var netAmount = pageIncomeTotal - pageExpenseTotal;
+    var netPrefix = netAmount >= 0 ? '+' : '-';
+    var netClass = netAmount >= 0 ? 'text-success' : 'text-danger';
+    $('#footRecordCount').text(data.total_count);
+    $('#footAmountTotal').html(
+        '<span class="text-success">+¥' + formatNumber(pageIncomeTotal) + '</span> / ' +
+        '<span class="text-danger">-¥' + formatNumber(pageExpenseTotal) + '</span> / ' +
+        '<span class="' + netClass + '">' + netPrefix + '¥' + formatNumber(Math.abs(netAmount)) + '</span>'
+    );
+    tfoot.show();
+
     renderPagination('#paginationList', data, function(page) { loadCashFlows(page); });
+    if (showAll || data.total_pages <= 1) { $('#paginationNav').hide(); } else { $('#paginationNav').show(); }
 }
 
 function loadExpenseTypes() {
@@ -403,6 +448,17 @@ $(document).ready(function() {
         $('#directionFilter').val('');
         $('#expenseTypeFilter').val('');
         $('#accountFilter').val('');
+        loadCashFlows(1);
+    });
+
+    $('#pageSizeSelect').on('change', function() {
+        var val = $(this).val();
+        if (val === 'all') {
+            showAll = true;
+        } else {
+            showAll = false;
+            perPage = parseInt(val);
+        }
         loadCashFlows(1);
     });
 

@@ -36,6 +36,8 @@
 
 ## 模块完成度（2026-04-17）
 - Auth 100% | User 95% | Merchant 100% | Plot 95%（架构违规已修复✅/Status值注意用"已出租"非"已租"）| Contract 95%（架构违规已修复✅）
+- **⚠️ Contract.Status 统一值**：`N'生效'`（2026-05-03 统一，原 `N'有效'` 已全部迁移为 `N'生效'`，查生效合同用 `Status = N'生效'`，不是 `N'执行中'`）- **⚠️ 数据库枚举值以实际为准**：Merchant.MerchantType 实际为 'company'/'业务往来'/'个体工商户'/'公司'/'意向客户'；Account.AccountType 实际为 'Bank'/'WeChat'；Merchant.Status 有脏数据 '1'
+- AI Agent 的 Prompt 枚举值已改为动态从数据库查询（`_refresh_enum_cache()`），缓存 1 小时自动刷新
 - Utility 95%（抄表状态过滤✅）| Finance 92%（收款核销✅/应付管理✅/现金流水✅/客户类型✅/账户体系✅/直接记账✅/导出❌）| Scale 40%（数据同步✅/ScaleRecord扩展✅/Dashboard看板✅含本月/上月/去年同期趋势对比/前端展示待开发）
 - Admin Dashboard 95%（统计卡✅/收支柱形图✅/最近动态✅/逾期应收✅/合同到期✅/地块数据✅/暗色模式修复✅）
 - Customer 100%（CRUD✅ + 搜索API✅）
@@ -47,6 +49,16 @@
 - Finance P3-P4 待开发（内部调拨/计次计量业务）
 - ExpenseOrder（费用单）开发完成（2026-04-16）：主从结构✅/应付联动✅/列表页✅/新增页✅/详情页✅/导航✅/权限✅
 - GarbageCollection（垃圾清运）开发完成（2026-04-20）：列表✅/新增✅/编辑✅/详情✅/删除✅/应付联动✅/编辑联动Payable更新✅
+
+## AI Agent 数据查询助手（2026-05-02 集成+安全修复）
+- **蓝图**：agent_bp → /agent/，路由在 app/routes/agent.py
+- **核心**：AgentService（app/services/agent_service.py），DeepSeek Text-to-SQL
+- **Prompt**：agent_prompt_builder.py（Schema + Few-shot + 动态枚举缓存）
+- **安全**：agent_sql_validator.py（MerchantID WHERE 条件校验/危险关键字/注释移除/分号检测）
+- **页面**：chat.html（管理端）+ wx_chat.html（微信端，商户权限约束）
+- **数据库**：AgentConversation + AgentMessage（scripts/create_agent_tables.sql）
+- **安全修复**（2026-05-02）：MerchantID 校验从字符串包含改为 WHERE 条件正则匹配/API 错误不泄露/DOMPurify 防 XSS/注释移除防绕过
+- **可靠性修复**（2026-05-02）：客户端复用/历史消息去重/Schema 枚举值动态化(1h缓存)/Few-shot 示例/SQL 失败自动修复一次/简单结果跳过二次 LLM
 
 ## 商户门户（Phase 1 完成 2026-04-15）
 - User表新增 UserType 字段：Admin(管理端) / Merchant(商户端)

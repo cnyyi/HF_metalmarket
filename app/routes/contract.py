@@ -37,6 +37,17 @@ def list_data():
         return handle_exception(e)
 
 
+@contract_bp.route('/rent_overview')
+@login_required
+@check_api_permission('contract_view')
+def rent_overview():
+    try:
+        data = ContractService.get_rent_overview()
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return handle_exception(e)
+
+
 @contract_bp.route('/generate/<int:contract_id>', methods=['POST'])
 @check_api_permission('contract_edit')
 def generate_doc(contract_id):
@@ -194,7 +205,7 @@ def edit(contract_id):
         end_date = data.get('end_date')
         rent_adjust = float(data.get('rent_adjust', 0))
         description = data.get('description', '')
-        status = data.get('status', '有效')
+        status = data.get('status', '生效')
         plot_ids = data.get('plot_ids', [])
         
         if not start_date:

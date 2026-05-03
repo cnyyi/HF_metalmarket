@@ -213,7 +213,7 @@ class GarbageFeeService:
                 FROM Merchant m
                 INNER JOIN Contract c ON m.MerchantID = c.MerchantID
                 INNER JOIN ContractPlot cp ON c.ContractID = cp.ContractID
-                WHERE c.Status = N'有效'
+                WHERE c.Status = N'生效'
                   AND c.StartDate <= ?
                   AND c.EndDate >= ?
                 GROUP BY m.MerchantID, m.MerchantName, m.BusinessType
@@ -298,7 +298,7 @@ class GarbageFeeService:
                 FROM Merchant m
                 INNER JOIN Contract c ON m.MerchantID = c.MerchantID
                 INNER JOIN ContractPlot cp ON c.ContractID = cp.ContractID
-                WHERE c.Status = N'有效'
+                WHERE c.Status = N'生效'
                   AND c.StartDate <= ?
                   AND c.EndDate >= ?
                 GROUP BY m.MerchantID, m.MerchantName, m.BusinessType
