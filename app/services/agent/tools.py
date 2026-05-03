@@ -328,11 +328,13 @@ def _register_contract_tools(reg, contract_svc):
         "type": "function",
         "function": {
             "name": "query_expiring_contracts",
-            "description": u"查询即将到期的合同，可按天数筛选（30天/60天/90天内到期）",
+            "description": u"查询即将到期的合同。支持两种模式：1) 按天数（days参数）查未来N天内到期；2) 按日期范围（start_date/end_date参数）查指定时间段内到期。例如查7月到期的合同，传start_date=2026-07-01, end_date=2026-07-31。",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "days": {"type": "integer", "description": u"未来多少天内到期，默认30天", "enum": [30, 60, 90]}
+                    "days": {"type": "integer", "description": u"未来多少天内到期，默认30天。与start_date/end_date二选一"},
+                    "start_date": {"type": "string", "description": u"到期日期范围起始，格式yyyy-MM-dd，如2026-07-01"},
+                    "end_date": {"type": "string", "description": u"到期日期范围结束，格式yyyy-MM-dd，如2026-07-31"}
                 },
                 "required": []
             }
@@ -379,9 +381,11 @@ def _make_contracts_executor(contract_svc):
 
 
 def _make_expiring_contracts_executor(contract_svc):
-    def executor(days=30, _merchant_id=None, _source='admin'):
+    def executor(days=None, start_date=None, end_date=None, _merchant_id=None, _source='admin'):
         return contract_svc.get_expiring_contracts(
             days=days,
+            start_date=start_date,
+            end_date=end_date,
             merchant_id=_merchant_id if _source == 'wx' else None,
             source=_source
         )

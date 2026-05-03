@@ -59,8 +59,17 @@ class AgentService:
         else:
             final_content = planner.get_direct_response() or '暂无法回答该问题，请换个方式提问。'
 
+        query_result = None
+        if memory_data:
+            result_parts = []
+            for step_id, data in memory_data.items():
+                result_str = json.dumps(data, ensure_ascii=False, default=str)
+                result_parts.append(f"[{step_id}] {result_str[:2000]}")
+            query_result = '\n'.join(result_parts)
+
         self._save_message(conversation_id, 'assistant', final_content,
-                           generated_sql=json.dumps(tool_call_detail, ensure_ascii=False) if tool_call_detail else None)
+                           generated_sql=json.dumps(tool_call_detail, ensure_ascii=False) if tool_call_detail else None,
+                           query_result=query_result)
 
         return {
             'conversation_id': conversation_id,
@@ -81,11 +90,13 @@ class AgentService:
             result_str = json.dumps(data, ensure_ascii=False, default=str)
             tool_results_summary.append(f"[{step_id}] {result_str[:3000]}")
 
-        messages = [
-            {'role': 'system', 'content': explainer_prompt},
-            {'role': 'user', 'content': message},
-            {'role': 'assistant', 'content': f'查询结果：\n' + '\n'.join(tool_results_summary)}
-        ]
+        messages = [{'role': 'system', 'content': explainer_prompt}]
+
+        for msg in history[-6:]:
+            messages.append({'role': msg['role'], 'content': msg['content']})
+
+        messages.append({'role': 'user', 'content': message})
+        messages.append({'role': 'assistant', 'content': f'查询结果：\n' + '\n'.join(tool_results_summary)})
 
         if report:
             messages.append({'role': 'user', 'content': '请基于以上查询结果，用自然语言回答用户的问题。参考以下报告结构：\n' + report})
@@ -195,13 +206,19 @@ class AgentService:
         with DBConnection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT TOP (?) Role, Content
+                SELECT TOP (?) Role, Content, QueryResult
                 FROM AgentMessage
                 WHERE ConversationID = ?
                 ORDER BY CreateTime DESC
             """, (max_rounds * 2, conversation_id))
             rows = cursor.fetchall()
-            return [{'role': row.Role, 'content': row.Content} for row in reversed(rows)]
+            result = []
+            for row in reversed(rows):
+                content = row.Content
+                if row.Role == 'assistant' and row.QueryResult:
+                    content = f"{content}\n\n[查询数据] {row.QueryResult[:1500]}"
+                result.append({'role': row.Role, 'content': content})
+            return result
 
     def _get_client(self):
         api_key = current_app.config.get('DEEPSEEK_API_KEY', '')

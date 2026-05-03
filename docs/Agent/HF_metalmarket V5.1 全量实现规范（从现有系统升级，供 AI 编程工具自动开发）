@@ -1,0 +1,2189 @@
+# HF_metalmarket V5.1 全量实现规范（从现有系统升级，供 AI 编程工具自动开发）
+
+---
+
+# 一、项目定义（必须理解）
+
+本项目目标：
+
+👉 从现有系统升级构建一个 **AI驱动的经营自动化系统（V5.1）**
+
+系统不只是分析数据，而是具备：
+
+> **分析 → 判断 → 决策 → 执行 → 反馈 的完整闭环能力**
+
+---
+
+# 二、现有系统现状（V5.1 升级基础）
+
+> ⚠️ 本节为 V5.1 新增。V5 假设从0开始，V5.1 基于现有代码升级，必须理解现状才能正确实现。
+
+## 2.1 现有技术栈
+
+| 类别 | 技术 |
+|------|------|
+| 后端框架 | Flask + Flask-Login + Flask-WTF |
+| 数据库 | SQL Server（pyodbc 直连，无 ORM） |
+| AI/LLM | DeepSeek API（兼容 OpenAI SDK） |
+| 前端 | Jinja2 模板 + jQuery + Bootstrap |
+| 微信 | wechatpy |
+| 部署 | Docker + Gunicorn |
+
+## 2.2 现有 Agent 架构（V2 生产版）
+
+当前生产环境使用 V2 Function Calling 架构：
+
+```
+用户提问 → LLM (含 tools) → tool_calls → 执行工具 → 结果喂回 LLM → 自然语言回答
+```
+
+核心文件：
+
+| 文件 | 职责 |
+|------|------|
+| `app/services/agent_service.py` | V2 主入口，AgentService 类 |
+| `app/services/agent_tools.py` | 工具注册表，40+ 业务工具 |
+| `app/services/agent_prompt_builder.py` | 系统 Prompt 构建 |
+| `app/routes/agent.py` | 路由层，admin + wx 两套 API |
+| `templates/agent/chat.html` | 管理端聊天 UI |
+| `templates/agent/wx_chat.html` | 微信端聊天 UI |
+
+## 2.3 现有 V3 部分实现
+
+`app/services/agent/` 子包中已有部分 V3 模块：
+
+| 文件 | 状态 | 说明 |
+|------|------|------|
+| `__init__.py` | ✅ 已实现 | 导出 AgentService |
+| `planner.py` | ✅ 已实现 | LLM 规划 + RULE_MAP 兜底 |
+| `executor.py` | ✅ 已实现 | 多步骤执行 + $变量引用 |
+| `memory.py` | ✅ 已实现 | 步骤结果存储 + 点号路径访问 |
+| `chart_builder.py` | ✅ 已实现 | 自动推断图表类型（line/bar/pie） |
+| `risk_engine.py` | ✅ 已实现 | 合同/财务/成本风险识别 |
+| `report_builder.py` | ✅ 已实现 | 结构化报告（总体/费用/风险/建议） |
+| `prompts.py` | ✅ 已实现 | Planner + Explainer prompt |
+| `agent_service.py` | ❌ 未实现 | V3 主入口（编排三阶段流程） |
+| `tools.py` | ❌ 未实现 | 工具注册（从 agent_tools.py 迁移） |
+| `context.py` | ❌ 未实现 | 上下文管理 |
+| `forecast_engine.py` | ❌ 未实现 | 预测引擎 |
+| `scoring_engine.py` | ❌ 未实现 | 评分引擎 |
+| `decision_engine.py` | ❌ 未实现 | 决策引擎 |
+| `pdf_builder.py` | ❌ 未实现 | PDF 报告生成 |
+
+## 2.4 现有数据库表（30+ 张）
+
+核心业务表（已存在，V5.1 不可重建）：
+
+| 表名 | 主键 | 说明 |
+|------|------|------|
+| Merchant | MerchantID | 商户（15+ 字段） |
+| Contract | ContractID | 合同（16+ 字段） |
+| ContractPlot | ContractPlotID | 合同-地块关联 |
+| Plot | PlotID | 地块 |
+| Receivable | ReceivableID | 应收（23+ 字段，含软删除） |
+| Payable | PayableID | 应付（含软删除） |
+| CashFlow | CashFlowID | 现金流水 |
+| CollectionRecord | CollectionRecordID | 收款记录 |
+| PaymentRecord | PaymentRecordID | 付款记录 |
+| Account | AccountID | 资金账户 |
+| Prepayment | PrepaymentID | 预收/预付 |
+| PrepaymentApply | ApplyID | 预收冲抵明细 |
+| Deposit | DepositID | 押金 |
+| DepositOperation | OperationID | 押金操作记录 |
+| ReversalRecord | ReversalID | 冲销记录 |
+| ExpenseType | ExpenseTypeID | 费用类型 |
+| ExpenseOrder | OrderID | 费用单主表 |
+| ExpenseOrderItem | ItemID | 费用单明细 |
+| Customer | CustomerID | 往来客户 |
+| [User] | UserID | 用户 |
+| Role | RoleID | 角色 |
+| Permission | PermissionID | 权限 |
+| Sys_Dictionary | DictID | 系统字典 |
+| AgentConversation | ConversationID | Agent 会话 |
+| AgentMessage | MessageID | Agent 消息 |
+| DormRoom / DormOccupancy / DormBill 等 | - | 宿舍管理 |
+| GarbageFee / GarbageCollection | - | 垃圾费/清运 |
+| SalaryProfile / SalaryRecord | - | 工资管理 |
+| Scale / ScaleRecord | - | 磅秤管理 |
+
+## 2.5 现有项目规范（必须遵守）
+
+| 规范 | 说明 |
+|------|------|
+| Routes → Services → DBConnection 三层分离 | Routes 层禁止 SQL |
+| SQL 必须参数化 + N'中文' | 禁止拼接 SQL |
+| 表单必须 Ajax + CSRF | 禁止传统 form submit |
+| 文件走 /uploads/ | 数据库存路径 |
+| 所有 HTML 在 templates/ 目录 | render_template 使用相对路径 |
+
+---
+
+# 三、系统能力范围（必须全部实现）
+
+---
+
+## 1️⃣ 数据分析能力（基础能力，V3 已部分实现）
+
+* 查询业务数据（应收、应付、合同等）
+* 支持自然语言输入
+* 多步骤推理
+
+---
+
+## 2️⃣ 自动报告系统（V3 已部分实现）
+
+* 输出结构化分析报告
+* 支持图表数据
+
+---
+
+## 3️⃣ 风险识别系统（V3 已部分实现）
+
+* 自动识别异常
+* 输出风险等级
+
+---
+
+## 4️⃣ AI预测系统（V5.1 新增）
+
+* 收入趋势预测
+* 成本变化预测
+
+---
+
+## 5️⃣ 决策系统（V5.1 新增，核心）
+
+* 根据分析结果生成"行动决策"
+* 示例：
+  * 催收
+  * 续租提醒
+  * 成本优化建议
+
+---
+
+## 6️⃣ 自动执行系统（V5.1 新增，关键）
+
+* 决策自动执行
+* 示例：
+  * 发送通知
+  * 创建任务
+  * 写入数据库
+
+---
+
+## 7️⃣ 商户评分系统（V5.1 新增）
+
+* 评估商户信用与风险
+
+---
+
+## 8️⃣ 规则系统（V5.1 新增，可配置）
+
+* 所有业务策略必须可配置
+* 不允许写死逻辑
+
+---
+
+## 9️⃣ 事件驱动系统（V5.1 新增）
+
+* 数据变化自动触发分析与执行
+
+---
+
+## 🔟 定时任务系统（V5.1 新增）
+
+* 自动运行日报 / 月报
+
+---
+
+# 四、系统总体架构
+
+```
+用户 / 定时任务 / 系统事件
+            ↓
+        API层（Flask）
+            ↓
+     Agent Orchestrator（核心）
+            ↓
+ ┌───────────────┬───────────────┬───────────────┐
+ │               │               │               │
+Planner      Executor        Memory        Context
+            ↓
+ ┌───────────────┬───────────────┬───────────────┐
+ │               │               │               │
+Tools       Risk Engine   Forecast Engine  Scoring Engine
+ │
+ ↓
+数据库（SQL Server）
+            ↓
+ ┌───────────────┬───────────────┬───────────────┐
+ │               │               │               │
+Report      Decision Engine   Rule Engine   Action Engine
+ Builder
+            ↓
+     Messaging / Task System
+```
+
+---
+
+# 五、项目目录结构（V5.1 修订，统一到 app/ 包下）
+
+> ⚠️ V5 原规范将模块放在顶层目录（agent/、engine/ 等），与现有项目结构冲突。V5.1 统一到 `app/` 包下，遵循 Flask 应用工厂模式。
+
+```
+HF_metalmarket/
+├── app.py                              # 应用入口（已有）
+├── config/                             # 配置模块（已有）
+│   ├── base.py
+│   ├── development.py
+│   ├── production.py
+│   └── testing.py
+│
+├── app/
+│   ├── __init__.py                     # 应用工厂（已有）
+│   │
+│   ├── agent/                          # 🔄 V5.1 核心：Agent 系统（从 services/agent/ 升级）
+│   │   ├── __init__.py                 # 导出 Orchestrator
+│   │   ├── orchestrator.py             # 系统总控（新增）
+│   │   ├── planner.py                  # 规划器（已有，需增强）
+│   │   ├── executor.py                 # 执行器（已有，需增强）
+│   │   ├── memory.py                   # 内存存储（已有，保持）
+│   │   ├── context.py                  # 上下文管理（新增）
+│   │   ├── tools.py                    # 工具注册（从 agent_tools.py 迁移）
+│   │   ├── tool_registry.py            # 工具注册表类（新增）
+│   │   ├── chart_builder.py            # 图表构建（已有，保持）
+│   │   ├── risk_engine.py              # 风险引擎（已有，需增强）
+│   │   ├── forecast_engine.py          # 预测引擎（新增）
+│   │   ├── scoring_engine.py           # 评分引擎（新增）
+│   │   ├── decision_engine.py          # 决策引擎（新增）
+│   │   ├── report_builder.py           # 报告构建（已有，需增强）
+│   │   ├── pdf_builder.py              # PDF 生成（新增）
+│   │   └── prompts.py                  # Prompt 模板（已有，需增强）
+│   │
+│   ├── engine/                         # 🔄 V5.1 新增：引擎层
+│   │   ├── __init__.py
+│   │   ├── rule_engine.py              # 规则引擎
+│   │   ├── action_engine.py            # 动作引擎
+│   │   └── event_bus.py                # 事件总线
+│   │
+│   ├── scheduler/                      # 🔄 V5.1 新增：定时任务
+│   │   ├── __init__.py
+│   │   └── scheduler.py                # APScheduler 定时任务
+│   │
+│   ├── messaging/                      # 🔄 V5.1 新增：消息通知
+│   │   ├── __init__.py
+│   │   ├── notifier.py                 # 通知分发器
+│   │   └── channels/
+│   │       ├── __init__.py
+│   │       ├── system_channel.py        # 系统内通知
+│   │       ├── wechat_channel.py        # 微信通知
+│   │       └── sms_channel.py           # 短信通知
+│   │
+│   ├── tasks/                          # 🔄 V5.1 新增：任务管理
+│   │   ├── __init__.py
+│   │   └── task_service.py             # 任务服务
+│   │
+│   ├── routes/                         # 路由层（已有，需扩展）
+│   │   ├── agent.py                    # 🔄 改造：现有 Agent 路由
+│   │   ├── decision.py                 # 新增：决策审批路由
+│   │   ├── rule.py                     # 新增：规则管理路由
+│   │   ├── score.py                    # 新增：评分查询路由
+│   │   └── ... (其他已有路由不变)
+│   │
+│   ├── services/                       # 服务层（已有，需扩展）
+│   │   ├── agent_service.py            # 🔄 改造：兼容层，委托给 agent/ 包
+│   │   ├── agent_tools.py              # 🔄 改造：兼容层，委托给 agent/tools.py
+│   │   ├── agent_prompt_builder.py     # 🔄 改造：兼容层，委托给 agent/prompts.py
+│   │   ├── decision_service.py         # 新增
+│   │   ├── rule_service.py             # 新增
+│   │   ├── scoring_service.py          # 新增
+│   │   ├── forecast_service.py         # 新增
+│   │   ├── event_service.py            # 新增
+│   │   ├── notification_service.py     # 新增
+│   │   └── ... (其他已有服务不变)
+│   │
+│   ├── repositories/                   # 数据访问层（已有，需扩展）
+│   │   ├── receivable_repo.py          # 已有
+│   │   ├── payable_repo.py             # 已有
+│   │   ├── cash_flow_repo.py           # 已有
+│   │   ├── collection_record_repo.py   # 已有
+│   │   ├── decision_repo.py            # 新增
+│   │   ├── task_repo.py                # 新增
+│   │   ├── rule_repo.py                # 新增
+│   │   ├── event_repo.py               # 新增
+│   │   ├── notification_repo.py        # 新增
+│   │   ├── scoring_repo.py             # 新增
+│   │   ├── merchant_repo.py            # 新增（从 merchant_service.py 提取 SQL）
+│   │   └── contract_repo.py            # 新增（从 contract_service.py 提取 SQL）
+│   │
+│   └── models/                         # 数据模型（已有）
+│       └── ...
+│
+├── utils/                              # 工具类（已有）
+│   ├── database.py                     # DBConnection（已有）
+│   └── ...
+│
+├── templates/                          # 模板（已有，需扩展）
+│   ├── agent/
+│   │   ├── chat.html                   # 🔄 改造：增加图表/风险/决策展示
+│   │   └── wx_chat.html                # 🔄 改造：同上
+│   ├── decision/                       # 新增
+│   │   ├── list.html                   # 决策列表
+│   │   └── detail.html                 # 决策详情/审批
+│   ├── rule/                           # 新增
+│   │   └── list.html                   # 规则配置
+│   ├── score/                          # 新增
+│   │   └── list.html                   # 商户评分
+│   └── ... (其他已有模板不变)
+│
+├── scripts/                            # 数据库脚本（已有，需扩展）
+│   ├── create_agent_tables.sql         # 已有
+│   ├── add_v51_tables.sql              # 新增：V5.1 新表
+│   └── ...
+│
+├── reports/                            # 报告输出目录（新增）
+│
+└── requirements.txt                    # 依赖（需扩展）
+```
+
+---
+
+# 六、现有代码迁移映射（V5.1 新增，必须遵守）
+
+> ⚠️ 本节定义每个现有文件的处理方式，Trae 必须严格按照映射操作，不得遗漏或冲突。
+
+## 6.1 保留并改造的文件
+
+| 现有文件 | 处理方式 | 改造内容 |
+|---------|---------|---------|
+| `app/services/agent_service.py` | 改造为兼容层 | 委托给 `app/agent/orchestrator.py`，保持对外接口不变 |
+| `app/services/agent_tools.py` | 改造为兼容层 | 委托给 `app/agent/tools.py`，保持工具注册接口不变 |
+| `app/services/agent_prompt_builder.py` | 改造为兼容层 | 委托给 `app/agent/prompts.py` |
+| `app/routes/agent.py` | 改造 | 适配新返回格式，新增决策/评分相关路由 |
+| `app/services/agent/planner.py` | 增强 | 保留 LLM + RULE_MAP 双模式，增加对决策流程的支持 |
+| `app/services/agent/executor.py` | 增强 | 保留核心逻辑，增加对决策工具的支持 |
+| `app/services/agent/memory.py` | 保持 | 无需修改 |
+| `app/services/agent/chart_builder.py` | 保持 | 无需修改 |
+| `app/services/agent/risk_engine.py` | 增强 | 增加规则配置化支持 |
+| `app/services/agent/report_builder.py` | 增强 | 增加预测/评分/决策内容 |
+| `app/services/agent/prompts.py` | 增强 | 增加 Decision Prompt |
+| `templates/agent/chat.html` | 改造 | 增加图表/风险/决策/评分展示区域 |
+| `templates/agent/wx_chat.html` | 改造 | 同上 |
+
+## 6.2 迁移的文件
+
+| 现有文件 | 迁移目标 | 说明 |
+|---------|---------|------|
+| `app/services/agent/__init__.py` | `app/agent/__init__.py` | 模块位置从 services 子包提升为 app 子包 |
+| `app/services/agent/planner.py` | `app/agent/planner.py` | 同上 |
+| `app/services/agent/executor.py` | `app/agent/executor.py` | 同上 |
+| `app/services/agent/memory.py` | `app/agent/memory.py` | 同上 |
+| `app/services/agent/chart_builder.py` | `app/agent/chart_builder.py` | 同上 |
+| `app/services/agent/risk_engine.py` | `app/agent/risk_engine.py` | 同上 |
+| `app/services/agent/report_builder.py` | `app/agent/report_builder.py` | 同上 |
+| `app/services/agent/prompts.py` | `app/agent/prompts.py` | 同上 |
+
+## 6.3 新增的文件
+
+| 文件 | 说明 |
+|------|------|
+| `app/agent/orchestrator.py` | 系统总控 |
+| `app/agent/context.py` | 上下文管理 |
+| `app/agent/tools.py` | 工具注册（从 agent_tools.py 重构） |
+| `app/agent/tool_registry.py` | 工具注册表类 |
+| `app/agent/forecast_engine.py` | 预测引擎 |
+| `app/agent/scoring_engine.py` | 评分引擎 |
+| `app/agent/decision_engine.py` | 决策引擎 |
+| `app/agent/pdf_builder.py` | PDF 报告生成 |
+| `app/engine/rule_engine.py` | 规则引擎 |
+| `app/engine/action_engine.py` | 动作引擎 |
+| `app/engine/event_bus.py` | 事件总线 |
+| `app/scheduler/scheduler.py` | 定时任务 |
+| `app/messaging/notifier.py` | 通知分发器 |
+| `app/messaging/channels/system_channel.py` | 系统通知 |
+| `app/messaging/channels/wechat_channel.py` | 微信通知 |
+| `app/messaging/channels/sms_channel.py` | 短信通知 |
+| `app/tasks/task_service.py` | 任务服务 |
+| `app/routes/decision.py` | 决策审批路由 |
+| `app/routes/rule.py` | 规则管理路由 |
+| `app/routes/score.py` | 评分查询路由 |
+| `app/services/decision_service.py` | 决策服务 |
+| `app/services/rule_service.py` | 规则服务 |
+| `app/services/scoring_service.py` | 评分服务 |
+| `app/services/forecast_service.py` | 预测服务 |
+| `app/services/event_service.py` | 事件服务 |
+| `app/services/notification_service.py` | 通知服务 |
+| `app/repositories/decision_repo.py` | 决策数据访问 |
+| `app/repositories/task_repo.py` | 任务数据访问 |
+| `app/repositories/rule_repo.py` | 规则数据访问 |
+| `app/repositories/event_repo.py` | 事件数据访问 |
+| `app/repositories/notification_repo.py` | 通知数据访问 |
+| `app/repositories/scoring_repo.py` | 评分数据访问 |
+| `app/repositories/merchant_repo.py` | 商户数据访问（从 service 提取） |
+| `app/repositories/contract_repo.py` | 合同数据访问（从 service 提取） |
+| `scripts/add_v51_tables.sql` | V5.1 新表建表脚本 |
+| `templates/decision/list.html` | 决策列表页面 |
+| `templates/decision/detail.html` | 决策详情页面 |
+| `templates/rule/list.html` | 规则配置页面 |
+| `templates/score/list.html` | 评分列表页面 |
+
+## 6.4 不动的文件
+
+所有其他现有文件（routes、services、repositories、templates、utils 等）保持不变，除非明确在 6.1 中标注为"改造"。
+
+---
+
+# 七、LLM 集成方案（V5.1 新增）
+
+> ⚠️ V5 原规范未定义 LLM 使用细节，V5.1 必须明确。
+
+## 7.1 LLM 配置
+
+| 配置项 | 值 | 环境变量 |
+|--------|------|---------|
+| API 提供商 | DeepSeek（兼容 OpenAI SDK） | - |
+| API Key | （从环境变量读取） | `DEEPSEEK_API_KEY` |
+| Base URL | `https://api.deepseek.com` | `DEEPSEEK_BASE_URL` |
+| 默认模型 | `deepseek-v4-pro` | `DEEPSEEK_MODEL` |
+| Temperature | 0.1 | - |
+| Max Tokens | 4096 | - |
+| 最大迭代轮次 | 5 | - |
+
+## 7.2 LLM 参与环节
+
+| 环节 | 是否使用 LLM | 说明 |
+|------|-------------|------|
+| Planner | ✅ 是 | LLM 通过 Function Calling 规划查询步骤 |
+| Executor | ❌ 否 | 纯代码执行，调用 Service 层 |
+| Risk Engine | ❌ 否 | 纯规则引擎，不依赖 LLM |
+| Forecast Engine | ❌ 否 | 纯算法（线性回归），不依赖 LLM |
+| Scoring Engine | ❌ 否 | 纯规则评分，不依赖 LLM |
+| Decision Engine | ✅ 是 | LLM 辅助生成决策建议 |
+| Rule Engine | ❌ 否 | 纯规则匹配，不依赖 LLM |
+| Report Builder | ❌ 否 | 模板化生成，不依赖 LLM |
+| Explainer | ✅ 是 | LLM 将结构化数据转为自然语言 |
+
+## 7.3 LLM 降级方案
+
+当 LLM 不可用（API 超时/Key 无效/网络异常）时：
+
+| 环节 | 降级策略 |
+|------|---------|
+| Planner | 使用 RULE_MAP 关键词匹配（已有实现） |
+| Decision Engine | 使用规则决策（从 RuleEngine 的决策规则中匹配） |
+| Explainer | 使用 ReportBuilder 的结构化文本直接输出 |
+
+## 7.4 Prompt 模板规范
+
+每个使用 LLM 的环节必须有独立的 Prompt 模板，定义在 `app/agent/prompts.py` 中：
+
+```python
+PROMPT_PLANNER = "..."      # 规划器 Prompt（已有）
+PROMPT_EXPLAINER = "..."    # 解释器 Prompt（已有）
+PROMPT_DECISION = "..."     # 决策器 Prompt（新增）
+```
+
+Prompt 必须包含：
+1. 角色定义
+2. 输出格式约束
+3. 可用工具/数据列表
+4. 业务规则约束
+
+---
+
+# 八、核心模块实现规范（逐个必须实现）
+
+---
+
+# 1️⃣ Orchestrator（系统总控）
+
+---
+
+## 作用
+
+统一控制系统流程（核心入口）
+
+---
+
+## 标准流程
+
+```
+输入 → 计划 → 执行 → 分析 → 预测 → 评分 → 决策 → 规则过滤 → 执行 → 输出
+```
+
+---
+
+## 标准实现
+
+```python
+class Orchestrator:
+    def __init__(self):
+        self.planner = Planner()
+        self.executor = Executor(registry, memory)
+        self.risk_engine = RiskEngine()
+        self.forecast_engine = ForecastEngine()
+        self.scoring_engine = ScoringEngine()
+        self.decision_engine = DecisionEngine()
+        self.rule_engine = RuleEngine()
+        self.action_engine = ActionEngine()
+        self.report_builder = ReportBuilder()
+
+    def run(self, query, context):
+        # Phase 1: 规划与执行
+        plan = self.planner.create_plan(query, context)
+        results, memory = self.executor.execute(plan, context)
+
+        # Phase 2: 分析与预测
+        risks = self.risk_engine.detect(memory)
+        forecast = self.forecast_engine.run(memory)
+        score = self.scoring_engine.score(context)
+
+        # Phase 3: 决策与执行
+        decisions = self.decision_engine.make(memory, risks, forecast, score)
+        decisions = self.rule_engine.filter(decisions, context)
+        self.action_engine.execute_batch(decisions)
+
+        # Phase 4: 报告
+        report = self.report_builder.build(memory, risks, forecast, decisions, score)
+
+        return {
+            "report": report,
+            "risks": risks,
+            "forecast": forecast,
+            "score": score,
+            "decisions": decisions
+        }
+```
+
+---
+
+## 渐进式实现策略
+
+Orchestrator 依赖所有后续模块，但必须先实现骨架：
+
+| 阶段 | Orchestrator 状态 | 依赖模块 |
+|------|-------------------|---------|
+| 阶段1 | 骨架：只调用 Planner + Executor | Planner, Executor, Memory |
+| 阶段2 | 增加：Risk + Report + Chart | RiskEngine, ReportBuilder, ChartBuilder |
+| 阶段3 | 增加：Forecast + Scoring | ForecastEngine, ScoringEngine |
+| 阶段4 | 增加：Decision + Rule + Action | DecisionEngine, RuleEngine, ActionEngine |
+| 阶段5 | 增加：Event + Scheduler | EventBus, Scheduler |
+
+每个阶段 Orchestrator 的 `run()` 方法逐步扩展，未实现的模块用空操作替代。
+
+---
+
+# 2️⃣ Planner
+
+---
+
+## 必须支持
+
+* 多步骤任务
+* 参数引用（$step1.xxx）
+
+---
+
+## 双模式
+
+| 模式 | 触发条件 | 说明 |
+|------|---------|------|
+| LLM 模式 | 默认 | 通过 Function Calling 返回 tool_calls |
+| 规则模式 | LLM 不可用时 | 使用 RULE_MAP 关键词匹配 |
+
+---
+
+## 输出格式
+
+```json
+{
+  "steps": [
+    {"id": "s1", "tool": "get_data"},
+    {"id": "s2", "tool": "analyze", "args": {"data": "$s1"}}
+  ]
+}
+```
+
+---
+
+# 3️⃣ Executor
+
+---
+
+## 必须能力
+
+* 执行多步骤
+* 支持变量解析（$step_id.field）
+* 自动注入 merchant_id 和 source
+
+---
+
+## 已有实现（保持）
+
+```python
+class Executor:
+    def __init__(self, registry, memory):
+        self.registry = registry
+        self.memory = memory
+
+    def execute_plan(self, plan, injected_kwargs):
+        for step in plan:
+            resolved_args = self._resolve_args(step.get('args', {}))
+            resolved_args.update(injected_kwargs)
+            result = self.registry.execute(step['tool'], **resolved_args)
+            self.memory.set(step['id'], result)
+        return self.memory.get_all()
+```
+
+---
+
+# 4️⃣ Tools层
+
+---
+
+## 强制规则
+
+❗ 不允许AI生成SQL
+❗ 所有数据访问必须封装到 Service 层
+
+---
+
+## 工具注册表
+
+```python
+class ToolRegistry:
+    def __init__(self):
+        self._tools = {}
+
+    def register(self, name, schema, executor):
+        self._tools[name] = {'schema': schema, 'executor': executor}
+
+    def execute(self, name, **kwargs):
+        tool = self._tools.get(name)
+        if not tool:
+            raise ValueError(f'Tool not found: {name}')
+        return tool['executor'](**kwargs)
+
+    def get_all_schemas(self):
+        return [{'type': 'function', 'function': t['schema']} for t in self._tools.values()]
+```
+
+---
+
+## 工具分类
+
+| 类别 | 工具 | 数据来源 Service |
+|------|------|-----------------|
+| 财务查询 | query_finance_summary, query_receivable_summary, query_payable_summary | FinanceService, ReceivableService |
+| 合同查询 | query_expiring_contracts, query_contract_stats | ContractService |
+| 商户查询 | query_merchant_overview | MerchantService |
+| 逾期查询 | query_overdue_receivables, query_overdue_payables | ReceivableService, FinanceService |
+| 水电查询 | query_electricity_stats, query_water_stats | UtilityService |
+| 趋势查询 | query_monthly_trend | FinanceService |
+| 地块查询 | query_plot_stats | PlotService |
+| 预收押金 | query_prepayment_summary, query_deposit_summary | PrepaymentService, DepositService |
+| 垃圾费 | query_garbage_fees | GarbageService |
+
+---
+
+# 5️⃣ Risk Engine
+
+---
+
+## 必须规则
+
+* 合同到期（30天内 high，60天内 medium）
+* 账款逾期（逾期 > 0 high，应收/应付比 > 3 medium）
+* 成本异常（单项占比 > 70% medium）
+
+---
+
+## V5.1 增强：规则配置化
+
+风险规则不再硬编码，从 `AgentRule` 表读取：
+
+```python
+class RiskEngine:
+    def __init__(self, rule_engine=None):
+        self.rule_engine = rule_engine
+        self._default_rules = [...]  # 内置默认规则
+
+    def detect(self, memory):
+        rules = self.rule_engine.get_rules('risk') if self.rule_engine else self._default_rules
+        risks = []
+        for rule in rules:
+            result = self._evaluate_rule(rule, memory)
+            if result:
+                risks.append(result)
+        return risks
+```
+
+---
+
+# 6️⃣ Forecast Engine（V5.1 新增）
+
+---
+
+## 算法
+
+线性回归预测，基于历史月度数据：
+
+```python
+class ForecastEngine:
+    def run(self, memory, months_ahead=3):
+        forecasts = []
+        for step_id, data in memory.items():
+            if self._is_time_series(data):
+                trend = self._linear_forecast(data, months_ahead)
+                forecasts.append(trend)
+        return forecasts
+
+    def _linear_forecast(self, data, months_ahead):
+        # 提取历史值
+        values = [item.get('income', item.get('expense', 0)) for item in data]
+        months = list(range(len(values)))
+
+        # 最小二乘法线性回归
+        n = len(values)
+        if n < 2:
+            return {'trend': 'insufficient_data', 'confidence': 0}
+
+        sum_x = sum(months)
+        sum_y = sum(values)
+        sum_xy = sum(x * y for x, y in zip(months, values))
+        sum_x2 = sum(x * x for x in months)
+
+        slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x)
+        intercept = (sum_y - slope * sum_x) / n
+
+        # 预测未来 N 个月
+        predictions = []
+        for i in range(months_ahead):
+            predicted = slope * (n + i) + intercept
+            predictions.append(round(predicted, 2))
+
+        # 置信度：基于 R²
+        mean_y = sum_y / n
+        ss_tot = sum((y - mean_y) ** 2 for y in values)
+        ss_res = sum((y - (slope * x + intercept)) ** 2 for x, y in zip(months, values))
+        r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+
+        return {
+            'type': 'linear',
+            'slope': round(slope, 2),
+            'trend': 'up' if slope > 0 else ('down' if slope < 0 else 'flat'),
+            'predictions': predictions,
+            'confidence': round(r_squared, 2),
+            'data_points': n
+        }
+```
+
+---
+
+## 输出格式
+
+```json
+{
+  "type": "linear",
+  "slope": 1500.5,
+  "trend": "up",
+  "predictions": [125000, 126500, 128000],
+  "confidence": 0.85,
+  "data_points": 12
+}
+```
+
+---
+
+## 预测数据来源
+
+| 预测类型 | 数据来源 | 时间窗口 |
+|---------|---------|---------|
+| 收入趋势 | CashFlow（direction=income）按月汇总 | 最近 12 个月 |
+| 支出趋势 | CashFlow（direction=expense）按月汇总 | 最近 12 个月 |
+| 应收回收趋势 | CollectionRecord 按月汇总 | 最近 12 个月 |
+
+---
+
+# 7️⃣ Scoring Engine（V5.1 新增）
+
+---
+
+## 评分维度与权重
+
+| 维度 | 权重 | 数据来源 | 评分规则 |
+|------|------|---------|---------|
+| 付款及时性 | 30% | Receivable + CollectionRecord | 逾期率越低分越高 |
+| 合同履约 | 25% | Contract | 合同状态、续签率 |
+| 经营规模 | 20% | Receivable + Contract | 应收总额、合同数量 |
+| 经营稳定性 | 15% | CashFlow | 收入波动系数 |
+| 信用历史 | 10% | 历史评分记录 | 评分趋势 |
+
+---
+
+## 评分算法
+
+```python
+class ScoringEngine:
+    DIMENSIONS = {
+        'payment_timeliness': {'weight': 0.30, 'max_score': 100},
+        'contract_fulfillment': {'weight': 0.25, 'max_score': 100},
+        'business_scale': {'weight': 0.20, 'max_score': 100},
+        'stability': {'weight': 0.15, 'max_score': 100},
+        'credit_history': {'weight': 0.10, 'max_score': 100},
+    }
+
+    LEVELS = [
+        (90, 'excellent'),
+        (75, 'good'),
+        (60, 'medium'),
+        (40, 'poor'),
+        (0, 'danger'),
+    ]
+
+    def score(self, merchant_id):
+        dimension_scores = {}
+        for dim, config in self.DIMENSIONS.items():
+            raw = self._calculate_dimension(dim, merchant_id)
+            dimension_scores[dim] = min(raw, config['max_score'])
+
+        total = sum(
+            dimension_scores[dim] * config['weight']
+            for dim, config in self.DIMENSIONS.items()
+        )
+
+        level = 'danger'
+        for threshold, lvl in self.LEVELS:
+            if total >= threshold:
+                level = lvl
+                break
+
+        return {
+            'merchant_id': merchant_id,
+            'score': round(total, 1),
+            'level': level,
+            'dimensions': dimension_scores
+        }
+```
+
+---
+
+## 各维度评分规则
+
+### 付款及时性（30%）
+
+```
+逾期率 = 逾期应收金额 / 应收总额
+score = 100 * (1 - 逾期率)
+```
+
+### 合同履约（25%）
+
+```
+活跃合同占比 = 活跃合同数 / 总合同数
+续签率 = 续签合同数 / 到期合同数
+score = 60 * 活跃合同占比 + 40 * 续签率
+```
+
+### 经营规模（20%）
+
+```
+应收排名百分位 = 商户应收额在所有商户中的排名
+score = 应收排名百分位 * 100
+```
+
+### 经营稳定性（15%）
+
+```
+波动系数 = 标准差 / 平均月收入
+score = 100 * max(0, 1 - 波动系数)
+```
+
+### 信用历史（10%）
+
+```
+最近3次评分的平均分
+score = 历史平均分
+```
+
+---
+
+## 输出
+
+```json
+{
+  "merchant_id": 1,
+  "score": 78.5,
+  "level": "good",
+  "dimensions": {
+    "payment_timeliness": 85,
+    "contract_fulfillment": 72,
+    "business_scale": 80,
+    "stability": 65,
+    "credit_history": 90
+  }
+}
+```
+
+---
+
+# 8️⃣ Decision Engine（V5.1 新增，核心）
+
+---
+
+## 输入
+
+* 风险（RiskEngine 输出）
+* 预测（ForecastEngine 输出）
+* 评分（ScoringEngine 输出）
+* 内存数据（Memory）
+
+---
+
+## 决策类型
+
+| 决策类型 | type | 触发条件 | 优先级 |
+|---------|------|---------|--------|
+| 催收 | collect_payment | 逾期应收 > 0 | high |
+| 续租提醒 | renew_contract | 合同 30 天内到期 | high |
+| 成本优化 | optimize_cost | 单项成本占比 > 70% | medium |
+| 降额预警 | credit_warning | 评分 < 60 | high |
+| 收入预警 | revenue_warning | 收入预测下降趋势 | medium |
+| 逾期提醒 | overdue_reminder | 应收逾期 7 天以上 | high |
+
+---
+
+## 决策生成逻辑
+
+### 规则模式（默认，不依赖 LLM）
+
+```python
+class DecisionEngine:
+    DECISION_RULES = [
+        {
+            'condition': lambda ctx: ctx.get('overdue_amount', 0) > 0,
+            'type': 'collect_payment',
+            'priority': 'high',
+            'template': '商户 {merchant_name} 有逾期应收 ¥{overdue_amount:,.2f}，建议催收'
+        },
+        {
+            'condition': lambda ctx: ctx.get('expiring_contracts', 0) > 0,
+            'type': 'renew_contract',
+            'priority': 'high',
+            'template': '{expiring_count} 个合同即将到期，建议跟进续签'
+        },
+        # ... 更多规则
+    ]
+
+    def make(self, memory, risks, forecast, score):
+        context = self._build_context(memory, risks, forecast, score)
+        decisions = []
+        for rule in self.DECISION_RULES:
+            if rule['condition'](context):
+                decisions.append({
+                    'type': rule['type'],
+                    'priority': rule['priority'],
+                    'message': rule['template'].format(**context),
+                    'target': context.get('merchant_id'),
+                    'auto_executable': rule.get('auto_executable', False)
+                })
+        return decisions
+```
+
+### LLM 辅助模式（可选）
+
+当规则模式无法覆盖时，使用 LLM 生成决策建议。Prompt 定义在 `prompts.py` 中：
+
+```
+你是宏发金属交易市场的经营决策顾问。根据以下分析结果，生成行动决策。
+
+## 输入数据
+- 风险：{risks}
+- 预测：{forecast}
+- 评分：{score}
+- 业务数据：{memory_summary}
+
+## 输出格式
+返回 JSON 数组，每个决策包含：
+- type: 决策类型
+- priority: high/medium/low
+- target: 目标商户ID
+- message: 决策说明
+- auto_executable: 是否可自动执行（true/false）
+
+## 规则
+1. 只基于数据生成决策，不要臆测
+2. 每个决策必须有明确的行动指向
+3. 涉及资金操作的决策 auto_executable 必须为 false
+```
+
+---
+
+## 输出
+
+```json
+[
+  {
+    "type": "collect_payment",
+    "priority": "high",
+    "target": 1,
+    "message": "商户张三有逾期应收 ¥15,000.00，建议催收",
+    "auto_executable": false
+  },
+  {
+    "type": "renew_contract",
+    "priority": "high",
+    "target": 2,
+    "message": "2个合同即将到期，建议跟进续签",
+    "auto_executable": true
+  }
+]
+```
+
+---
+
+# 9️⃣ Rule Engine（V5.1 新增）
+
+---
+
+## 规则配置 Schema
+
+规则存储在数据库 `AgentRule` 表中，JSON 格式定义条件与动作：
+
+```json
+{
+  "id": "risk_contract_30d",
+  "category": "risk",
+  "name": "合同到期风险（30天）",
+  "enabled": true,
+  "priority": 1,
+  "condition": {
+    "field": "expiring_contracts_30d",
+    "operator": ">",
+    "value": 0
+  },
+  "action": {
+    "type": "flag_risk",
+    "level": "high",
+    "message_template": "{count}个合同30天内到期"
+  }
+}
+```
+
+### 条件操作符
+
+| 操作符 | 说明 | 示例 |
+|--------|------|------|
+| `>` | 大于 | `{"field": "overdue_amount", "operator": ">", "value": 0}` |
+| `>=` | 大于等于 | `{"field": "score", "operator": ">=", "value": 90}` |
+| `<` | 小于 | `{"field": "confidence", "operator": "<", "value": 0.5}` |
+| `<=` | 小于等于 | - |
+| `==` | 等于 | `{"field": "status", "operator": "==", "value": "expired"}` |
+| `in` | 包含于 | `{"field": "level", "operator": "in", "value": ["high", "medium"]}` |
+| `contains` | 包含 | `{"field": "message", "operator": "contains", "value": "逾期"}` |
+
+### 规则分类
+
+| category | 说明 | 使用引擎 |
+|----------|------|---------|
+| risk | 风险识别规则 | RiskEngine |
+| decision | 决策生成规则 | DecisionEngine |
+| action | 动作执行规则 | ActionEngine |
+| scoring | 评分规则 | ScoringEngine |
+| notification | 通知触发规则 | Notifier |
+
+---
+
+## 规则引擎实现
+
+```python
+class RuleEngine:
+    def __init__(self, rule_repo=None):
+        self.rule_repo = rule_repo
+        self._cache = {}
+        self._cache_time = None
+
+    def get_rules(self, category):
+        rules = self._load_rules()
+        return [r for r in rules if r['category'] == category and r.get('enabled', True)]
+
+    def evaluate(self, rule, context):
+        cond = rule['condition']
+        field_value = context.get(cond['field'])
+        if field_value is None:
+            return False
+        return self._compare(field_value, cond['operator'], cond['value'])
+
+    def filter(self, decisions, context):
+        rules = self.get_rules('action')
+        filtered = []
+        for decision in decisions:
+            blocked = False
+            for rule in rules:
+                if self._matches_decision(rule, decision) and not self.evaluate(rule, context):
+                    blocked = True
+                    break
+            if not blocked:
+                filtered.append(decision)
+        return filtered
+
+    def _load_rules(self):
+        # 5分钟缓存
+        if self._cache and self._cache_time:
+            from datetime import datetime, timedelta
+            if datetime.now() - self._cache_time < timedelta(minutes=5):
+                return self._cache
+        if self.rule_repo:
+            self._cache = self.rule_repo.get_all_rules()
+            self._cache_time = datetime.now()
+            return self._cache
+        return []
+
+    def _compare(self, field_value, operator, target):
+        ops = {
+            '>': lambda a, b: a > b,
+            '>=': lambda a, b: a >= b,
+            '<': lambda a, b: a < b,
+            '<=': lambda a, b: a <= b,
+            '==': lambda a, b: a == b,
+            'in': lambda a, b: a in b,
+            'contains': lambda a, b: b in str(a),
+        }
+        return ops.get(operator, lambda a, b: False)(field_value, target)
+```
+
+---
+
+## 默认规则集
+
+系统内置以下默认规则（首次启动时写入数据库）：
+
+| ID | 分类 | 名称 | 条件 | 动作 |
+|----|------|------|------|------|
+| risk_contract_30d | risk | 合同到期30天 | expiring_contracts_30d > 0 | flag_risk(high) |
+| risk_contract_60d | risk | 合同到期60天 | expiring_contracts_60d > 0 | flag_risk(medium) |
+| risk_overdue | risk | 逾期应收 | overdue_amount > 0 | flag_risk(high) |
+| risk_cost_concentration | risk | 成本集中 | single_item_ratio > 0.7 | flag_risk(medium) |
+| risk_receivable_ratio | risk | 应收应付失衡 | receivable_payable_ratio > 3 | flag_risk(medium) |
+| decision_collect | decision | 催收决策 | overdue_amount > 0 | suggest(collect_payment) |
+| decision_renew | decision | 续租提醒 | expiring_contracts_30d > 0 | suggest(renew_contract) |
+| decision_optimize | decision | 成本优化 | single_item_ratio > 0.7 | suggest(optimize_cost) |
+| action_auto_notify | action | 自动通知 | decision.auto_executable == true | auto_execute |
+| action_manual_approve | action | 人工审批 | decision.type in [collect_payment] | require_approval |
+
+---
+
+# 🔟 Action Engine（V5.1 新增）
+
+---
+
+## 决策执行安全策略
+
+> ⚠️ 自动执行是高风险能力，必须严格管控。
+
+### 执行分类
+
+| 分类 | 决策类型 | 执行方式 | 说明 |
+|------|---------|---------|------|
+| 自动执行 | renew_contract, overdue_reminder | 自动发送通知 | 低风险，仅通知 |
+| 需审批 | collect_payment, optimize_cost | 创建待审批任务 | 中风险，需人工确认 |
+| 仅建议 | credit_warning, revenue_warning | 仅展示，不执行 | 高风险，仅参考 |
+
+### 审批流程
+
+```
+DecisionEngine 生成决策
+    ↓
+RuleEngine 过滤（判断是否需要审批）
+    ↓
+┌──────────────────┬──────────────────┐
+│                  │                  │
+auto_executable    需审批            仅建议
+=true              =true             =true
+    ↓                  ↓                  ↓
+自动执行          写入 Decision 表     仅返回建议
+(发送通知)        Status=pending      (不写入数据库)
+    ↓                  ↓
+记录执行日志      等待人工审批
+    ↓              ↓
+              审批通过 → 执行
+              审批拒绝 → 标记 rejected
+```
+
+---
+
+## 必须实现
+
+* 批量执行
+* 支持多动作类型
+* 执行日志记录
+* 执行失败重试（最多3次）
+
+---
+
+## 动作类型
+
+| 动作类型 | 说明 | 实现 |
+|---------|------|------|
+| send_notification | 发送通知 | 调用 Notifier |
+| create_task | 创建任务 | 调用 TaskService |
+| create_receivable | 创建应收记录 | 调用 ReceivableService |
+| update_contract_status | 更新合同状态 | 调用 ContractService |
+
+---
+
+## 实现
+
+```python
+class ActionEngine:
+    MAX_RETRIES = 3
+
+    ACTION_HANDLERS = {
+        'send_notification': '_handle_notification',
+        'create_task': '_handle_create_task',
+        'create_receivable': '_handle_create_receivable',
+        'update_contract_status': '_handle_update_contract',
+    }
+
+    def execute_batch(self, decisions):
+        results = []
+        for decision in decisions:
+            if decision.get('auto_executable'):
+                result = self._execute_with_retry(decision)
+                results.append(result)
+            else:
+                result = self._create_pending_decision(decision)
+                results.append(result)
+        return results
+
+    def _execute_with_retry(self, decision):
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                result = self._execute_action(decision)
+                self._log_execution(decision, result, success=True)
+                return result
+            except Exception as e:
+                if attempt == self.MAX_RETRIES - 1:
+                    self._log_execution(decision, str(e), success=False)
+                    return {'status': 'failed', 'error': str(e)}
+
+    def _execute_action(self, decision):
+        handler_name = self.ACTION_HANDLERS.get(decision['type'])
+        if handler_name:
+            handler = getattr(self, handler_name)
+            return handler(decision)
+        return {'status': 'skipped', 'reason': 'unknown_action_type'}
+```
+
+---
+
+# 11️⃣ Event Bus（V5.1 新增）
+
+---
+
+## 事件类型
+
+| 事件类型 | 触发条件 | payload |
+|---------|---------|---------|
+| receivable.created | 新增应收 | {receivable_id, merchant_id, amount} |
+| receivable.overdue | 应收逾期 | {receivable_id, merchant_id, amount, overdue_days} |
+| contract.expiring | 合同即将到期 | {contract_id, merchant_id, days_left} |
+| contract.expired | 合同已到期 | {contract_id, merchant_id} |
+| payment.received | 收款核销 | {receivable_id, merchant_id, amount} |
+| score.changed | 评分变化 | {merchant_id, old_score, new_score} |
+| data.imported | 数据批量导入 | {import_type, count} |
+
+---
+
+## 发布/订阅机制
+
+```python
+class EventBus:
+    def __init__(self):
+        self._subscribers = {}
+
+    def subscribe(self, event_type, handler):
+        if event_type not in self._subscribers:
+            self._subscribers[event_type] = []
+        self._subscribers[event_type].append(handler)
+
+    def publish(self, event_type, payload):
+        # 持久化事件
+        self._persist_event(event_type, payload)
+        # 通知订阅者
+        handlers = self._subscribers.get(event_type, [])
+        for handler in handlers:
+            try:
+                handler(payload)
+            except Exception as e:
+                logger.error(f'Event handler failed: {e}')
+
+    def _persist_event(self, event_type, payload):
+        # 写入 AgentEvent 表
+        pass
+```
+
+---
+
+## 事件与 Agent 的关联
+
+| 事件 | 触发的 Agent 行为 |
+|------|-----------------|
+| receivable.overdue | 触发风险分析 → 生成催收决策 |
+| contract.expiring | 触发续租提醒 |
+| contract.expired | 触发合同状态更新 + 商户评分重算 |
+| payment.received | 触发应收状态更新 |
+| score.changed | 评分降级时触发预警通知 |
+
+---
+
+## 异步机制
+
+Flask 是同步框架，事件处理采用后台线程：
+
+```python
+import threading
+
+class EventBus:
+    def publish(self, event_type, payload):
+        self._persist_event(event_type, payload)
+        thread = threading.Thread(
+            target=self._dispatch,
+            args=(event_type, payload)
+        )
+        thread.daemon = True
+        thread.start()
+
+    def _dispatch(self, event_type, payload):
+        handlers = self._subscribers.get(event_type, [])
+        for handler in handlers:
+            try:
+                handler(payload)
+            except Exception as e:
+                logger.error(f'Event handler failed: {e}')
+```
+
+---
+
+## 事件触发点集成
+
+在现有 Service 层的关键操作中插入事件发布：
+
+| Service 方法 | 事件 |
+|-------------|------|
+| ReceivableService.create_receivable | receivable.created |
+| ReceivableService.check_overdue | receivable.overdue |
+| ContractService.get_expiring_contracts | contract.expiring |
+| FinanceService.pay (收款核销) | payment.received |
+
+---
+
+# 12️⃣ Scheduler（V5.1 新增）
+
+---
+
+## 调度框架
+
+使用 APScheduler（轻量级，无需额外基础设施）：
+
+```python
+from apscheduler.schedulers.background import BackgroundScheduler
+
+class AgentScheduler:
+    def __init__(self, app):
+        self.scheduler = BackgroundScheduler()
+        self.app = app
+
+    def start(self):
+        self.scheduler.add_job(
+            self._daily_report,
+            'cron',
+            hour=8,
+            minute=0,
+            id='daily_report'
+        )
+        self.scheduler.add_job(
+            self._monthly_report,
+            'cron',
+            day=1,
+            hour=8,
+            minute=0,
+            id='monthly_report'
+        )
+        self.scheduler.add_job(
+            self._check_overdue,
+            'cron',
+            hour=9,
+            minute=0,
+            id='check_overdue'
+        )
+        self.scheduler.add_job(
+            self._check_expiring_contracts,
+            'cron',
+            hour=9,
+            minute=30,
+            id='check_expiring'
+        )
+        self.scheduler.start()
+
+    def _daily_report(self):
+        with self.app.app_context():
+            orchestrator = Orchestrator()
+            result = orchestrator.run("生成今日经营日报", Context(source='system'))
+            # 保存报告 + 发送通知
+
+    def _monthly_report(self):
+        with self.app.app_context():
+            orchestrator = Orchestrator()
+            result = orchestrator.run("生成本月经营月报", Context(source='system'))
+
+    def _check_overdue(self):
+        with self.app.app_context():
+            # 检查逾期 → 触发事件
+            pass
+
+    def _check_expiring_contracts(self):
+        with self.app.app_context():
+            # 检查到期合同 → 触发事件
+            pass
+```
+
+---
+
+## 定时任务列表
+
+| 任务 ID | Cron | 说明 |
+|---------|------|------|
+| daily_report | 每天 08:00 | 生成经营日报 |
+| monthly_report | 每月1日 08:00 | 生成经营月报 |
+| check_overdue | 每天 09:00 | 检查逾期应收 |
+| check_expiring | 每天 09:30 | 检查到期合同 |
+| refresh_scores | 每周一 06:00 | 刷新商户评分 |
+
+---
+
+## 与 Flask 集成
+
+在 `app/__init__.py` 的 `create_app()` 中启动：
+
+```python
+def create_app(config_name=None):
+    app = Flask(__name__)
+    # ... 现有初始化代码 ...
+
+    if not app.config.get('TESTING'):
+        from app.scheduler.scheduler import AgentScheduler
+        scheduler = AgentScheduler(app)
+        scheduler.start()
+
+    return app
+```
+
+---
+
+# 13️⃣ Messaging / 通知系统（V5.1 新增）
+
+---
+
+## 通知分发器
+
+```python
+class Notifier:
+    def __init__(self):
+        self.channels = {
+            'system': SystemChannel(),
+            'wechat': WeChatChannel(),
+            'sms': SMSChannel(),
+        }
+
+    def send(self, notification_type, recipient, message, channels=None):
+        target_channels = channels or self._get_default_channels(notification_type)
+        results = {}
+        for ch_name in target_channels:
+            channel = self.channels.get(ch_name)
+            if channel:
+                try:
+                    result = channel.send(recipient, message)
+                    results[ch_name] = result
+                except Exception as e:
+                    results[ch_name] = {'status': 'failed', 'error': str(e)}
+        self._log_notification(notification_type, recipient, message, results)
+        return results
+
+    def _get_default_channels(self, notification_type):
+        # 从规则配置读取默认通知渠道
+        channel_map = {
+            'overdue_reminder': ['system', 'wechat'],
+            'contract_expiring': ['system', 'wechat'],
+            'daily_report': ['system'],
+            'monthly_report': ['system'],
+            'urgent_alert': ['system', 'wechat', 'sms'],
+        }
+        return channel_map.get(notification_type, ['system'])
+```
+
+---
+
+## 通知渠道
+
+### 系统内通知（system_channel.py）
+
+```python
+class SystemChannel:
+    def send(self, recipient, message):
+        # 写入 AgentNotification 表
+        # 前端通过轮询 /agent/notifications 获取
+        pass
+```
+
+### 微信通知（wechat_channel.py）
+
+```python
+class WeChatChannel:
+    def send(self, recipient, message):
+        # 使用 wechatpy 发送模板消息
+        # 需要配置微信模板 ID
+        pass
+```
+
+### 短信通知（sms_channel.py）
+
+```python
+class SMSChannel:
+    def send(self, recipient, message):
+        # 预留接口，暂不实现
+        # 后续可接入阿里云短信/腾讯云短信
+        return {'status': 'skipped', 'reason': 'SMS not configured'}
+```
+
+---
+
+## 通知频率控制
+
+同一商户同一类型通知，24小时内最多发送1次：
+
+```python
+class Notifier:
+    def send(self, notification_type, recipient, message, channels=None):
+        if self._is_rate_limited(notification_type, recipient):
+            return {'status': 'rate_limited'}
+        # ... 正常发送 ...
+
+    def _is_rate_limited(self, notification_type, recipient):
+        # 查询 AgentNotification 表，检查 24h 内是否已发送
+        pass
+```
+
+---
+
+## 通知配置
+
+| 配置项 | 环境变量 | 默认值 |
+|--------|---------|--------|
+| 微信模板ID（逾期提醒） | `WX_TEMPLATE_OVERDUE` | - |
+| 微信模板ID（合同到期） | `WX_TEMPLATE_CONTRACT` | - |
+| 通知频率限制（小时） | `NOTIFY_RATE_LIMIT_HOURS` | 24 |
+| 短信开关 | `SMS_ENABLED` | false |
+
+---
+
+# 14️⃣ Task 系统（V5.1 新增）
+
+---
+
+## 任务服务
+
+```python
+class TaskService:
+    def create_task(self, task_type, title, description, assigned_to, related_id=None, related_type=None):
+        # 写入 AgentTask 表
+        pass
+
+    def complete_task(self, task_id, completed_by, result=None):
+        # 更新状态为 completed
+        pass
+
+    def get_pending_tasks(self, assigned_to=None):
+        # 查询待处理任务
+        pass
+```
+
+---
+
+## 任务与决策的关联
+
+决策审批通过后，创建对应的执行任务：
+
+| 决策类型 | 创建的任务 |
+|---------|-----------|
+| collect_payment | 催收任务（assigned_to: 财务人员） |
+| renew_contract | 续签任务（assigned_to: 业务人员） |
+| optimize_cost | 优化分析任务（assigned_to: 管理层） |
+
+---
+
+# 九、数据库设计（V5.1 修订）
+
+> ⚠️ V5 原规范只定义了5张极简表，且与现有表冲突。V5.1 明确：现有表不动，只新增表。
+
+## 9.1 现有表（不修改）
+
+Merchant、Contract、Receivable、Payable、CashFlow、CollectionRecord、PaymentRecord、Account、Prepayment、Deposit、AgentConversation、AgentMessage 等所有现有表保持不变。
+
+## 9.2 新增表
+
+### AgentDecision（决策表）
+
+```sql
+CREATE TABLE AgentDecision (
+    DecisionID INT IDENTITY(1,1) PRIMARY KEY,
+    ConversationID INT NULL,                    -- 关联会话
+    MerchantID INT NULL,                        -- 目标商户
+    DecisionType NVARCHAR(50) NOT NULL,         -- collect_payment / renew_contract / optimize_cost / ...
+    Priority NVARCHAR(20) NOT NULL DEFAULT N'medium',  -- high / medium / low
+    Status NVARCHAR(20) NOT NULL DEFAULT N'pending',   -- pending / approved / rejected / executed / failed
+    Message NVARCHAR(500) NOT NULL,             -- 决策说明
+    AutoExecutable BIT NOT NULL DEFAULT 0,      -- 是否可自动执行
+    RiskData NVARCHAR(MAX) NULL,                -- 触发风险 JSON
+    ForecastData NVARCHAR(MAX) NULL,            -- 预测数据 JSON
+    ScoreData NVARCHAR(MAX) NULL,               -- 评分数据 JSON
+    ApprovedBy INT NULL,                        -- 审批人
+    ApprovedTime DATETIME NULL,                 -- 审批时间
+    RejectReason NVARCHAR(500) NULL,            -- 驳回原因
+    ExecutedAt DATETIME NULL,                   -- 执行时间
+    ExecutionResult NVARCHAR(MAX) NULL,         -- 执行结果 JSON
+    RetryCount INT NOT NULL DEFAULT 0,          -- 重试次数
+    CreatedBy INT NULL,                         -- 创建人（system / user_id）
+    CreateTime DATETIME NOT NULL DEFAULT GETDATE(),
+    UpdateTime DATETIME NULL
+);
+
+CREATE INDEX IX_AgentDecision_Merchant ON AgentDecision(MerchantID);
+CREATE INDEX IX_AgentDecision_Status ON AgentDecision(Status);
+```
+
+### AgentTask（任务表）
+
+```sql
+CREATE TABLE AgentTask (
+    TaskID INT IDENTITY(1,1) PRIMARY KEY,
+    DecisionID INT NULL,                        -- 关联决策
+    MerchantID INT NULL,                        -- 关联商户
+    TaskType NVARCHAR(50) NOT NULL,             -- collect / renew / optimize / notify
+    Title NVARCHAR(200) NOT NULL,               -- 任务标题
+    Description NVARCHAR(500) NULL,             -- 任务描述
+    Status NVARCHAR(20) NOT NULL DEFAULT N'pending',  -- pending / in_progress / completed / cancelled
+    AssignedTo INT NULL,                        -- 指派人（UserID）
+    RelatedID INT NULL,                         -- 关联业务ID
+    RelatedType NVARCHAR(50) NULL,              -- 关联业务类型
+    CompletedBy INT NULL,                       -- 完成人
+    CompletedTime DATETIME NULL,                -- 完成时间
+    Result NVARCHAR(MAX) NULL,                  -- 执行结果
+    DueDate DATETIME NULL,                      -- 截止日期
+    CreateTime DATETIME NOT NULL DEFAULT GETDATE(),
+    UpdateTime DATETIME NULL
+);
+
+CREATE INDEX IX_AgentTask_Status ON AgentTask(Status);
+CREATE INDEX IX_AgentTask_AssignedTo ON AgentTask(AssignedTo);
+```
+
+### AgentRule（规则配置表）
+
+```sql
+CREATE TABLE AgentRule (
+    RuleID INT IDENTITY(1,1) PRIMARY KEY,
+    RuleCode NVARCHAR(50) NOT NULL UNIQUE,      -- 规则编码
+    Category NVARCHAR(20) NOT NULL,             -- risk / decision / action / scoring / notification
+    Name NVARCHAR(100) NOT NULL,                -- 规则名称
+    Description NVARCHAR(500) NULL,             -- 规则描述
+    ConditionJson NVARCHAR(MAX) NOT NULL,       -- 条件 JSON
+    ActionJson NVARCHAR(MAX) NOT NULL,          -- 动作 JSON
+    Priority INT NOT NULL DEFAULT 0,            -- 优先级（越小越优先）
+    Enabled BIT NOT NULL DEFAULT 1,             -- 是否启用
+    IsSystem BIT NOT NULL DEFAULT 0,            -- 是否系统内置（不可删除）
+    CreatedBy INT NULL,
+    CreateTime DATETIME NOT NULL DEFAULT GETDATE(),
+    UpdateTime DATETIME NULL
+);
+
+CREATE INDEX IX_AgentRule_Category ON AgentRule(Category);
+```
+
+### AgentEvent（事件表）
+
+```sql
+CREATE TABLE AgentEvent (
+    EventID INT IDENTITY(1,1) PRIMARY KEY,
+    EventType NVARCHAR(50) NOT NULL,            -- receivable.overdue / contract.expiring / ...
+    Payload NVARCHAR(MAX) NULL,                 -- 事件数据 JSON
+    Source NVARCHAR(50) NULL,                   -- 来源（service_name）
+    Processed BIT NOT NULL DEFAULT 0,           -- 是否已处理
+    ProcessedAt DATETIME NULL,                  -- 处理时间
+    ProcessResult NVARCHAR(MAX) NULL,           -- 处理结果
+    CreateTime DATETIME NOT NULL DEFAULT GETDATE()
+);
+
+CREATE INDEX IX_AgentEvent_Type ON AgentEvent(EventType);
+CREATE INDEX IX_AgentEvent_Processed ON AgentEvent(Processed);
+```
+
+### AgentNotification（通知记录表）
+
+```sql
+CREATE TABLE AgentNotification (
+    NotificationID INT IDENTITY(1,1) PRIMARY KEY,
+    UserID INT NULL,                            -- 接收人
+    MerchantID INT NULL,                        -- 关联商户
+    NotificationType NVARCHAR(50) NOT NULL,     -- overdue_reminder / contract_expiring / daily_report / ...
+    Channel NVARCHAR(20) NOT NULL,              -- system / wechat / sms
+    Title NVARCHAR(200) NOT NULL,               -- 通知标题
+    Content NVARCHAR(MAX) NOT NULL,             -- 通知内容
+    Status NVARCHAR(20) NOT NULL DEFAULT N'sent',  -- sent / read / failed
+    RelatedID INT NULL,                         -- 关联业务ID
+    RelatedType NVARCHAR(50) NULL,              -- 关联业务类型
+    IsRead BIT NOT NULL DEFAULT 0,              -- 是否已读
+    ReadTime DATETIME NULL,                     -- 阅读时间
+    SendResult NVARCHAR(MAX) NULL,              -- 发送结果 JSON
+    CreateTime DATETIME NOT NULL DEFAULT GETDATE()
+);
+
+CREATE INDEX IX_AgentNotification_User ON AgentNotification(UserID);
+CREATE INDEX IX_AgentNotification_Merchant ON AgentNotification(MerchantID);
+CREATE INDEX IX_AgentNotification_IsRead ON AgentNotification(IsRead);
+```
+
+### MerchantScore（商户评分表）
+
+```sql
+CREATE TABLE MerchantScore (
+    ScoreID INT IDENTITY(1,1) PRIMARY KEY,
+    MerchantID INT NOT NULL,                    -- 商户ID
+    TotalScore DECIMAL(5,1) NOT NULL,           -- 总分
+    Level NVARCHAR(20) NOT NULL,                -- excellent / good / medium / poor / danger
+    PaymentScore DECIMAL(5,1) NULL,             -- 付款及时性
+    ContractScore DECARCHAR(5,1) NULL,          -- 合同履约
+    ScaleScore DECIMAL(5,1) NULL,               -- 经营规模
+    StabilityScore DECIMAL(5,1) NULL,           -- 经营稳定性
+    CreditScore DECIMAL(5,1) NULL,              -- 信用历史
+    ScoreData NVARCHAR(MAX) NULL,               -- 完整评分数据 JSON
+    ScorePeriod NVARCHAR(7) NULL,               -- 评分月份 YYYY-MM
+    CreateTime DATETIME NOT NULL DEFAULT GETDATE()
+);
+
+CREATE INDEX IX_MerchantScore_Merchant ON MerchantScore(MerchantID);
+CREATE INDEX IX_MerchantScore_Period ON MerchantScore(ScorePeriod);
+```
+
+### AgentExecutionLog（执行日志表）
+
+```sql
+CREATE TABLE AgentExecutionLog (
+    LogID INT IDENTITY(1,1) PRIMARY KEY,
+    DecisionID INT NULL,                        -- 关联决策
+    ActionType NVARCHAR(50) NOT NULL,           -- 动作类型
+    TargetType NVARCHAR(50) NULL,               -- 目标类型
+    TargetID INT NULL,                          -- 目标ID
+    Status NVARCHAR(20) NOT NULL,               -- success / failed / retrying
+    InputData NVARCHAR(MAX) NULL,               -- 输入数据 JSON
+    OutputData NVARCHAR(MAX) NULL,              -- 输出数据 JSON
+    ErrorMessage NVARCHAR(MAX) NULL,            -- 错误信息
+    RetryCount INT NOT NULL DEFAULT 0,          -- 重试次数
+    DurationMs INT NULL,                        -- 执行耗时（毫秒）
+    CreateTime DATETIME NOT NULL DEFAULT GETDATE()
+);
+
+CREATE INDEX IX_AgentExecutionLog_Decision ON AgentExecutionLog(DecisionID);
+```
+
+---
+
+# 十、API规范（V5.1 修订，完整版）
+
+> ⚠️ V5 原规范只定义了1个端点，V5.1 补全所有 API。
+
+## 10.1 Agent 查询（已有，改造）
+
+### POST /agent/chat/send
+
+输入（不变）：
+```json
+{
+  "conversation_id": null,
+  "message": "分析本月经营情况"
+}
+```
+
+输出（V5.1 扩展）：
+```json
+{
+  "conversation_id": 1,
+  "content": "结构化报告文本...",
+  "chart": {"type": "pie", "title": "财务概况", "data": [...]},
+  "risks": [{"level": "high", "type": "finance", "message": "逾期应收 ¥15,000.00"}],
+  "forecast": [{"type": "linear", "trend": "up", "predictions": [...]}],
+  "score": {"merchant_id": 1, "score": 78.5, "level": "good"},
+  "decisions": [{"type": "collect_payment", "priority": "high", "message": "..."}],
+  "steps": [{"id": "s1", "tool": "query_finance_summary", "args": {}}],
+  "tool_calls": [...]
+}
+```
+
+## 10.2 决策管理（新增）
+
+### GET /decision/list
+
+查询决策列表（分页 + 筛选）
+
+参数：`page`, `per_page`, `status`, `priority`, `merchant_id`
+
+输出：
+```json
+{
+  "items": [
+    {
+      "decision_id": 1,
+      "merchant_id": 1,
+      "merchant_name": "张三",
+      "decision_type": "collect_payment",
+      "priority": "high",
+      "status": "pending",
+      "message": "逾期应收 ¥15,000.00",
+      "create_time": "2026-05-04 09:00:00"
+    }
+  ],
+  "total": 10,
+  "page": 1,
+  "per_page": 20
+}
+```
+
+### POST /decision/approve/<decision_id>
+
+审批通过决策
+
+输出：
+```json
+{
+  "success": true,
+  "decision_id": 1,
+  "status": "approved"
+}
+```
+
+### POST /decision/reject/<decision_id>
+
+驳回决策
+
+输入：
+```json
+{
+  "reason": "已手动催收"
+}
+```
+
+### POST /decision/execute/<decision_id>
+
+手动触发执行
+
+## 10.3 规则管理（新增）
+
+### GET /rule/list
+
+查询规则列表
+
+参数：`category`, `enabled`
+
+输出：
+```json
+{
+  "items": [
+    {
+      "rule_id": 1,
+      "rule_code": "risk_contract_30d",
+      "category": "risk",
+      "name": "合同到期风险（30天）",
+      "enabled": true,
+      "is_system": true
+    }
+  ]
+}
+```
+
+### POST /rule/update/<rule_id>
+
+更新规则（启用/禁用/修改条件）
+
+输入：
+```json
+{
+  "enabled": false,
+  "condition_json": {"field": "expiring_contracts_30d", "operator": ">", "value": 2}
+}
+```
+
+### POST /rule/create
+
+创建自定义规则
+
+## 10.4 评分查询（新增）
+
+### GET /score/list
+
+查询商户评分列表
+
+参数：`level`, `merchant_id`
+
+输出：
+```json
+{
+  "items": [
+    {
+      "merchant_id": 1,
+      "merchant_name": "张三",
+      "score": 78.5,
+      "level": "good",
+      "score_time": "2026-05-04"
+    }
+  ]
+}
+```
+
+### GET /score/detail/<merchant_id>
+
+查询商户评分详情（含各维度分数和历史趋势）
+
+### POST /score/refresh/<merchant_id>
+
+手动刷新商户评分
+
+## 10.5 通知查询（新增）
+
+### GET /agent/notifications
+
+查询当前用户的通知列表
+
+参数：`is_read`, `page`, `per_page`
+
+### POST /agent/notifications/<notification_id>/read
+
+标记通知为已读
+
+### POST /agent/notifications/read-all
+
+标记所有通知为已读
+
+## 10.6 任务查询（新增）
+
+### GET /task/list
+
+查询任务列表
+
+参数：`status`, `assigned_to`, `merchant_id`
+
+### POST /task/complete/<task_id>
+
+完成任务
+
+输入：
+```json
+{
+  "result": "已联系商户，约定下周付款"
+}
+```
+
+---
+
+# 十一、前端交互设计（V5.1 新增）
+
+> ⚠️ V5 原规范未涉及前端，V5.1 补充关键页面的交互设计。
+
+## 11.1 Agent 聊天页面改造（chat.html）
+
+在现有聊天界面基础上增加：
+
+| 区域 | 位置 | 内容 |
+|------|------|------|
+| 图表区 | 消息气泡下方 | ECharts 渲染的图表 |
+| 风险标签 | 消息气泡内 | 红色(high)/黄色(medium) 标签 |
+| 评分卡片 | 消息气泡内 | 商户评分 + 等级 |
+| 决策卡片 | 消息气泡下方 | 决策类型 + 审批按钮 |
+| 预测趋势 | 图表区 | 折线图 + 预测虚线 |
+
+## 11.2 决策管理页面（decision/list.html）
+
+| 组件 | 说明 |
+|------|------|
+| 筛选栏 | 状态/优先级/商户 筛选 |
+| 决策列表 | 表格，显示类型/商户/优先级/状态/时间 |
+| 审批操作 | 行内按钮：通过/驳回 |
+| 详情弹窗 | 点击查看完整决策数据（风险/预测/评分） |
+
+## 11.3 规则配置页面（rule/list.html）
+
+| 组件 | 说明 |
+|------|------|
+| 分类标签 | risk/decision/action/scoring/notification |
+| 规则列表 | 表格，显示名称/条件/动作/启用状态 |
+| 启用开关 | 行内 toggle |
+| 编辑弹窗 | 修改条件 JSON / 动作 JSON |
+
+## 11.4 评分列表页面（score/list.html）
+
+| 组件 | 说明 |
+|------|------|
+| 等级筛选 | excellent/good/medium/poor/danger |
+| 评分列表 | 表格，显示商户/总分/等级/各维度分 |
+| 评分雷达图 | 点击商户弹出雷达图展示各维度 |
+
+---
+
+# 十二、开发顺序（V5.1 修订，含渐进策略）
+
+> ⚠️ V5 原规范的阶段划分未考虑 Orchestrator 的渐进式实现。V5.1 修订为可逐步交付的顺序。
+
+## 阶段1（基础，可独立交付）
+
+* 新建 `app/agent/` 包，迁移现有 `app/services/agent/` 模块
+* 新建 `app/agent/orchestrator.py`（骨架，只调用 Planner + Executor）
+* 新建 `app/agent/tools.py` + `tool_registry.py`（从 agent_tools.py 迁移）
+* 新建 `app/agent/context.py`
+* 改造 `app/services/agent_service.py` 为兼容层
+* 验证：现有 Agent 聊天功能不受影响
+
+## 阶段2（分析，可独立交付）
+
+* 增强 `risk_engine.py`（规则配置化）
+* 增强 `report_builder.py`（增加更多报告模板）
+* 保持 `chart_builder.py` 不变
+* Orchestrator 增加 Risk + Report + Chart 调用
+* 验证：聊天返回增加 risks 和 chart 字段
+
+## 阶段3（智能，可独立交付）
+
+* 新建 `forecast_engine.py`（线性预测）
+* 新建 `scoring_engine.py`（五维度评分）
+* 新建 `MerchantScore` 表 + `scoring_repo.py`
+* 新建 `app/routes/score.py` + `templates/score/list.html`
+* Orchestrator 增加 Forecast + Scoring 调用
+* 验证：聊天返回增加 forecast 和 score 字段
+
+## 阶段4（决策，可独立交付）
+
+* 新建 `decision_engine.py`（规则 + LLM 双模式）
+* 新建 `rule_engine.py` + `AgentRule` 表
+* 新建 `action_engine.py`（含审批流程）
+* 新建 `AgentDecision` + `AgentTask` + `AgentExecutionLog` 表
+* 新建 `app/routes/decision.py` + `templates/decision/list.html`
+* 新建 `app/routes/rule.py` + `templates/rule/list.html`
+* Orchestrator 增加 Decision + Rule + Action 调用
+* 验证：聊天返回增加 decisions 字段，决策审批页面可用
+
+## 阶段5（自动化，可独立交付）
+
+* 新建 `event_bus.py` + `AgentEvent` 表
+* 新建 `scheduler.py`（APScheduler）
+* 新建 `notifier.py` + `channels/` + `AgentNotification` 表
+* 新建 `task_service.py`
+* 在现有 Service 层插入事件发布点
+* 验证：定时任务自动运行，事件自动触发分析
+
+---
+
+# 十三、验收标准
+
+---
+
+## 必须满足
+
+* 能自动分析 ✅（阶段2）
+* 能自动决策 ✅（阶段4）
+* 能自动执行 ✅（阶段4，含审批流程）
+* 能自动触发（事件）✅（阶段5）
+* 所有规则可配置 ✅（阶段4）
+* 所有执行可追踪 ✅（阶段4，ExecutionLog）
+
+---
+
+## 每阶段验收标准
+
+| 阶段 | 验收命令/操作 |
+|------|-------------|
+| 阶段1 | 发送聊天消息，返回格式与 V2 一致 |
+| 阶段2 | 发送"分析本月经营情况"，返回含 chart + risks |
+| 阶段3 | 调用 /score/list，返回商户评分列表 |
+| 阶段4 | 调用 /decision/list，返回待审批决策；审批通过后执行 |
+| 阶段5 | 定时任务自动运行；逾期应收自动触发催收决策 |
+
+---
+
+# 十四、最终系统能力
+
+---
+
+系统将具备：
+
+* 自动发现问题
+* 自动分析原因
+* 自动生成方案
+* 自动执行操作
+
+---
+
+# 十五、系统本质
+
+---
+
+👉 不是管理系统
+👉 不是BI系统
+
+👉 **AI自动运营系统**
+
+---
+
+# 十六、开发约束（必须遵守）
+
+---
+
+❗ 不允许直接SQL暴露给AI
+❗ 所有模块必须解耦
+❗ 所有规则必须可配置
+❗ 所有执行必须可追踪
+❗ 现有功能不得破坏（向后兼容）
+❗ Routes → Services → DBConnection 三层分离
+❗ SQL 必须参数化 + N'中文'
+❗ 表单必须 Ajax + CSRF
+
+---
+
+# 十七、新增依赖（V5.1 新增）
+
+```
+# requirements.txt 新增
+apscheduler>=3.10.0          # 定时任务
+```
+
+已有依赖（无需新增）：
+
+| 包 | 用途 |
+|---|------|
+| openai>=1.0.0 | LLM 调用（已有） |
+| wechatpy | 微信通知（已有） |
+| pyodbc | 数据库连接（已有） |
+
+---
+
+# 十八、环境变量新增（V5.1 新增）
+
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
+| `AGENT_AUTO_EXECUTE` | `false` | 是否允许自动执行（生产环境建议 false） |
+| `NOTIFY_RATE_LIMIT_HOURS` | `24` | 通知频率限制（小时） |
+| `SMS_ENABLED` | `false` | 短信通知开关 |
+| `WX_TEMPLATE_OVERDUE` | - | 微信逾期提醒模板ID |
+| `WX_TEMPLATE_CONTRACT` | - | 微信合同到期模板ID |
+| `SCHEDULER_ENABLED` | `true` | 定时任务开关 |
+
+---
+
+（文档结束，供 AI 编程工具自动实现）

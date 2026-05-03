@@ -739,22 +739,32 @@ class ContractService:
     # ========== Agent 查询方法 ==========
 
     @staticmethod
-    def get_expiring_contracts(days=30, merchant_id=None, source='admin'):
+    def get_expiring_contracts(days=None, start_date=None, end_date=None, merchant_id=None, source='admin'):
         with DBConnection() as conn:
             cursor = conn.cursor()
             merchant_filter = ''
-            params = [days]
+            extra_params = []
             if source == 'wx' and merchant_id:
                 merchant_filter = "AND c.MerchantID = ?"
-                params.append(merchant_id)
+                extra_params.append(merchant_id)
+
+            if start_date and end_date:
+                date_filter = "AND c.EndDate >= ? AND c.EndDate <= ?"
+                params = [start_date, end_date] + extra_params
+            elif days:
+                date_filter = "AND c.EndDate >= CAST(GETDATE() AS DATE) AND c.EndDate <= DATEADD(DAY, ?, CAST(GETDATE() AS DATE))"
+                params = [days] + extra_params
+            else:
+                date_filter = "AND c.EndDate >= CAST(GETDATE() AS DATE) AND c.EndDate <= DATEADD(DAY, 30, CAST(GETDATE() AS DATE))"
+                params = extra_params
+
             cursor.execute(f"""
                 SELECT TOP 500 c.ContractID, c.ContractNo, c.EndDate, c.ActualAmount,
                        c.Status, m.MerchantName
                 FROM Contract c
                 INNER JOIN Merchant m ON c.MerchantID = m.MerchantID
-                WHERE c.EndDate >= CAST(GETDATE() AS DATE)
-                  AND c.EndDate <= DATEADD(DAY, ?, CAST(GETDATE() AS DATE))
-                  AND c.Status = N'生效'
+                WHERE c.Status = N'生效'
+                  {date_filter}
                   {merchant_filter}
                 ORDER BY c.EndDate
             """, params)
