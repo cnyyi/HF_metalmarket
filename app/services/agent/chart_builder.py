@@ -10,6 +10,8 @@ class ChartBuilder:
         return charts[0] if len(charts) == 1 else (charts if charts else None)
 
     def _try_build(self, data):
+        if isinstance(data, dict) and 'contracts' in data and isinstance(data['contracts'], list):
+            return self._try_build(data['contracts'])
         if isinstance(data, list) and len(data) > 0:
             first = data[0]
             if isinstance(first, dict):

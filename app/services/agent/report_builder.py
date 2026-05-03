@@ -40,12 +40,17 @@ class ReportBuilder:
                     name = m.get('MerchantName') or m.get('merchant_name', '')
                     lines.append(f"商户：{name}")
                     has_data = True
+                if 'query_mode' in data and 'contracts' in data:
+                    lines.append(f"合同到期查询（{data['query_mode']}）：共 {data['total_count']} 份")
+                    has_data = True
         return '\n'.join(lines) if has_data else ''
 
     def _build_details(self, memory_data):
         lines = ['【费用结构】']
         has_data = False
         for step_id, data in memory_data.items():
+            if isinstance(data, dict) and 'contracts' in data and isinstance(data['contracts'], list):
+                data = data['contracts']
             if isinstance(data, list) and len(data) > 0:
                 first = data[0]
                 if isinstance(first, dict):

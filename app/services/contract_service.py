@@ -751,12 +751,15 @@ class ContractService:
             if start_date and end_date:
                 date_filter = "AND c.EndDate >= ? AND c.EndDate <= ?"
                 params = [start_date, end_date] + extra_params
+                query_mode = f'日期范围: {start_date} 至 {end_date}'
             elif days:
                 date_filter = "AND c.EndDate >= CAST(GETDATE() AS DATE) AND c.EndDate <= DATEADD(DAY, ?, CAST(GETDATE() AS DATE))"
                 params = [days] + extra_params
+                query_mode = f'未来{days}天内'
             else:
                 date_filter = "AND c.EndDate >= CAST(GETDATE() AS DATE) AND c.EndDate <= DATEADD(DAY, 30, CAST(GETDATE() AS DATE))"
                 params = extra_params
+                query_mode = '未来30天内'
 
             cursor.execute(f"""
                 SELECT TOP 500 c.ContractID, c.ContractNo, c.EndDate, c.ActualAmount,
@@ -769,10 +772,11 @@ class ContractService:
                 ORDER BY c.EndDate
             """, params)
             rows = cursor.fetchall()
-            return [{'contract_id': row.ContractID, 'contract_no': row.ContractNo,
-                     'end_date': row.EndDate.strftime('%Y-%m-%d') if row.EndDate else '',
-                     'actual_amount': round(float(row.ActualAmount or 0), 2),
-                     'status': row.Status, 'merchant_name': row.MerchantName} for row in rows]
+            contracts = [{'contract_id': row.ContractID, 'contract_no': row.ContractNo,
+                          'end_date': row.EndDate.strftime('%Y-%m-%d') if row.EndDate else '',
+                          'actual_amount': round(float(row.ActualAmount or 0), 2),
+                          'status': row.Status, 'merchant_name': row.MerchantName} for row in rows]
+            return {'query_mode': query_mode, 'total_count': len(contracts), 'contracts': contracts}
 
     @staticmethod
     def get_contract_stats(merchant_id=None, source='admin'):

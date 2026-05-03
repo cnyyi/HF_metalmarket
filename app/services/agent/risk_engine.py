@@ -11,19 +11,19 @@ class RiskEngine:
 
     def _check_contract_risks(self, step_id, data):
         risks = []
-        if isinstance(data, list):
-            expiring_count = len(data)
-            if expiring_count > 0 and self._looks_like_contracts(data):
+        if isinstance(data, dict):
+            contracts_list = data.get('contracts')
+            if isinstance(contracts_list, list) and len(contracts_list) > 0:
+                expiring_count = len(contracts_list)
                 if expiring_count >= 3:
                     risks.append({'level': 'high', 'type': 'contract',
                                   'message': f'{expiring_count}个合同即将到期，请关注续签'})
                 else:
                     risks.append({'level': 'medium', 'type': 'contract',
                                   'message': f'{expiring_count}个合同即将到期'})
-        if isinstance(data, dict):
-            contracts = data.get('contracts', {})
-            if isinstance(contracts, dict) and contracts.get('active', 0) > 0:
-                nearest = contracts.get('nearest_end_date')
+            contracts_info = data.get('contracts', {})
+            if isinstance(contracts_info, dict) and contracts_info.get('active', 0) > 0:
+                nearest = contracts_info.get('nearest_end_date')
                 if nearest:
                     from datetime import datetime
                     try:
